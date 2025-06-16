@@ -70,6 +70,9 @@ export class GitOperations {
 
       await this.git.clone(repoUrl, targetPath, cloneOptions);
 
+      // Add to Git safe directories to prevent ownership issues
+      await this.addToSafeDirectory(targetPath);
+
       return { success: true, data: undefined };
     } catch (error) {
       return {
@@ -100,6 +103,56 @@ export class GitOperations {
       return {
         success: false,
         error: new Error(`Failed to get commit hash: ${error}`)
+      };
+    }
+  }
+
+  /**
+   * Get current branch name
+   */
+  async getCurrentBranch(workspacePath: FilePath): Promise<AsyncResult<string>> {
+    try {
+      const git = simpleGit(workspacePath);
+      
+      // Try to add to safe directory first if we get an ownership error
+      try {
+        const status = await git.status();
+        const currentBranch = status.current;
+
+        if (!currentBranch) {
+          return {
+            success: false,
+            error: new Error('No current branch found (detached HEAD?)')
+          };
+        }
+
+        return { success: true, data: currentBranch };
+      } catch (error) {
+        // If it's an ownership error, try adding to safe directory and retry
+        if (String(error).includes('dubious ownership')) {
+          await this.addToSafeDirectory(workspacePath);
+          
+          // Retry after adding to safe directory
+          const status = await git.status();
+          const currentBranch = status.current;
+
+          if (!currentBranch) {
+            return {
+              success: false,
+              error: new Error('No current branch found (detached HEAD?)')
+            };
+          }
+
+          return { success: true, data: currentBranch };
+        }
+        
+        // Re-throw if it's not an ownership error
+        throw error;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to get current branch: ${error}`)
       };
     }
   }
@@ -374,5 +427,17 @@ export class GitOperations {
     }
     
     return safeName;
+  }
+
+  /**
+   * Add directory to Git safe directories to prevent ownership issues
+   */
+  private async addToSafeDirectory(directoryPath: FilePath): Promise<void> {
+    try {
+      await this.git.raw(['config', '--global', '--add', 'safe.directory', directoryPath]);
+    } catch (error) {
+      // Non-fatal error - log but don't fail the operation
+      console.warn(`Warning: Could not add ${directoryPath} to Git safe directories:`, error);
+    }
   }
 } 

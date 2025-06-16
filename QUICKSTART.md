@@ -178,3 +178,201 @@ This will show you the current status and available commands.
 - All CLI commands have `--help` options
 
 Happy coding! 🚀 
+
+## 🔧 VirtualBox Testing Environment
+
+For testing the GitLab Claude Manager in an isolated environment, you can set up a VirtualBox Ubuntu Linux VM. This is particularly useful for testing Git operations, workspace management, and ensuring cross-platform compatibility.
+
+### 📋 Prerequisites
+
+- VirtualBox installed on your host machine
+- Ubuntu Linux ISO (recommended: Ubuntu 22.04 LTS)
+- At least 4GB RAM and 20GB disk space allocated to VM
+
+### 🚀 VM Setup
+
+#### 1. Create Ubuntu Virtual Machine
+
+1. **Download Ubuntu**: Get the latest Ubuntu Desktop/Server ISO from [ubuntu.com](https://ubuntu.com/download)
+2. **VirtualBox Setup**: Follow this comprehensive guide for VM creation:
+   - 📺 [Ubuntu VirtualBox Setup Tutorial](https://www.youtube.com/watch?v=wqm_DXh0PlQ)
+3. **System Requirements**:
+   - Memory: 4GB minimum (8GB recommended)
+   - Storage: 20GB minimum
+   - Network: NAT or Bridged Adapter
+
+#### 2. SSH Configuration
+
+Set up SSH for easier development workflow:
+
+**On your host machine:**
+```bash
+# Generate SSH key pair (if you don't have one)
+ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+
+# Copy your public key
+cat ~/.ssh/id_rsa.pub
+```
+
+**On the Ubuntu VM:**
+```bash
+# Create .ssh directory
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+
+# Add your public key to authorized_keys
+echo "your-public-key-content" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+# Configure SSH daemon
+sudo nano /etc/ssh/sshd_config
+```
+
+**SSH Configuration (`/etc/ssh/sshd_config`):**
+```bash
+# Enable key-based authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Disable password authentication (more secure)
+PasswordAuthentication no
+
+# Allow root login (optional, for testing only)
+PermitRootLogin yes
+```
+
+**Restart SSH service:**
+```bash
+sudo systemctl restart ssh
+sudo systemctl enable ssh
+```
+
+#### 3. Shared Folder Setup
+
+Mount your project directory for seamless development:
+
+**In VirtualBox Manager:**
+1. Go to VM Settings → Shared Folders
+2. Add new shared folder:
+   - **Folder Path**: Path to your `workflow` directory on host
+   - **Folder Name**: `gitlab-claude-manager`
+   - **Options**: ✅ Auto-mount, ✅ Make Permanent
+
+**On the Ubuntu VM:**
+```bash
+# Install VirtualBox Guest Additions (if not already installed)
+sudo apt update
+sudo apt install virtualbox-guest-additions-iso
+
+# Create mount point
+sudo mkdir -p /opt/gitlab-claude-manager
+
+# Add to fstab for automatic mounting
+echo "gitlab-claude-manager /opt/gitlab-claude-manager vboxsf defaults,uid=1000,gid=1000 0 0" | sudo tee -a /etc/fstab
+
+# Add user to vboxsf group
+sudo addgroup vboxsf
+sudo adduser $USER vboxsf
+
+# Mount the shared folder
+sudo mount -a
+
+# Restart VM to apply all changes
+sudo reboot
+```
+
+### 🛠️ Development Setup in VM
+
+After VM setup, install the development environment:
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js (using NodeSource repository)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install Git
+sudo apt install git -y
+
+# Navigate to shared project directory
+cd /opt/gitlab-claude-manager
+
+# Install dependencies
+npm install
+
+# Test the application
+npm run dev -- dev
+```
+
+### 🔍 Testing Workflow
+
+1. **SSH into VM** from your host machine:
+   ```bash
+   ssh username@vm-ip-address
+   ```
+
+2. **Navigate to project**:
+   ```bash
+   cd /opt/gitlab-claude-manager
+   ```
+
+3. **Run tests**:
+   ```bash
+   npm test
+   npm run type-check
+   npm run lint
+   ```
+
+4. **Test GitLab integration**:
+   ```bash
+   # Configure environment
+   cp env.example .env
+   # Edit .env with your GitLab token
+   
+   # Test repository cloning
+   npm run dev -- clone https://gitlab.com/your-test-repo.git
+   ```
+
+### 💡 Benefits of VM Testing
+
+- **Isolation**: Test without affecting your host system
+- **Clean Environment**: Fresh Ubuntu installation mimics production
+- **Cross-Platform**: Ensure compatibility across different Linux distributions
+- **Reproducible**: Easy to snapshot and restore VM states
+- **Security**: Test with different permission models
+
+### 🔧 Troubleshooting
+
+**Common Issues:**
+
+1. **Shared folder not mounting**:
+   ```bash
+   # Check if Guest Additions are installed
+   lsmod | grep vboxsf
+   
+   # Reinstall if necessary
+   sudo apt install virtualbox-guest-utils
+   ```
+
+2. **SSH connection refused**:
+   ```bash
+   # Check SSH service status
+   sudo systemctl status ssh
+   
+   # Check firewall
+   sudo ufw status
+   sudo ufw allow ssh
+   ```
+
+3. **Permission denied on shared folder**:
+   ```bash
+   # Ensure user is in vboxsf group
+   groups $USER
+   
+   # Add user to group if missing
+   sudo adduser $USER vboxsf
+   ```
+
+This VM setup provides a robust testing environment for the GitLab Claude Manager, ensuring compatibility and reliability across different systems.
