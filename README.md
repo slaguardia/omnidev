@@ -1,93 +1,340 @@
-# workflow
+# GitLab Claude Manager
 
+A powerful TypeScript Node.js application that manages GitLab repositories with AI-powered code analysis through Claude Code integration. This tool provides intelligent caching, temporary workspace management, and natural language interactions with codebases.
 
+## 🚀 Features
 
-## Getting started
+- **Repository Management**: Clone and manage GitLab repositories in temporary workspaces
+- **AI-Powered Analysis**: Integrate with Claude Code for intelligent code review and suggestions
+- **Smart Caching**: Efficient directory analysis caching with `.ai-cache` files
+- **Natural Language Queries**: Ask questions about your codebase in plain English
+- **Workspace Isolation**: Secure temporary workspace management
+- **TypeScript First**: Full type safety with comprehensive type definitions
+- **CLI Interface**: Intuitive command-line interface for all operations
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 📁 Project Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/slaguardia/workflow.git
-git branch -M main
-git push -uf origin main
+gitlab-claude-manager/
+├── package.json              # Project configuration and dependencies
+├── tsconfig.json             # TypeScript configuration
+├── jest.config.js            # Jest testing configuration
+├── .gitignore               # Git ignore patterns
+├── README.md                # This file
+├── src/                     # Source code
+│   ├── index.ts            # Main CLI entry point
+│   ├── types/              # Type definitions
+│   │   └── index.ts        # Core type definitions
+│   ├── managers/           # Core business logic
+│   │   ├── RepositoryManager.ts  # Repository operations
+│   │   ├── WorkspaceManager.ts   # Workspace handling
+│   │   └── CacheManager.ts       # Caching system
+│   ├── utils/              # Utility functions
+│   │   ├── gitOperations.ts     # Git utilities
+│   │   ├── fileSystem.ts        # File system utilities
+│   │   └── security.ts          # Security validation
+│   ├── api/                # External API integrations
+│   │   ├── gitlabClient.ts      # GitLab API client
+│   │   └── claudeClient.ts      # Claude Code integration
+│   └── config/             # Configuration management
+│       └── settings.ts          # Environment configuration
+├── dist/                   # Compiled JavaScript output
+├── tests/                  # Test files
+│   ├── unit/              # Unit tests
+│   └── integration/       # Integration tests
+├── examples/              # Usage examples
+└── docs/                  # Documentation
 ```
 
-## Integrate with your tools
+## 🛠️ Installation
 
-- [ ] [Set up project integrations](https://gitlab.com/slaguardia/workflow/-/settings/integrations)
+### Prerequisites
 
-## Collaborate with your team
+- Node.js 18.0.0 or higher
+- npm or yarn
+- Git
+- Claude Code CLI (optional, for AI features)
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Setup
 
-## Test and Deploy
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd gitlab-claude-manager
+   ```
 
-Use the built-in continuous integration in GitLab.
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+3. **Set up environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-***
+4. **Build the project:**
+   ```bash
+   npm run build
+   ```
 
-# Editing this README
+## ⚙️ Configuration
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Create a `.env` file in the project root:
 
-## Suggestions for a good README
+```env
+# GitLab Configuration
+GITLAB_URL=https://gitlab.com
+GITLAB_TOKEN=your_gitlab_token_here
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Claude Configuration
+CLAUDE_API_KEY=your_claude_api_key_here
+CLAUDE_CODE_PATH=/usr/local/bin/claude-code
 
-## Name
-Choose a self-explaining name for your project.
+# Application Settings
+MAX_WORKSPACE_SIZE_MB=1000
+CACHE_EXPIRY_DAYS=7
+TEMP_DIR_PREFIX=gitlab-claude-
+LOG_LEVEL=info
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Security Settings
+ALLOWED_GITLAB_HOSTS=gitlab.com,your-internal-gitlab.com
+MAX_CONCURRENT_WORKSPACES=5
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## 🎯 Usage
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Development Mode
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+# Start in development mode
+npm run dev
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Or run specific commands
+npm run dev -- clone https://gitlab.com/user/repo.git
+npm run dev -- analyze workspace-id
+npm run dev -- list
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Production Mode
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+# Build and run
+npm run build
+npm start
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# Or use the CLI directly
+node dist/index.js clone https://gitlab.com/user/repo.git
+node dist/index.js analyze workspace-id
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### CLI Commands
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+#### Clone Repository
+```bash
+# Clone a repository
+npm run dev -- clone https://gitlab.com/user/repo.git
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+# Clone specific branch
+npm run dev -- clone https://gitlab.com/user/repo.git --branch feature-branch
 
-## License
-For open source projects, say how it is licensed.
+# Shallow clone
+npm run dev -- clone https://gitlab.com/user/repo.git --depth 1
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+#### Analyze Workspace
+```bash
+# Analyze entire workspace
+npm run dev -- analyze workspace-id
+
+# Analyze specific directory
+npm run dev -- analyze workspace-id --directory src/
+
+# Analyze with language hint
+npm run dev -- analyze workspace-id --language TypeScript
+```
+
+#### List Workspaces
+```bash
+# List active workspaces
+npm run dev -- list
+
+# List all workspaces
+npm run dev -- list --all
+```
+
+#### Cache Management
+```bash
+# Check cache status
+npm run dev -- cache-status workspace-id
+
+# Clean up workspaces
+npm run dev -- cleanup
+
+# Clean specific workspace
+npm run dev -- cleanup workspace-id
+
+# Force cleanup
+npm run dev -- cleanup --all --force
+```
+
+#### Natural Language Queries
+```bash
+# Ask questions about your codebase
+npm run dev -- ask workspace-id "What are the main components in this project?"
+npm run dev -- ask workspace-id "How can I improve the performance of this code?"
+npm run dev -- ask workspace-id "Are there any security vulnerabilities?"
+```
+
+## 🏗️ Architecture
+
+### Core Components
+
+1. **RepositoryManager**: Handles GitLab repository operations
+2. **WorkspaceManager**: Manages temporary workspace lifecycle
+3. **CacheManager**: Handles intelligent caching with `.ai-cache` files
+4. **ClaudeClient**: Integrates with Claude Code CLI and API
+5. **GitLabClient**: Interfaces with GitLab API
+
+### Type System
+
+The project uses a comprehensive TypeScript type system with:
+
+- **Branded Types**: For better type safety (WorkspaceId, GitUrl, etc.)
+- **Result Types**: For error handling without exceptions
+- **Utility Types**: For common patterns and transformations
+- **Discriminated Unions**: For different response types
+
+### Caching Strategy
+
+The caching system uses `.ai-cache` files that contain:
+
+- Directory structure analysis
+- File type detection
+- Language identification
+- AI-generated summaries
+- Code improvement suggestions
+- Cache validation data
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run specific test file
+npm test -- --testNamePattern="CacheManager"
+```
+
+## 🔒 Security
+
+- **Sandbox Isolation**: Each workspace runs in isolation
+- **URL Validation**: Strict validation of GitLab URLs
+- **Size Limits**: Configurable workspace size limits
+- **Access Control**: Token-based GitLab access
+- **Path Traversal Protection**: Secure file system operations
+
+## 📈 Performance
+
+- **Intelligent Caching**: Avoid redundant analysis
+- **Lazy Loading**: Load components only when needed
+- **Streaming Operations**: Handle large repositories efficiently
+- **Concurrent Processing**: Parallel workspace operations
+- **Memory Management**: Automatic cleanup of expired workspaces
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+### Development Guidelines
+
+- Follow TypeScript strict mode
+- Write comprehensive tests
+- Use conventional commits
+- Update documentation
+- Ensure type safety
+
+## 📚 API Documentation
+
+### Core Types
+
+```typescript
+// Workspace management
+interface Workspace {
+  id: WorkspaceId;
+  path: FilePath;
+  repoUrl: GitUrl;
+  branch: string;
+  createdAt: Date;
+  lastAccessed: Date;
+}
+
+// Cache data structure
+interface CacheData {
+  lastCommitHash: CommitHash;
+  directoryHash: string;
+  lastUpdated: Date;
+  analysis: DirectoryAnalysis;
+  version: string;
+}
+
+// Claude Code integration
+interface ClaudeCodeResponse {
+  analysis: string;
+  suggestions: string[];
+  modifiedFiles?: FilePath[];
+  confidence: number;
+}
+```
+
+### Error Handling
+
+The project uses a Result type for consistent error handling:
+
+```typescript
+type Result<T, E = Error> = 
+  | { success: true; data: T }
+  | { success: false; error: E };
+```
+
+## 🔄 Roadmap
+
+- [ ] **Phase 1**: Core repository management
+- [ ] **Phase 2**: Claude Code integration
+- [ ] **Phase 3**: Advanced caching strategies
+- [ ] **Phase 4**: Web interface
+- [ ] **Phase 5**: Multi-provider support (GitHub, Bitbucket)
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Claude Code](https://claude.ai) for AI-powered code analysis
+- [GitLab](https://gitlab.com) for repository hosting
+- [TypeScript](https://typescriptlang.org) for type safety
+- [Commander.js](https://github.com/tj/commander.js) for CLI interface
+- [Simple Git](https://github.com/steveukx/git-js) for Git operations
+
+## 📞 Support
+
+- Create an issue for bug reports
+- Start a discussion for feature requests
+- Check the documentation for common questions
+- Review the examples for usage patterns
+
+---
+
+**Note**: This project is currently in development. Core functionality is being implemented progressively. The CLI interface is ready, and the TypeScript foundation is established. Implementation of repository management, caching, and Claude Code integration is in progress.
