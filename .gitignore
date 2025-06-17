@@ -69,13 +69,16 @@ ehthumbs.db
 Thumbs.db
 
 # Workspace directories (safety net)
-/workspaces/
+/workspaces/*
+!/workspaces/CLAUDE.md
 git-workspace-*/
 repo-*/
 
-# Compiled TypeScript output
-dist/
-build/
-
 # TypeScript incremental compilation information
 *.tsbuildinfo 
+
+# next.js
+/.next/*
+/out/
+
+.config/*

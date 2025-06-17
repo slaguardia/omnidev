@@ -16,43 +16,56 @@ export interface ClaudeCodeOptions {
  */
 export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean>> {
   return new Promise((resolve) => {
-    const testProcess = spawn('claude', ['--version'], {
-      stdio: 'ignore',
+    // Try 'claude --help' instead of --version
+    const testProcess = spawn('claude', ['--help'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
       shell: true
     });
 
+    let output = '';
+    testProcess.stdout?.on('data', (data) => {
+      output += data.toString();
+    });
+
+    testProcess.stderr?.on('data', (data) => {
+      output += data.toString();
+    });
+
     testProcess.on('close', (code) => {
+      // Claude Code should exit with 0 for --help and output should contain usage info
+      const isAvailable = code === 0 && (output.includes('ask') || output.includes('claude'));
       resolve({
         success: true,
-        data: code === 0
+        data: isAvailable
       });
     });
 
-    testProcess.on('error', () => {
+    testProcess.on('error', (error) => {
+      console.log('Claude availability check error:', error.message);
       resolve({
         success: true,
         data: false
       });
     });
 
-    // Timeout after 5 seconds
+    // Timeout after 10 seconds
     setTimeout(() => {
       testProcess.kill();
       resolve({
         success: true,
         data: false
       });
-    }, 5000);
+    }, 10000);
   });
 }
 
 /**
- * Execute Claude Code ask command
+ * Execute Claude Code ask command and capture output
  */
 export async function askClaudeCode(
   question: string,
   options: ClaudeCodeOptions
-): Promise<AsyncResult<void>> {
+): Promise<AsyncResult<string>> {
   try {
     // Verify working directory exists
     try {
@@ -73,27 +86,69 @@ export async function askClaudeCode(
       };
     }
 
-    // Build command arguments
-    const args = ['ask', question];
-    if (options.context) {
-      args.push('--context', options.context);
-    }
+    // First, try to grant permissions to the directory
+    console.log('Attempting to grant Claude Code permissions for:', options.workingDirectory);
+    
+    // Try using stdin to pass the question with permission grant
+    const command = 'claude ask';
+    
+    console.log('Executing Claude Code command:', command);
+    console.log('Passing question via stdin:', question);
 
-    // Execute Claude Code
+    // Execute Claude Code and capture output
     return new Promise((resolve) => {
-      const claudeProcess = spawn('claude', args, {
+      let stdout = '';
+      let stderr = '';
+
+      const claudeProcess = spawn(command, {
         cwd: options.workingDirectory,
-        stdio: 'inherit',
+        stdio: ['pipe', 'pipe', 'pipe'],
         shell: true
       });
 
+      // Send the question with permission request via stdin
+      if (claudeProcess.stdin) {
+        claudeProcess.stdin.write('yes\n'); // Auto-approve permission request
+        claudeProcess.stdin.write(question + '\n');
+        if (options.context) {
+          claudeProcess.stdin.write(`Context: ${options.context}\n`);
+        }
+        claudeProcess.stdin.end();
+      }
+
+      // Capture stdout
+      claudeProcess.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      // Capture stderr
+      claudeProcess.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
       claudeProcess.on('close', (code) => {
+        console.log('Claude Code process closed with code:', code);
+        console.log('stdout:', stdout);
+        console.log('stderr:', stderr);
+        
         if (code === 0) {
-          resolve({ success: true, data: undefined });
+          const output = stdout.trim() || stderr.trim();
+          // If we get a generic response, it might mean the question wasn't passed correctly
+          if (output.includes("I'm ready to help") || output.includes("What would you like")) {
+            resolve({
+              success: false,
+              error: new Error('Claude Code did not receive the question properly. Output: ' + output)
+            });
+          } else {
+            resolve({ 
+              success: true, 
+              data: output || 'Claude Code executed successfully but produced no output'
+            });
+          }
         } else {
           resolve({
             success: false,
-            error: new Error(`Claude Code exited with code ${code}`)
+            error: new Error(`Claude Code exited with code ${code}${stderr ? ': ' + stderr : ''}`)
           });
         }
       });
@@ -104,6 +159,15 @@ export async function askClaudeCode(
           error: new Error(`Failed to execute Claude Code: ${error.message}`)
         });
       });
+
+      // Set a timeout to prevent hanging
+      setTimeout(() => {
+        claudeProcess.kill('SIGKILL');
+        resolve({
+          success: false,
+          error: new Error('Claude Code execution timed out after 120 seconds')
+        });
+      }, 120000);
     });
 
   } catch (error) {

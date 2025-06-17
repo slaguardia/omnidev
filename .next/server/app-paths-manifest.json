@@ -1,7 +1,15 @@
 {
-  "/api/cleanup/route": "app/api/cleanup/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/analyze/route": "app/api/analyze/route.js",
+  "/api/ask/route": "app/api/ask/route.js",
   "/api/config/route": "app/api/config/route.js",
+  "/api/cleanup/route": "app/api/cleanup/route.js",
   "/api/workspaces/route": "app/api/workspaces/route.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/page": "app/page.js"
+  "/api/cache-status/route": "app/api/cache-status/route.js",
+  "/api/clone/route": "app/api/clone/route.js",
+  "/page": "app/page.js",
+  "/pricing/page": "app/pricing/page.js",
+  "/about/page": "app/about/page.js",
+  "/docs/page": "app/docs/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }

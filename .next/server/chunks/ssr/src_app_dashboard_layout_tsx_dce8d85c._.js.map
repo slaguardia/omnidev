@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/steve/Repositories/workflow/src/app/dashboard/layout.tsx"],"sourcesContent":["export default function DashboardLayout({\r\n  children,\r\n}: {\r\n  children: React.ReactNode;\r\n}) {\r\n  return (\r\n    <>\r\n      {children}\r\n    </>\r\n  );\r\n}\r\n"],"names":[],"mappings":";;;;;AAAe,SAAS,gBAAgB,EACtC,QAAQ,EAGT;IACC,qBACE;kBACG;;AAGP","debugId":null}}]
-}

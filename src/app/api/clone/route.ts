@@ -2,20 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { RepositoryManager } from '@/managers/RepositoryManager';
 import { WorkspaceManager } from '@/managers/WorkspaceManager';
 import { CacheManager } from '@/managers/CacheManager';
+import { CACHE_CONFIG } from '@/config/cache';
 import type { GitUrl } from '@/types/index';
 
-const cacheManager = new CacheManager({
-  expiryDays: 7,
-  maxCacheSize: 100 * 1024 * 1024, // 100MB
-  includePatterns: ['**/*.ts', '**/*.js', '**/*.json', '**/*.md', '**/*.yml', '**/*.yaml'],
-  excludePatterns: ['node_modules/**', 'dist/**', '.git/**', '**/.DS_Store']
-});
+const cacheManager = new CacheManager(CACHE_CONFIG);
 const workspaceManager = new WorkspaceManager();
 const repositoryManager = new RepositoryManager(cacheManager, workspaceManager);
 
 export async function POST(request: NextRequest) {
   try {
-    const { repoUrl, branch, depth = 1, singleBranch = false } = await request.json();
+    const { repoUrl, branch, depth = 1, singleBranch = false, credentials } = await request.json();
 
     if (!repoUrl) {
       return NextResponse.json(
@@ -37,7 +33,8 @@ export async function POST(request: NextRequest) {
     const cloneResult = await repositoryManager.cloneRepository(repoUrl as GitUrl, {
       branch,
       depth: parseInt(depth),
-      singleBranch
+      singleBranch,
+      credentials
     });
 
     if (!cloneResult.success) {

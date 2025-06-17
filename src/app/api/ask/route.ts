@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkspaceManager } from '@/managers/WorkspaceManager';
+import { CacheManager } from '@/managers/CacheManager';
+import { CACHE_CONFIG } from '@/config/cache';
 import { askClaudeCode, checkClaudeCodeAvailability } from '@/utils/claudeCodeIntegration';
 import { access } from 'node:fs/promises';
 import type { WorkspaceId } from '@/types/index';
+import Anthropic from '@anthropic-ai/sdk';
 
 const workspaceManager = new WorkspaceManager();
+const cacheManager = new CacheManager(CACHE_CONFIG);
+
+// Initialize Anthropic client as fallback
+const anthropic = process.env.CLAUDE_API_KEY ? new Anthropic({
+  apiKey: process.env.CLAUDE_API_KEY,
+}) : null;
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,37 +56,109 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check Claude Code availability
+    // Check Claude Code availability first
     const availabilityCheck = await checkClaudeCodeAvailability();
-    if (!availabilityCheck.success || !availabilityCheck.data) {
+    console.log('Claude Code availability check:', availabilityCheck);
+    
+    if (availabilityCheck.success && availabilityCheck.data) {
+      // Use Claude Code if available
+      console.log('Using Claude Code for enhanced repository analysis');
+      console.log('Executing Claude Code with:', { question, workspacePath: workspace.path, context });
+      
+      const claudeResult = await askClaudeCode(question, {
+        workingDirectory: workspace.path,
+        context
+      });
+
+      console.log('Claude Code result:', claudeResult);
+
+      if (claudeResult.success) {
+        return NextResponse.json({
+          success: true,
+          response: claudeResult.data,
+          method: 'claude-code',
+          workspace: {
+            id: workspace.id,
+            path: workspace.path,
+            repoUrl: workspace.repoUrl,
+            branch: workspace.branch
+          }
+        });
+      } else {
+        console.warn('Claude Code failed, falling back to API:', claudeResult.error?.message);
+      }
+    } else {
+      console.log('Claude Code not available, using fallback API');
+    }
+
+    // Fallback to Anthropic API if Claude Code not available or failed
+    if (!anthropic) {
       return NextResponse.json(
-        { error: 'Claude Code is not available. Make sure Claude Code is installed and accessible.' },
+        { error: 'Neither Claude Code nor Anthropic API key is configured. Please install Claude Code or set CLAUDE_API_KEY.' },
         { status: 503 }
       );
     }
 
-    // Execute Claude Code
-    const claudeResult = await askClaudeCode(question, {
-      workingDirectory: workspace.path,
-      context
+    // Get directory analysis for context
+    const analysisResult = await cacheManager.analyzeDirectory(workspace.path);
+    let codebaseContext = '';
+    
+    if (analysisResult.success) {
+      const analysis = analysisResult.data;
+      codebaseContext = `
+Repository: ${workspace.repoUrl}
+Branch: ${workspace.branch}
+Files: ${analysis.fileCount}
+Languages: ${analysis.languages.join(', ')}
+
+Project Structure:
+${analysis.structure.slice(0, 15).map((item: any) => 
+  `${item.type === 'directory' ? '📁' : '📄'} ${item.name}`
+).join('\n')}
+`;
+    }
+
+    // Prepare the message for Claude API
+    const systemPrompt = `You are a helpful AI assistant that analyzes code repositories. You have access to information about this codebase:
+
+${codebaseContext}
+
+Additional context: ${context || 'None provided'}
+
+Please provide helpful, specific answers about the codebase. Note: You're using the API fallback mode, so you don't have direct file access. If you need to see specific file contents, mention which files would be most relevant.`;
+
+    // Call Claude API as fallback
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1000,
+      temperature: 0.1,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: question
+        }
+      ]
     });
 
-    if (!claudeResult.success) {
-      return NextResponse.json(
-        { error: 'Claude request failed', details: claudeResult.error?.message },
-        { status: 500 }
-      );
-    }
+    const responseText = response.content?.[0]?.type === 'text' ? response.content[0].text : 'No response generated';
 
     return NextResponse.json({
       success: true,
-      response: claudeResult.data,
+      response: responseText,
+      method: 'anthropic-api',
       workspace: {
         id: workspace.id,
         path: workspace.path,
         repoUrl: workspace.repoUrl,
         branch: workspace.branch
-      }
+      },
+      ...(response.usage && {
+        usage: {
+          inputTokens: response.usage.input_tokens || 0,
+          outputTokens: response.usage.output_tokens || 0
+        }
+      })
     });
 
   } catch (error) {

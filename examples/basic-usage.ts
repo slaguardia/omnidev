@@ -21,7 +21,7 @@ async function basicUsageExample() {
       expiryDays: appConfig.workspace.cacheExpiryDays,
       maxCacheSize: appConfig.workspace.maxSizeMB * 1024 * 1024,
       includePatterns: ['**/*.ts', '**/*.js', '**/*.json', '**/*.md'],
-      excludePatterns: ['node_modules/**', 'dist/**', '.git/**']
+      excludePatterns: ['node_modules/**', '.git/**', '.next/**']
     });
 
     const repositoryManager = new RepositoryManager(cacheManager);
@@ -170,7 +170,7 @@ async function advancedUsageExample() {
     expiryDays: 7,
     maxCacheSize: 500 * 1024 * 1024, // 500MB
     includePatterns: ['**/*.{ts,js,jsx,tsx,json,md,yml,yaml}'],
-    excludePatterns: ['**/node_modules/**', '**/dist/**', '**/.git/**']
+    excludePatterns: ['**/node_modules/**', '**/.git/**', '**/.next/**']
   });
 
   const repositoryManager = new RepositoryManager(cacheManager);

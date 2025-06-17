@@ -57,4 +57,23 @@ body {
 .dark .glass-card {
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Improved webbing animation */
+@keyframes web-pulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.06; }
+}
+
+.web-animate {
+  animation: web-pulse 12s ease-in-out infinite;
+}
+
+/* Subtle hover effects */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-1px);
 } 

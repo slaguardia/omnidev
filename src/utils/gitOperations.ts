@@ -12,6 +12,10 @@ export interface GitCloneOptions {
   depth?: number;
   singleBranch?: boolean;
   bare?: boolean;
+  credentials?: {
+    username: string;
+    password: string;
+  };
 }
 
 export interface GitCommitInfo {
@@ -68,7 +72,13 @@ export class GitOperations {
         cloneOptions.push('--bare');
       }
 
-      await this.git.clone(repoUrl, targetPath, cloneOptions);
+      // Prepare authenticated URL if credentials are provided
+      let authenticatedUrl = repoUrl;
+      if (options.credentials && options.credentials.username && options.credentials.password) {
+        authenticatedUrl = this.createAuthenticatedUrl(repoUrl, options.credentials);
+      }
+
+      await this.git.clone(authenticatedUrl, targetPath, cloneOptions);
 
       // Add to Git safe directories to prevent ownership issues
       await this.addToSafeDirectory(targetPath);
@@ -427,6 +437,29 @@ export class GitOperations {
     }
     
     return safeName;
+  }
+
+  /**
+   * Create an authenticated URL for git operations
+   */
+  private createAuthenticatedUrl(repoUrl: GitUrl, credentials: { username: string; password: string }): GitUrl {
+    try {
+      const url = new URL(repoUrl);
+      
+      // URL encode the credentials to handle special characters
+      const encodedUsername = encodeURIComponent(credentials.username);
+      const encodedPassword = encodeURIComponent(credentials.password);
+      
+      // Create authenticated URL format: https://username:password@host/path
+      url.username = encodedUsername;
+      url.password = encodedPassword;
+      
+      return url.toString() as GitUrl;
+    } catch (error) {
+      // If URL parsing fails, return original URL
+      console.warn('Failed to create authenticated URL, using original:', error);
+      return repoUrl;
+    }
   }
 
   /**

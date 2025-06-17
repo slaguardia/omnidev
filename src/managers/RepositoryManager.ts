@@ -77,7 +77,8 @@ export class RepositoryManager {
       const cloneResult = await this.gitOps.cloneRepository(repoUrl, workspacePath, {
         ...(options.branch && { branch: options.branch }),
         depth: options.depth || 1,
-        singleBranch: options.singleBranch !== false
+        singleBranch: options.singleBranch !== false,
+        ...(options.credentials && { credentials: options.credentials })
       });
 
       if (!cloneResult.success) {

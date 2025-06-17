@@ -92,8 +92,14 @@ const Tabs: React.FC<{
 
 // Toast notifications - we'll implement a simple toast system
 const toast = {
-  success: (message: string) => console.log('SUCCESS:', message),
-  error: (message: string) => console.error('ERROR:', message)
+  success: (message: string) => {
+    console.log('SUCCESS:', message);
+    alert('✅ ' + message);
+  },
+  error: (message: string) => {
+    console.error('ERROR:', message);
+    alert('❌ ' + message);
+  }
 };
 
 interface Workspace {
@@ -146,7 +152,12 @@ export default function DashboardPage() {
     repoUrl: '',
     branch: '',
     depth: '1',
-    singleBranch: false
+    singleBranch: true,
+    showCredentials: false,
+    credentials: {
+      username: '',
+      password: ''
+    }
   });
   
   const [analyzeForm, setAnalyzeForm] = useState({
@@ -164,6 +175,12 @@ export default function DashboardPage() {
   const [cacheForm, setCacheForm] = useState({
     workspaceId: ''
   });
+
+  // State for analysis results
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  
+  // State for Claude responses
+  const [claudeResponse, setClaudeResponse] = useState<string | null>(null);
 
   // Load environment configuration on mount
   useEffect(() => {
@@ -220,17 +237,37 @@ export default function DashboardPage() {
   const handleCloneRepository = async () => {
     try {
       setLoading(true);
+      const requestBody = {
+        repoUrl: cloneForm.repoUrl,
+        branch: cloneForm.branch,
+        depth: cloneForm.depth,
+        singleBranch: cloneForm.singleBranch,
+        ...(cloneForm.showCredentials && cloneForm.credentials.username && cloneForm.credentials.password && {
+          credentials: cloneForm.credentials
+        })
+      };
+
       const response = await fetch('/api/clone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cloneForm)
+        body: JSON.stringify(requestBody)
       });
       
       const data = await response.json();
       
       if (response.ok) {
         toast.success('✅ Repository cloned successfully!');
-        setCloneForm({ repoUrl: '', branch: '', depth: '1', singleBranch: false });
+        setCloneForm({ 
+          repoUrl: '', 
+          branch: '', 
+          depth: '1', 
+          singleBranch: true,
+          showCredentials: false,
+          credentials: {
+            username: '',
+            password: ''
+          }
+        });
         loadWorkspaces();
       } else {
         throw new Error(data.error || 'Clone failed');
@@ -246,6 +283,8 @@ export default function DashboardPage() {
   const handleAnalyzeWorkspace = async () => {
     try {
       setLoading(true);
+      setAnalysisResult(null);
+      
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -255,13 +294,13 @@ export default function DashboardPage() {
       const data = await response.json();
       
       if (response.ok) {
-        toast.success('✅ Analysis completed!');
-        setAnalyzeForm({ workspaceId: '', directory: '.', language: '' });
+        setAnalysisResult(data.analysis);
+        toast.success(`Analysis completed! Found ${data.analysis.fileCount} files in ${data.analysis.languages.length} languages`);
       } else {
         throw new Error(data.error || 'Analysis failed');
       }
     } catch (error) {
-      toast.error('❌ Analysis failed');
+      toast.error(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       console.error('Analysis error:', error);
     } finally {
       setLoading(false);
@@ -271,6 +310,8 @@ export default function DashboardPage() {
   const handleAskClaude = async () => {
     try {
       setLoading(true);
+      setClaudeResponse(null);
+      
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -280,13 +321,15 @@ export default function DashboardPage() {
       const data = await response.json();
       
       if (response.ok) {
-        toast.success('✅ Claude responded!');
-        // You might want to display Claude's response in a modal or dedicated area
+        setClaudeResponse(data.response);
+        const method = data.method === 'claude-code' ? 'Claude Code' : 'Claude API';
+        const usageInfo = data.usage ? ` (${data.usage.inputTokens} input, ${data.usage.outputTokens} output tokens)` : '';
+        toast.success(`✅ ${method} responded successfully!${usageInfo}`);
       } else {
         throw new Error(data.error || 'Claude request failed');
       }
     } catch (error) {
-      toast.error('❌ Claude request failed');
+      toast.error(`❌ Claude request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       console.error('Claude error:', error);
     } finally {
       setLoading(false);
@@ -588,6 +631,47 @@ export default function DashboardPage() {
                       <span className="text-sm">Single Branch</span>
                     </div>
                   </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      isSelected={cloneForm.showCredentials}
+                      onValueChange={(checked: boolean) => setCloneForm(prev => ({ ...prev, showCredentials: checked }))}
+                    />
+                    <span className="text-sm">Private Repository (requires authentication)</span>
+                  </div>
+                  
+                  {cloneForm.showCredentials && (
+                    <div className="space-y-3 p-4 bg-default-50 rounded-lg border border-default-200">
+                      <div className="text-sm text-default-600 mb-2">
+                        <strong>Tip:</strong> For GitLab, use your username and personal access token (not password)
+                      </div>
+                      <Input
+                        label="Username"
+                        placeholder="your-username"
+                        value={cloneForm.credentials.username}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                          setCloneForm(prev => ({ 
+                            ...prev, 
+                            credentials: { ...prev.credentials, username: e.target.value }
+                          }))
+                        }
+                        variant="bordered"
+                      />
+                      <Input
+                        label="Password / Personal Access Token"
+                        type="password"
+                        placeholder="glpat-xxxxxxxxxxxxxxxxxxxx"
+                        value={cloneForm.credentials.password}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                          setCloneForm(prev => ({ 
+                            ...prev, 
+                            credentials: { ...prev.credentials, password: e.target.value }
+                          }))
+                        }
+                        variant="bordered"
+                      />
+                    </div>
+                  )}
                   <Button
                     color="success"
                     className="w-full"
@@ -637,18 +721,87 @@ export default function DashboardPage() {
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAnalyzeForm(prev => ({ ...prev, language: e.target.value }))}
                     variant="bordered"
                   />
-                  <Button
-                    color="secondary"
-                    className="w-full"
-                    onClick={handleAnalyzeWorkspace}
-                    isLoading={loading}
-                    isDisabled={!analyzeForm.workspaceId}
-                  >
-                    Analyze with Claude
-                  </Button>
+                                      <Button
+                      color="secondary"
+                      className="w-full"
+                      onClick={handleAnalyzeWorkspace}
+                      isLoading={loading}
+                      isDisabled={!analyzeForm.workspaceId}
+                    >
+                      Analyze Directory
+                    </Button>
                 </div>
               </CardBody>
             </Card>
+
+            {/* Analysis Results */}
+            {analysisResult && (
+              <Card className="glass-card md:col-span-2">
+                <CardHeader>
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <span className="text-green-500">📋</span>
+                    Analysis Results
+                  </h3>
+                </CardHeader>
+                <CardBody>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-500">{analysisResult.fileCount}</div>
+                        <div className="text-sm text-default-600">Files</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-500">{analysisResult.languages.length}</div>
+                        <div className="text-sm text-default-600">Languages</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-500">{analysisResult.structure.length}</div>
+                        <div className="text-sm text-default-600">Items</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-500">
+                          {analysisResult.aiSummary ? '✓' : '○'}
+                        </div>
+                        <div className="text-sm text-default-600">AI Summary</div>
+                      </div>
+                    </div>
+                    
+                    {analysisResult.languages.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Languages Found:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {analysisResult.languages.map((lang: string) => (
+                            <Chip key={lang} color="primary" size="sm">{lang}</Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {analysisResult.structure.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Directory Structure (Preview):</h4>
+                        <div className="bg-default-50 dark:bg-default-100 p-3 rounded-lg max-h-48 overflow-y-auto">
+                          {analysisResult.structure.map((item: any, index: number) => (
+                            <div key={index} className="text-sm font-mono">
+                              {item.type === 'directory' ? '📁' : '📄'} {item.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {analysisResult.aiSummary && (
+                      <div>
+                        <h4 className="font-medium mb-2">AI Summary:</h4>
+                        <div className="bg-default-50 dark:bg-default-100 p-3 rounded-lg">
+                          <p className="text-sm">{analysisResult.aiSummary}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            )}
 
             {/* Ask Claude */}
             <Card className="glass-card">
@@ -701,6 +854,25 @@ export default function DashboardPage() {
                 </div>
               </CardBody>
             </Card>
+
+            {/* Claude Response */}
+            {claudeResponse && (
+              <Card className="glass-card md:col-span-2">
+                <CardHeader>
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <span className="text-purple-500">🤖</span>
+                    Claude's Response
+                  </h3>
+                </CardHeader>
+                <CardBody>
+                  <div className="bg-default-50 dark:bg-default-100 p-4 rounded-lg">
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{claudeResponse}</div>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
 
             {/* Cache Status */}
             <Card className="glass-card">

@@ -7,10 +7,38 @@ import { GithubIcon } from "@/components/icons";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full relative">
+      {/* Subtle webbing background */}
+      <div className="fixed inset-0 web-animate pointer-events-none">
+        <svg width="100%" height="100%" className="absolute inset-0">
+          <defs>
+            <pattern id="web" width="200" height="200" patternUnits="userSpaceOnUse">
+              {/* Main web structure */}
+              <path d="M0 100 L100 0 L200 100 L100 200 Z" stroke="currentColor" strokeWidth="0.3" fill="none" opacity="0.6"/>
+              <path d="M50 50 L150 50 L150 150 L50 150 Z" stroke="currentColor" strokeWidth="0.2" fill="none" opacity="0.4"/>
+              
+              {/* Spider web radial lines */}
+              <path d="M100 0 L100 200 M0 100 L200 100" stroke="currentColor" strokeWidth="0.2" opacity="0.3"/>
+              <path d="M25 25 L175 175 M175 25 L25 175" stroke="currentColor" strokeWidth="0.15" opacity="0.25"/>
+              
+              {/* Connection points (dewdrops) */}
+              <circle cx="100" cy="100" r="1" fill="currentColor" opacity="0.5"/>
+              <circle cx="50" cy="50" r="0.5" fill="currentColor" opacity="0.3"/>
+              <circle cx="150" cy="150" r="0.5" fill="currentColor" opacity="0.3"/>
+              <circle cx="150" cy="50" r="0.5" fill="currentColor" opacity="0.3"/>
+              <circle cx="50" cy="150" r="0.5" fill="currentColor" opacity="0.3"/>
+              
+              {/* Subtle threading */}
+              <path d="M25 100 Q100 75 175 100 Q100 125 25 100" stroke="currentColor" strokeWidth="0.1" fill="none" opacity="0.2"/>
+              <path d="M100 25 Q125 100 100 175 Q75 100 100 25" stroke="currentColor" strokeWidth="0.1" fill="none" opacity="0.2"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#web)" />
+        </svg>
+      </div>
+      
       {/* Hero Section */}
       <section className="flex flex-col items-center justify-center gap-6 py-16 md:py-24 text-center relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-red-600/20 via-red-500/15 to-orange-600/20 rounded-3xl blur-3xl" />
         <div className="relative z-10 max-w-4xl mx-auto px-6">
           <div className="flex items-center justify-center gap-3 mb-6">
             <span className="px-3 py-1 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-300/30 rounded-full text-sm font-medium text-red-700 dark:text-red-300">
@@ -58,11 +86,10 @@ export default function Home() {
       </section>
 
       {/* Features Grid */}
-      <section className="flex-1 py-12 px-6 mb-16">
+      <section className="flex-1 py-12 px-6 mb-16 relative">
         <div className="max-w-7xl mx-auto relative">
-          {/* Blur effects for natural inset/outset */}
-          <div className="absolute -inset-8 bg-gradient-to-r from-transparent via-red-50/20 to-transparent blur-xl rounded-3xl dark:via-red-950/10"></div>
-          <div className="absolute -inset-4 bg-gradient-to-b from-background/60 to-background/80 rounded-2xl shadow-inner"></div>
+          {/* Subtle background panel */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/50 to-background/80 rounded-2xl border border-default-100 dark:border-default-800/50 shadow-sm"></div>
           
           <div className="relative z-10 p-8">
             <div className="text-center mb-12">
@@ -76,7 +103,7 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* Clone Repository Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-green-300 dark:hover:border-green-600 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-green-400 to-emerald-600 rounded-lg">
                   <span className="text-white text-xl">🔄</span>
@@ -107,6 +134,9 @@ export default function Home() {
                     inputWrapper: "border-default-200 hover:border-red-300 focus-within:border-red-400"
                   }}
                 />
+                <div className="text-xs text-default-500 text-center">
+                  Need credentials for private repos? Use the <Link href="/dashboard" className="text-primary">dashboard</Link> for advanced options.
+                </div>
                 <Button 
                   color="success" 
                   variant="shadow"
@@ -118,7 +148,7 @@ export default function Home() {
             </div>
 
             {/* Analyze Workspace Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-red-300 dark:hover:border-red-600 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-red-400 to-red-600 rounded-lg">
                   <span className="text-white text-xl">🔍</span>
@@ -160,7 +190,7 @@ export default function Home() {
             </div>
 
             {/* Workspaces Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-blue-300 dark:hover:border-blue-600 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg">
                   <span className="text-white text-xl">📋</span>
@@ -171,7 +201,7 @@ export default function Home() {
                 Organize and manage your development environments
               </p>
               <div className="flex flex-col gap-3">
-                <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
                   <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
                     3 active workspaces
                   </p>
@@ -194,7 +224,7 @@ export default function Home() {
             </div>
 
             {/* Cache Management Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-cyan-300 dark:hover:border-cyan-600 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-lg">
                   <span className="text-white text-xl">💾</span>
@@ -205,7 +235,7 @@ export default function Home() {
                 Intelligent caching for lightning-fast performance
               </p>
               <div className="flex flex-col gap-3">
-                <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 dark:from-cyan-950/50 dark:to-teal-950/50 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                <div className="p-3 bg-cyan-50/50 dark:bg-cyan-950/30 rounded-lg border border-cyan-200/50 dark:border-cyan-800/50">
                   <p className="text-sm text-cyan-700 dark:text-cyan-300 font-medium">
                     Cache: 94% efficient
                   </p>
@@ -228,7 +258,7 @@ export default function Home() {
             </div>
 
             {/* Claude Integration Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-red-300 dark:hover:border-red-600 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-red-400 to-red-600 rounded-lg">
                   <span className="text-white text-xl">🤖</span>
@@ -260,7 +290,7 @@ export default function Home() {
             </div>
 
             {/* GitHub Integration Card */}
-            <div className="glass-card hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg hover:shadow-red-200/50 dark:hover:shadow-red-900/20">
+            <div className="bg-background/80 backdrop-blur-sm border border-default-200 dark:border-default-700 hover:border-gray-400 dark:hover:border-gray-500 card-hover rounded-xl p-6 shadow-sm hover:shadow-md">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-gradient-to-br from-gray-700 to-gray-900 rounded-lg">
                   <GithubIcon size={20} className="text-white" />
@@ -271,7 +301,7 @@ export default function Home() {
                 Seamless integration with GitHub repositories
               </p>
               <div className="flex flex-col gap-3">
-                <div className="p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-950/50 dark:to-slate-950/50 rounded-lg border border-gray-200 dark:border-gray-800">
+                <div className="p-3 bg-gray-50/50 dark:bg-gray-950/30 rounded-lg border border-gray-200/50 dark:border-gray-800/50">
                   <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
                     Connected to 5 repos
                   </p>

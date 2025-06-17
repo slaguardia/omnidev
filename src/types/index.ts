@@ -194,6 +194,16 @@ export interface LoggingConfig {
 }
 
 /**
+ * UI Component types
+ */
+export interface IconSvgProps {
+  size?: number;
+  width?: number;
+  height?: number;
+  [key: string]: any;
+}
+
+/**
  * Utility types
  */
 export type Result<T, E = Error> = 
@@ -209,4 +219,17 @@ export type Paginated<T> = {
   pageSize: number;
   hasNext: boolean;
   hasPrevious: boolean;
-}; 
+};
+
+export interface GitCredentials {
+  username: string;
+  password: string; // This could be a personal access token
+  provider?: 'gitlab' | 'github' | 'bitbucket' | 'other';
+}
+
+export interface GitCloneRequestOptions {
+  branch?: string;
+  depth?: number;
+  singleBranch?: boolean;
+  credentials?: GitCredentials;
+} 

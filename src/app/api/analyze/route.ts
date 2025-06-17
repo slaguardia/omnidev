@@ -2,14 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { RepositoryManager } from '@/managers/RepositoryManager';
 import { WorkspaceManager } from '@/managers/WorkspaceManager';
 import { CacheManager } from '@/managers/CacheManager';
+import { CACHE_CONFIG } from '@/config/cache';
 import type { WorkspaceId } from '@/types/index';
 
-const cacheManager = new CacheManager({
-  expiryDays: 7,
-  maxCacheSize: 100 * 1024 * 1024, // 100MB
-  includePatterns: ['**/*.ts', '**/*.js', '**/*.json', '**/*.md', '**/*.yml', '**/*.yaml'],
-  excludePatterns: ['node_modules/**', 'dist/**', '.git/**', '**/.DS_Store']
-});
+const cacheManager = new CacheManager(CACHE_CONFIG);
 const workspaceManager = new WorkspaceManager();
 const repositoryManager = new RepositoryManager(cacheManager, workspaceManager);
 
