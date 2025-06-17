@@ -1,0 +1,7 @@
+{
+  "/api/cleanup/route": "app/api/cleanup/route.js",
+  "/api/config/route": "app/api/config/route.js",
+  "/api/workspaces/route": "app/api/workspaces/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/page": "app/page.js"
+}

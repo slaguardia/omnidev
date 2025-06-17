@@ -69,7 +69,7 @@ ehthumbs.db
 Thumbs.db
 
 # Workspace directories (safety net)
-workspaces/
+/workspaces/
 git-workspace-*/
 repo-*/
 

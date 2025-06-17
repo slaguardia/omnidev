@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/steve/Repositories/workflow/src/app/docs/layout.tsx"],"sourcesContent":["export default function DocsLayout({\r\n  children,\r\n}: {\r\n  children: React.ReactNode;\r\n}) {\r\n  return (\r\n    <section className=\"flex flex-col items-center justify-center gap-4 py-8 md:py-10\">\r\n      <div className=\"inline-block max-w-lg text-center justify-center\">\r\n        {children}\r\n      </div>\r\n    </section>\r\n  );\r\n}\r\n"],"names":[],"mappings":";;;;;AAAe,SAAS,WAAW,EACjC,QAAQ,EAGT;IACC,qBACE,8OAAC;QAAQ,WAAU;kBACjB,cAAA,8OAAC;YAAI,WAAU;sBACZ;;;;;;;;;;;AAIT","debugId":null}}]
+}

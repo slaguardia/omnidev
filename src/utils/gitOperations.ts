@@ -5,7 +5,7 @@
 import { simpleGit, SimpleGit, CleanOptions } from 'simple-git';
 import { resolve, join } from 'path';
 import { mkdir, rmdir, stat } from 'fs/promises';
-import type { GitUrl, FilePath, CommitHash, AsyncResult } from '@/types/index.js';
+import type { GitUrl, FilePath, CommitHash, AsyncResult } from '@/types/index';
 
 export interface GitCloneOptions {
   branch?: string;

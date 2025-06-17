@@ -4,13 +4,13 @@
 
 import { writeFile, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getWorkspaceBaseDir } from '@/config/settings.js';
+import { getWorkspaceBaseDir } from '@/config/settings';
 import type {
   Workspace,
   WorkspaceId,
   FilePath,
   AsyncResult
-} from '@/types/index.js';
+} from '@/types/index';
 
 interface WorkspaceIndex {
   workspaces: Record<WorkspaceId, Workspace>;

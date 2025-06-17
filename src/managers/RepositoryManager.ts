@@ -5,10 +5,10 @@
 import { nanoid } from 'nanoid';
 import { join } from 'node:path';
 import { mkdir, rm, access } from 'node:fs/promises';
-import { GitOperations, type GitCloneOptions } from '@/utils/gitOperations.js';
-import { CacheManager } from '@/managers/CacheManager.js';
-import type { WorkspaceManager } from '@/managers/WorkspaceManager.js';
-import { getWorkspaceBaseDir } from '@/config/settings.js';
+import { GitOperations, type GitCloneOptions } from '@/utils/gitOperations';
+import { CacheManager } from '@/managers/CacheManager';
+import type { WorkspaceManager } from '@/managers/WorkspaceManager';
+import { getWorkspaceBaseDir } from '@/config/settings';
 import type {
   Workspace,
   WorkspaceId,
@@ -17,7 +17,7 @@ import type {
   AsyncResult,
   WorkspaceMetadata,
   CommitHash
-} from '@/types/index.js';
+} from '@/types/index';
 
 export interface CloneRepositoryOptions extends GitCloneOptions {
   workspaceId?: WorkspaceId;

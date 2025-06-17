@@ -8,11 +8,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { nanoid } from 'nanoid';
-import { initializeConfig } from '@/config/settings.js';
-import { CacheManager } from '@/managers/CacheManager.js';
-import { RepositoryManager } from '@/managers/RepositoryManager.js';
-import { WorkspaceManager } from '@/managers/WorkspaceManager.js';
-import type { GitUrl, WorkspaceId } from '@/types/index.js';
+import { initializeConfig } from '@/config/settings';
+import { CacheManager } from '@/managers/CacheManager';
+import { RepositoryManager } from '@/managers/RepositoryManager';
+import { WorkspaceManager } from '@/managers/WorkspaceManager';
+import { askClaudeCode, checkClaudeCodeAvailability } from '@/utils/claudeCodeIntegration';
+import { access } from 'node:fs/promises';
+import type { GitUrl, WorkspaceId } from '@/types/index';
 
 const program = new Command();
 
@@ -417,8 +419,66 @@ program
       console.log(chalk.gray(`Workspace ID: ${workspaceId}`));
       console.log(chalk.gray(`Question: ${question}`));
       
-      // TODO: Implement Claude Code integration
-      console.log(chalk.yellow('⚠️  Claude Code integration not yet implemented'));
+      // Initialize workspace manager
+      const initResult = await workspaceManager.initialize();
+      if (!initResult.success) {
+        throw initResult.error;
+      }
+      
+      // Get workspace
+      const workspaceResult = await workspaceManager.loadWorkspace(workspaceId as WorkspaceId);
+      if (!workspaceResult.success) {
+        throw workspaceResult.error;
+      }
+      
+      const workspace = workspaceResult.data;
+      
+      // Check if workspace directory exists
+      try {
+        await access(workspace.path);
+      } catch {
+        console.log(chalk.red('❌ Workspace directory not found. The workspace may have been deleted.'));
+        console.log(chalk.gray('Use "list" to see available workspaces or "cleanup" to remove stale entries.'));
+        return;
+      }
+      
+      console.log(chalk.gray(`Working directory: ${workspace.path}`));
+      console.log(chalk.gray(`Repository: ${workspace.repoUrl}`));
+      console.log(chalk.gray(`Branch: ${workspace.branch}`));
+      
+      if (options.context) {
+        console.log(chalk.gray(`Additional context: ${options.context}`));
+      }
+      
+      // Check Claude Code availability first
+      console.log(chalk.blue('🔍 Checking Claude Code availability...'));
+      const availabilityCheck = await checkClaudeCodeAvailability();
+      
+      if (!availabilityCheck.success || !availabilityCheck.data) {
+        console.log(chalk.red('❌ Claude Code is not available.'));
+        console.log(chalk.gray('Make sure Claude Code is installed globally:'));
+        console.log(chalk.gray('  npm install -g claude-code'));
+        console.log(chalk.gray('Or check that it\'s in your PATH by running: claude --version'));
+        return;
+      }
+      
+      console.log(chalk.green('✅ Claude Code found'));
+      console.log(chalk.blue('🤖 Asking Claude Code...'));
+      console.log('');
+      
+      // Execute Claude Code
+      const claudeResult = await askClaudeCode(question, {
+        workingDirectory: workspace.path,
+        context: options.context
+      });
+      
+      console.log(''); // Add spacing after Claude's output
+      
+      if (claudeResult.success) {
+        console.log(chalk.green('✅ Claude Code completed successfully!'));
+      } else {
+        console.log(chalk.red('❌ Claude Code failed:'), claudeResult.error.message);
+      }
       
     } catch (error) {
       console.error(chalk.red('❌ Question failed:'), error);
@@ -447,7 +507,7 @@ program
     console.log(chalk.green('✅ Repository cloning implemented'));
     console.log(chalk.green('✅ Workspace management implemented'));
     console.log(chalk.green('✅ Cache management implemented'));
-    console.log(chalk.yellow('⚠️  Claude Code integration pending'));
+    console.log(chalk.green('✅ Claude Code integration implemented'));
     console.log(chalk.yellow('⚠️  GitLab API integration pending'));
   });
 

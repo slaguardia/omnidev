@@ -14,7 +14,7 @@ import type {
   FileTreeNode, 
   WorkspaceId,
   AsyncResult
-} from '@/types/index.js';
+} from '@/types/index';
 
 export interface CacheOptions {
   expiryDays: number;
@@ -181,7 +181,7 @@ export class CacheManager {
     }
 
     // Remove duplicates and sort
-    return [...new Set(allFiles)].sort();
+    return Array.from(new Set(allFiles)).sort();
   }
 
   /**

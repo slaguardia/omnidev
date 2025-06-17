@@ -4,7 +4,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
-import type { AppConfig, GitLabConfig, ClaudeConfig, WorkspaceConfig, SecurityConfig, LoggingConfig } from '@/types/index.js';
+import type { AppConfig, GitLabConfig, ClaudeConfig, WorkspaceConfig, SecurityConfig, LoggingConfig } from '@/types/index';
 
 // Load environment variables
 config();
