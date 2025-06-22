@@ -375,4 +375,10 @@ npm run dev -- dev
    sudo adduser $USER vboxsf
    ```
 
+4. **Claude CLI headless calls failing or hanging**:
+   - This often indicates issues with Claude Code MCP server configuration
+   - **Recommended**: Configure Claude Code WITHOUT GitLab MCP server integration
+   - The application handles all git operations manually (before/after Claude Code execution)
+   - See detailed troubleshooting in [CREDENTIALS.md](./CREDENTIALS.md#claude-code-mcp-server-issues)
+
 This VM setup provides a robust testing environment for the GitLab Claude Manager, ensuring compatibility and reliability across different systems.

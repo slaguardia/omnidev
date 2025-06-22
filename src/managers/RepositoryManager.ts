@@ -19,6 +19,12 @@ import type {
   CommitHash
 } from '@/types/index';
 
+export interface GitInitResult {
+  mergeRequestRequired: boolean;
+  sourceBranch: string;
+  targetBranch: string;
+}
+
 export interface CloneRepositoryOptions extends GitCloneOptions {
   workspaceId?: WorkspaceId;
   tags?: string[];
@@ -47,11 +53,11 @@ export class RepositoryManager {
   ): Promise<AsyncResult<Workspace>> {
     try {
       // Check for existing workspace with same repo and branch
-      const duplicateCheck = await this.checkForDuplicateWorkspace(repoUrl, options.branch);
+      const duplicateCheck = await this.checkForDuplicateWorkspace(repoUrl, options.targetBranch);
       if (duplicateCheck.success && duplicateCheck.data) {
         return {
           success: false,
-          error: new Error(`Workspace already exists for ${repoUrl} on branch ${duplicateCheck.data.branch} (ID: ${duplicateCheck.data.id}). Use existing workspace or clean it first.`)
+          error: new Error(`Workspace already exists for ${repoUrl} on branch ${duplicateCheck.data.targetBranch} (ID: ${duplicateCheck.data.id}). Use existing workspace or clean it first.`)
         };
       }
       
@@ -75,7 +81,7 @@ export class RepositoryManager {
 
       // Clone repository
       const cloneResult = await this.gitOps.cloneRepository(repoUrl, workspacePath, {
-        ...(options.branch && { branch: options.branch }),
+        ...(options.targetBranch && { targetBranch: options.targetBranch }),
         depth: options.depth || 1,
         singleBranch: options.singleBranch !== false,
         ...(options.credentials && { credentials: options.credentials })
@@ -112,7 +118,7 @@ export class RepositoryManager {
         id: workspaceId,
         path: workspacePath,
         repoUrl,
-        branch: actualBranch, // Use the actual current branch
+        targetBranch: actualBranch, // Use the actual current branch
         createdAt: new Date(),
         lastAccessed: new Date(),
         metadata: {
@@ -208,7 +214,7 @@ export class RepositoryManager {
    */
   async updateWorkspace(
     workspaceId: WorkspaceId,
-    updates: Partial<Pick<Workspace, 'branch'>> & {
+      updates: Partial<Pick<Workspace, 'targetBranch'>> & {
       metadata?: Partial<WorkspaceMetadata>;
     }
   ): Promise<AsyncResult<Workspace>> {
@@ -266,7 +272,7 @@ export class RepositoryManager {
       }
 
       // Update workspace branch
-      await this.updateWorkspace(workspaceId, { branch: branchName });
+      await this.updateWorkspace(workspaceId, { targetBranch: branchName });
 
       // Invalidate cache since branch changed
       await this.cacheManager.invalidateCache(workspace.path);
@@ -349,7 +355,7 @@ export class RepositoryManager {
             id: workspaceId,
             path: workspacePath,
             repoUrl: 'unknown' as GitUrl,
-            branch: 'unknown',
+            targetBranch: 'unknown',
             createdAt: new Date(),
             lastAccessed: new Date()
           };
@@ -475,7 +481,7 @@ export class RepositoryManager {
           }
           
           // Check if same branch
-          if (workspace.branch === targetBranch) {
+          if (workspace.targetBranch === targetBranch) {
             // Additional check: see if it's the same commit (to avoid duplicate work)
             try {
               const currentCommitResult = await this.gitOps.getCurrentCommitHash(workspace.path);
@@ -519,4 +525,295 @@ export class RepositoryManager {
       totalSize
     };
   }
-} 
+
+  /**
+   * Set git configuration for a workspace
+   */
+  async setWorkspaceGitConfig(
+    workspaceId: WorkspaceId,
+    gitConfig: { userEmail?: string; userName?: string; signingKey?: string }
+  ): Promise<AsyncResult<void>> {
+    try {
+      const workspace = this.getWorkspace(workspaceId);
+      if (!workspace) {
+        return {
+          success: false,
+          error: new Error(`Workspace ${workspaceId} not found`)
+        };
+      }
+
+      // Set git config in the repository
+      const setConfigResult = await this.gitOps.setWorkspaceGitConfig(workspace.path, gitConfig);
+      if (!setConfigResult.success) {
+        return setConfigResult;
+      }
+
+      // Update workspace metadata
+      const updatedMetadata = {
+        ...workspace.metadata,
+        gitConfig: {
+          ...workspace.metadata?.gitConfig,
+          ...gitConfig
+        }
+      };
+
+      await this.updateWorkspace(workspaceId, { metadata: updatedMetadata });
+
+      // Persist to WorkspaceManager if available
+      if (this.workspaceManager) {
+        const updatedWorkspace = this.workspaces.get(workspaceId);
+        if (updatedWorkspace) {
+          await this.workspaceManager.updateWorkspace(updatedWorkspace);
+        }
+      }
+
+      return { success: true, data: undefined };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to set workspace git config: ${error}`)
+      };
+    }
+  }
+
+  /**
+   * Get git configuration for a workspace
+   */
+  async getWorkspaceGitConfig(workspaceId: WorkspaceId): Promise<AsyncResult<{
+    userEmail?: string;
+    userName?: string;
+    signingKey?: string;
+  }>> {
+    try {
+      const workspace = this.getWorkspace(workspaceId);
+      if (!workspace) {
+        return {
+          success: false,
+          error: new Error(`Workspace ${workspaceId} not found`)
+        };
+      }
+
+      // Get git config from the repository (this is the source of truth)
+      const getConfigResult = await this.gitOps.getWorkspaceGitConfig(workspace.path);
+      if (!getConfigResult.success) {
+        return getConfigResult;
+      }
+
+      // Update workspace metadata with current config
+      if (JSON.stringify(workspace.metadata?.gitConfig) !== JSON.stringify(getConfigResult.data)) {
+        const updatedMetadata = {
+          ...workspace.metadata,
+          gitConfig: getConfigResult.data
+        };
+        await this.updateWorkspace(workspaceId, { metadata: updatedMetadata });
+        
+        // Persist to WorkspaceManager if available
+        if (this.workspaceManager) {
+          const updatedWorkspace = this.workspaces.get(workspaceId);
+          if (updatedWorkspace) {
+            await this.workspaceManager.updateWorkspace(updatedWorkspace);
+          }
+        }
+      }
+
+      return getConfigResult;
+
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to get workspace git config: ${error}`)
+      };
+    }
+  }
+
+  /**
+   * Remove git configuration for a workspace
+   */
+  async unsetWorkspaceGitConfig(
+    workspaceId: WorkspaceId,
+    keys: ('userEmail' | 'userName' | 'signingKey')[]
+  ): Promise<AsyncResult<void>> {
+    try {
+      const workspace = this.getWorkspace(workspaceId);
+      if (!workspace) {
+        return {
+          success: false,
+          error: new Error(`Workspace ${workspaceId} not found`)
+        };
+      }
+
+      // Remove git config from the repository
+      const unsetConfigResult = await this.gitOps.unsetWorkspaceGitConfig(workspace.path, keys);
+      if (!unsetConfigResult.success) {
+        return unsetConfigResult;
+      }
+
+      // Update workspace metadata
+      const currentGitConfig = { ...workspace.metadata?.gitConfig };
+      for (const key of keys) {
+        switch (key) {
+          case 'userEmail':
+            delete currentGitConfig.userEmail;
+            break;
+          case 'userName':
+            delete currentGitConfig.userName;
+            break;
+          case 'signingKey':
+            delete currentGitConfig.signingKey;
+            break;
+        }
+      }
+
+      const updatedMetadata = {
+        ...workspace.metadata,
+        gitConfig: currentGitConfig
+      };
+
+      await this.updateWorkspace(workspaceId, { metadata: updatedMetadata });
+
+      // Persist to WorkspaceManager if available
+      if (this.workspaceManager) {
+        const updatedWorkspace = this.workspaces.get(workspaceId);
+        if (updatedWorkspace) {
+          await this.workspaceManager.updateWorkspace(updatedWorkspace);
+        }
+      }
+
+      return { success: true, data: undefined };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to unset workspace git config: ${error}`)
+      };
+    }
+  }
+
+  /**
+   * Initialize git configuration for a newly cloned workspace
+   */
+  async initializeWorkspaceGitConfig(
+    workspaceId: WorkspaceId,
+    defaultConfig?: { userEmail?: string; userName?: string }
+  ): Promise<AsyncResult<void>> {
+    try {
+      if (!defaultConfig?.userEmail && !defaultConfig?.userName) {
+        return { success: true, data: undefined };
+      }
+
+      return await this.setWorkspaceGitConfig(workspaceId, defaultConfig);
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to initialize workspace git config: ${error}`)
+      };
+    }
+  }
+
+  /**
+   * Initialize git workflow - clean up local branches and pull latest changes
+   * This should be called at the start of any development workflow
+   * If the source branch and target branch are the same, checkout the target branch, pull latest, run cleanup, checkout new branch, then ask the question
+   */
+  async initializeGitWorkflow(workspaceId: WorkspaceId, sourceBranch: string, taskId: string): Promise<AsyncResult<GitInitResult>> {
+    try {
+      // Get the workspace
+      const workspace = this.getWorkspace(workspaceId);
+      console.log('Getting workspace:', workspace);
+      if (!workspace) {
+        return {
+          success: false,
+          error: new Error(`Workspace ${workspaceId} not found`)
+        };
+      }
+
+      // Get the configured target branch for this workspace
+      let targetBranch = workspace.targetBranch; // This is the configured target branch
+      console.log('Getting target branch:', targetBranch);
+      if (!targetBranch) {
+        console.log('Target branch not found for workspace', workspaceId, 'getting default branch...');
+        const defaultBranchResult = await this.gitOps.getDefaultBranch(workspace.path);
+        if (defaultBranchResult.success) {
+          targetBranch = defaultBranchResult.data;
+        } else {
+          return {
+            success: false,
+            error: new Error(`Failed to get default branch for workspace ${workspaceId}: ${defaultBranchResult.error.message}`)
+          };
+        }
+      }
+      // Check if the source branch is the same as the target branch
+      if (sourceBranch === targetBranch) {
+        console.log('[GIT WORKFLOW] Source branch is the same as the target branch, checking out target branch...');
+        // Checkout the target branch
+        const checkoutResult = await this.gitOps.switchBranch(workspace.path, targetBranch);
+        if (!checkoutResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to checkout target branch ${targetBranch}: ${checkoutResult.error.message}`)
+          };
+        }
+
+        // Pull latest changes from the target branch
+        const defaultPullResult = await this.gitOps.pullChanges(workspace.path);
+        if (!defaultPullResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to pull latest changes from target branch: ${defaultPullResult.error.message}`)
+          };
+        }
+
+        // Run cleanup
+        console.log('[GIT WORKFLOW] Running cleanup...');
+        const cleanupResult = await this.gitOps.cleanBranches(workspace.path, targetBranch);
+        if (!cleanupResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to clean branches: ${cleanupResult.error.message}`)
+          };
+        }
+
+        // Create a new branch with a unique name
+        const uniqueBranchName = taskId && taskId.trim() !== '' ? taskId : `${sourceBranch}-${Date.now()}`;
+        const createBranchResult = await this.gitOps.switchBranch(workspace.path, uniqueBranchName);
+        if (!createBranchResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to create and switch to new branch ${uniqueBranchName}: ${createBranchResult.error.message}`)
+          };
+        }
+
+        return { success: true, data: { mergeRequestRequired: true, sourceBranch: uniqueBranchName, targetBranch: targetBranch } };
+      } 
+      
+      // If the source branch is different from the target branch
+      else {
+        // Switch to the source branch
+        const switchResult = await this.gitOps.switchBranch(workspace.path, sourceBranch);
+        if (!switchResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to switch to source branch ${sourceBranch}: ${switchResult.error.message}`)
+          };
+        }
+
+        // Pull latest changes from the source branch
+        const pullResult = await this.gitOps.pullChanges(workspace.path);
+        if (!pullResult.success) {
+          return {
+            success: false,
+            error: new Error(`Failed to pull latest changes from source branch: ${pullResult.error.message}`)
+          };
+        }
+
+        return { success: true, data: { mergeRequestRequired: false, sourceBranch: sourceBranch, targetBranch: targetBranch } };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: new Error(`Failed to initialize git workflow: ${error}`)
+      };
+    }
+  }
+}

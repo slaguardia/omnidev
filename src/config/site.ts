@@ -5,10 +5,6 @@ export const siteConfig = {
   description: "Intelligent code analysis and workflow management powered by AI",
   navItems: [
     {
-      label: "Home",
-      href: "/",
-    },
-    {
       label: "Docs",
       href: "/docs",
     },

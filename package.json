@@ -1,7 +1,7 @@
 {
-  "name": "gitlab-claude-manager",
+  "name": "workflow",
   "version": "1.0.0",
-  "description": "GitLab repository manager with Claude Code integration for AI-powered code analysis",
+  "description": "Workflow manager for GitLab with Claude Code integration for AI-powered code analysis",
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
@@ -21,15 +21,21 @@
     "@heroui/card": "^2.2.20",
     "@heroui/chip": "^2.2.17",
     "@heroui/code": "2.2.15",
-    "@heroui/input": "2.4.20",
+    "@heroui/divider": "^2.2.15",
+    "@heroui/input": "^2.4.20",
     "@heroui/kbd": "2.2.16",
     "@heroui/link": "2.2.17",
     "@heroui/listbox": "2.3.19",
+    "@heroui/modal": "^2.2.19",
     "@heroui/navbar": "2.2.18",
-    "@heroui/snippet": "2.2.21",
+    "@heroui/select": "^2.4.22",
+    "@heroui/snippet": "^2.2.21",
     "@heroui/switch": "2.2.18",
-    "@heroui/system": "2.4.16",
+    "@heroui/system": "^2.4.18",
+    "@heroui/tabs": "^2.2.19",
     "@heroui/theme": "2.4.16",
+    "@heroui/toast": "^2.0.12",
+    "@heroui/tooltip": "^2.2.19",
     "@react-aria/ssr": "3.9.8",
     "@react-aria/visually-hidden": "3.8.23",
     "@tanstack/react-query": "^5.18.0",
@@ -44,6 +50,7 @@
     "glob": "^10.2.7",
     "intl-messageformat": "10.7.16",
     "lodash": "^4.17.21",
+    "lucide-react": "^0.519.0",
     "mime-types": "^2.1.35",
     "nanoid": "^4.0.2",
     "next": "^15.3.3",
@@ -83,7 +90,7 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.3",
-    "typescript": "5.6.3"
+    "typescript": "^5.6.3"
   },
   "engines": {
     "node": ">=18.0.0"

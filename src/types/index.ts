@@ -15,7 +15,7 @@ export interface Workspace {
   id: WorkspaceId;
   path: FilePath;
   repoUrl: GitUrl;
-  branch: string;
+  targetBranch: string;
   createdAt: Date;
   lastAccessed: Date;
   metadata?: WorkspaceMetadata;
@@ -26,6 +26,17 @@ export interface WorkspaceMetadata {
   commitHash: CommitHash;
   isActive: boolean;
   tags?: string[];
+  gitConfig?: WorkspaceGitConfig;
+}
+
+/**
+ * Git configuration for workspaces
+ */
+export interface WorkspaceGitConfig {
+  userEmail?: string;
+  userName?: string;
+  signingKey?: string;
+  defaultBranch?: string;
 }
 
 /**
@@ -123,6 +134,46 @@ export interface GitLabBranch {
     authoredDate: Date;
   };
   protected: boolean;
+}
+
+export interface GitLabMergeRequest {
+  id: number;
+  iid: number;
+  title: string;
+  description: string;
+  state: 'opened' | 'closed' | 'merged';
+  sourceBranch: string;
+  targetBranch: string;
+  webUrl: string;
+  createdAt: Date;
+  updatedAt: Date;
+  author: {
+    id: number;
+    name: string;
+    username: string;
+  };
+}
+
+export interface CreateMergeRequestOptions {
+  projectId: string | number;
+  title: string;
+  description: string;
+  sourceBranch: string;
+  targetBranch: string;
+  assigneeId?: number;
+  labels?: string[];
+  removeSourceBranch?: boolean;
+  squash?: boolean;
+}
+
+export interface MergeRequestSummary {
+  title: string;
+  description: string;
+  changes: string[];
+  impact: string;
+  confidence: number;
+  suggestedLabels?: string[];
+  estimatedReviewTime?: string;
 }
 
 /**

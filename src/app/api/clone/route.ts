@@ -11,7 +11,7 @@ const repositoryManager = new RepositoryManager(cacheManager, workspaceManager);
 
 export async function POST(request: NextRequest) {
   try {
-    const { repoUrl, branch, depth = 1, singleBranch = false, credentials } = await request.json();
+    const { repoUrl, targetBranch, depth = 1, singleBranch = false, credentials } = await request.json();
 
     if (!repoUrl) {
       return NextResponse.json(
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Clone repository
     const cloneResult = await repositoryManager.cloneRepository(repoUrl as GitUrl, {
-      branch,
+      targetBranch,
       depth: parseInt(depth),
       singleBranch,
       credentials
