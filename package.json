@@ -12,10 +12,10 @@
     "lint": "eslint src/**/*.ts src/**/*.tsx",
     "lint:fix": "eslint src/**/*.ts src/**/*.tsx --fix",
     "type-check": "tsc --noEmit",
-    "clean:workspaces": "ts-node scripts/cleanup-workspaces.ts"
+    "clean:workspaces": "ts-node scripts/cleanup-workspaces.ts",
+    "debug:workspaces": "node -e \"const fs = require('fs'); const path = require('path'); const workspaceDir = path.resolve(process.cwd(), 'workspaces'); console.log('Workspace directory:', workspaceDir); try { const files = fs.readdirSync(workspaceDir, { withFileTypes: true }); console.log('Contents:', files.map(f => ({ name: f.name, isDirectory: f.isDirectory() }))); const indexPath = path.join(workspaceDir, '.workspace-index.json'); if (fs.existsSync(indexPath)) { const content = fs.readFileSync(indexPath, 'utf-8'); console.log('Index file content:', content); } else { console.log('No index file found'); } } catch (e) { console.log('Error or directory does not exist:', e.message); }\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.16.0",
     "@gitbeaker/rest": "^39.16.0",
     "@heroui/button": "2.2.20",
     "@heroui/card": "^2.2.20",

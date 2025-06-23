@@ -69,13 +69,7 @@ export default function SettingsTab({
               <h4 className="text-lg font-semibold text-secondary-500">Claude Configuration</h4>
               <Divider className="mb-4" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Claude API Key"
-                  type="password"
-                  value={envConfig.CLAUDE_API_KEY}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, CLAUDE_API_KEY: e.target.value }))}
-                  variant="bordered"
-                />
+
                 <Input
                   label="Claude Code Path"
                   value={envConfig.CLAUDE_CODE_PATH}
@@ -97,13 +91,7 @@ export default function SettingsTab({
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, MAX_WORKSPACE_SIZE_MB: e.target.value }))}
                   variant="bordered"
                 />
-                <Input
-                  label="Cache Expiry (Days)"
-                  type="number"
-                  value={envConfig.CACHE_EXPIRY_DAYS}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, CACHE_EXPIRY_DAYS: e.target.value }))}
-                  variant="bordered"
-                />
+
                 <Input
                   label="Temp Directory Prefix"
                   value={envConfig.TEMP_DIR_PREFIX}

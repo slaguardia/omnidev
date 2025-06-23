@@ -19,7 +19,7 @@ gitlab-claude-manager/
 ├── src/                        # Source code
 │   ├── 🎯 index.ts             # CLI entry point
 │   ├── 📐 types/index.ts       # Type definitions
-│   ├── 🏗️  managers/CacheManager.ts  # Caching system
+
 │   ├── 🔧 utils/gitOperations.ts     # Git utilities  
 │   └── ⚙️  config/settings.ts        # Configuration
 ├── 🧪 tests/unit/types.test.ts  # Unit tests
@@ -35,7 +35,7 @@ gitlab-claude-manager/
 
 2. **🏗️ Solid Architecture Foundation**
    - Repository management system
-   - Intelligent caching with `.ai-cache` files
+   - Claude Code CLI integration for AI analysis
    - Git operations utilities
    - Configuration management
 
@@ -96,7 +96,7 @@ npm test
 ### 🚧 In Progress (Core Logic)
 - [ ] RepositoryManager implementation
 - [ ] WorkspaceManager implementation  
-- [ ] Complete CacheManager functionality
+
 - [ ] GitLab API client
 - [ ] Claude Code integration
 
@@ -116,7 +116,7 @@ The CLI is already structured and ready. Currently available:
 npm run dev -- clone <repo-url> [--branch <branch>]
 npm run dev -- analyze <workspace-id> [--directory <dir>]
 npm run dev -- list [--all]
-npm run dev -- cache-status <workspace-id>
+npm run dev -- list-workspaces
 npm run dev -- cleanup [workspace-id] [--force]
 npm run dev -- ask <workspace-id> "<question>"
 

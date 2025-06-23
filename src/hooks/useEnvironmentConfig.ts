@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { EnvironmentConfig } from '@/components/dashboard/types';
+import { getEnvironmentConfig, saveEnvironmentConfig as saveEnvConfig } from '@/lib/workspace/environmentConfig';
 
 const DEFAULT_ENV_CONFIG: EnvironmentConfig = {
   GITLAB_URL: 'https://gitlab.com',
   GITLAB_TOKEN: '',
-  CLAUDE_API_KEY: '',
   CLAUDE_CODE_PATH: '/usr/local/bin/claude-code',
   MAX_WORKSPACE_SIZE_MB: '1000',
-  CACHE_EXPIRY_DAYS: '7',
+
   TEMP_DIR_PREFIX: 'gitlab-claude-',
   LOG_LEVEL: 'info',
   ALLOWED_GITLAB_HOSTS: 'gitlab.com,your-internal-gitlab.com',
@@ -20,11 +20,8 @@ export const useEnvironmentConfig = () => {
 
   const loadEnvironmentConfig = async () => {
     try {
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const data = await response.json();
-        setEnvConfig(prev => ({ ...prev, ...data.config }));
-      }
+      const config = await getEnvironmentConfig();
+      setEnvConfig(config);
     } catch (error) {
       console.error('Failed to load environment config:', error);
     }
@@ -33,19 +30,14 @@ export const useEnvironmentConfig = () => {
   const saveEnvironmentConfig = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: envConfig })
-      });
-      
-      if (response.ok) {
-        return { success: true, message: 'Environment configuration saved!' };
-      } else {
-        throw new Error('Failed to save configuration');
-      }
+      await saveEnvConfig(envConfig);
+      return { success: true, message: 'Environment configuration saved!' };
     } catch (error) {
-      return { success: false, message: 'Failed to save configuration', error };
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to save configuration', 
+        error 
+      };
     } finally {
       setLoading(false);
     }

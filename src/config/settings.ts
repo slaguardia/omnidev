@@ -4,7 +4,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
-import type { AppConfig, GitLabConfig, ClaudeConfig, WorkspaceConfig, SecurityConfig, LoggingConfig } from '@/types/index';
+import type { AppConfig, GitLabConfig, ClaudeConfig, WorkspaceConfig, SecurityConfig, LoggingConfig } from '@/lib/types/index';
 
 // Load environment variables
 config();
@@ -79,7 +79,7 @@ export const claudeConfig: ClaudeConfig = {
 export const workspaceConfig: WorkspaceConfig = {
   maxSizeMB: getEnvVar('MAX_WORKSPACE_SIZE_MB', 500, parseNumber),
   maxConcurrent: getEnvVar('MAX_CONCURRENT_WORKSPACES', 3, parseNumber),
-  cacheExpiryDays: getEnvVar('CACHE_EXPIRY_DAYS', 7, parseNumber),
+
   tempDirPrefix: getEnvVar('TEMP_DIR_PREFIX', 'gitlab-claude-')
 };
 
@@ -161,14 +161,6 @@ export function getWorkspaceBaseDir(): string {
 }
 
 /**
- * Get cache directory
- */
-export function getCacheDir(): string {
-  const cacheDir = getEnvVar('CACHE_DIR', resolve(process.cwd(), '.cache'));
-  return resolve(cacheDir);
-}
-
-/**
  * Check if running in development mode
  */
 export function isDevelopment(): boolean {
@@ -193,7 +185,7 @@ export function initializeConfig(): void {
     if (isDevelopment()) {
       console.log('Running in development mode');
       console.log('Workspace base directory:', getWorkspaceBaseDir());
-      console.log('Cache directory:', getCacheDir());
+    
     }
   } catch (error) {
     console.error('Configuration initialization failed:', error);

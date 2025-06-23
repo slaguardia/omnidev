@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { GitConfigForm, Workspace } from '@/components/dashboard/types';
+import { setWorkspaceGitConfig, getWorkspaceGitConfig } from '@/lib/workspace';
 
 const initialGitConfigForm: GitConfigForm = {
   workspaceId: '',
@@ -20,26 +21,16 @@ export const useGitConfiguration = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'setGitConfig',
-          workspaceId,
-          userEmail: gitConfigForm.userEmail || undefined,
-          userName: gitConfigForm.userName || undefined,
-          signingKey: gitConfigForm.signingKey || undefined
-        })
-      });
+      const config: { userEmail?: string; userName?: string; signingKey?: string } = {};
+      if (gitConfigForm.userEmail) config.userEmail = gitConfigForm.userEmail;
+      if (gitConfigForm.userName) config.userName = gitConfigForm.userName;  
+      if (gitConfigForm.signingKey) config.signingKey = gitConfigForm.signingKey;
 
-      const data = await response.json();
-      if (data.success) {
-        setSelectedWorkspaceForGitConfig(null);
-        setGitConfigForm(initialGitConfigForm);
-        return { success: true, message: 'Git configuration updated successfully' };
-      } else {
-        return { success: false, message: data.error || 'Failed to update git configuration' };
-      }
+      await setWorkspaceGitConfig(workspaceId as any, config);
+
+      setSelectedWorkspaceForGitConfig(null);
+      setGitConfigForm(initialGitConfigForm);
+      return { success: true, message: 'Git configuration updated successfully' };
     } catch (error) {
       return { success: false, message: 'Error updating git configuration', error };
     } finally {
@@ -50,28 +41,16 @@ export const useGitConfiguration = () => {
   const handleGetGitConfig = async (workspaceId: string, workspace: Workspace) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getGitConfig',
-          workspaceId
-        })
+      const data = await getWorkspaceGitConfig(workspaceId as any);
+      
+      setGitConfigForm({
+        workspaceId,
+        userEmail: data.userEmail || '',
+        userName: data.userName || '',
+        signingKey: data.signingKey || ''
       });
-
-      const data = await response.json();
-      if (data.success) {
-        setGitConfigForm({
-          workspaceId,
-          userEmail: data.data.userEmail || '',
-          userName: data.data.userName || '',
-          signingKey: data.data.signingKey || ''
-        });
-        setSelectedWorkspaceForGitConfig(workspace);
-        return { success: true };
-      } else {
-        return { success: false, message: data.error || 'Failed to get git configuration' };
-      }
+      setSelectedWorkspaceForGitConfig(workspace);
+      return { success: true };
     } catch (error) {
       return { success: false, message: 'Error getting git configuration', error };
     } finally {

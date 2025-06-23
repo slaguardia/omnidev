@@ -19,10 +19,8 @@ export interface Workspace {
 export interface EnvironmentConfig {
   GITLAB_URL: string;
   GITLAB_TOKEN: string;
-  CLAUDE_API_KEY: string;
   CLAUDE_CODE_PATH: string;
   MAX_WORKSPACE_SIZE_MB: string;
-  CACHE_EXPIRY_DAYS: string;
   TEMP_DIR_PREFIX: string;
   LOG_LEVEL: string;
   ALLOWED_GITLAB_HOSTS: string;
