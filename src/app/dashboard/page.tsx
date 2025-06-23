@@ -22,7 +22,7 @@ import {
 } from '@/hooks';
 
 // Utils
-import { getProjectDisplayName } from '@/utils/dashboardHelpers';
+import { getProjectDisplayName } from '@/lib/dashboardHelpers';
 import { Divider } from '@heroui/divider';
 
 // Replace the simple toast system with HeroUI toast

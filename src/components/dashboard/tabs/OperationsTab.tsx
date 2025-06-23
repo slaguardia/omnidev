@@ -6,7 +6,8 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Bot, GitBranch } from "lucide-react";
 import { Select, SelectItem } from '@heroui/select';
 import { Textarea } from '@heroui/input';
-import { Workspace, ClaudeForm } from '../types';
+import { Workspace, ClaudeForm } from '@/components/dashboard/types';
+import { useBranches } from '@/hooks';
 
 interface OperationsTabProps {
   workspaces: Workspace[];
@@ -27,8 +28,7 @@ export default function OperationsTab({
   onAskClaude,
   getProjectDisplayName
 }: OperationsTabProps) {
-  const [branches, setBranches] = useState<string[]>([]);
-  const [loadingBranches, setLoadingBranches] = useState(false);
+  const { branches, loading: loadingBranches, fetchBranches } = useBranches();
 
   // Get selected workspace
   const selectedWorkspace = workspaces.find(w => w.id === claudeForm.workspaceId);
@@ -45,31 +45,9 @@ export default function OperationsTab({
         }));
       }
     } else {
-      setBranches([]);
       setClaudeForm(prev => ({ ...prev, sourceBranch: '' }));
     }
-  }, [claudeForm.workspaceId, selectedWorkspace]);
-
-  const fetchBranches = async (workspaceId: string) => {
-    try {
-      setLoadingBranches(true);
-      const response = await fetch(`/api/workspaces/branches?workspaceId=${encodeURIComponent(workspaceId)}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Received branches from API:', data.branches);
-        console.log('Current claudeForm.sourceBranch:', claudeForm.sourceBranch);
-        setBranches(data.branches || []);
-      } else {
-        console.error('Failed to fetch branches:', await response.text());
-        setBranches([]);
-      }
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-      setBranches([]);
-    } finally {
-      setLoadingBranches(false);
-    }
-  };
+  }, [claudeForm.workspaceId, selectedWorkspace, fetchBranches]);
 
   return (
     <div className="space-y-6">

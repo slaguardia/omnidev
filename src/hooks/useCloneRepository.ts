@@ -1,5 +1,8 @@
+'use client';
+
 import { useState } from 'react';
 import { CloneForm } from '@/components/dashboard/types';
+import { cloneRepositoryAction } from '@/lib/workspace';
 
 const initialCloneForm: CloneForm = {
   repoUrl: '',
@@ -21,33 +24,35 @@ export const useCloneRepository = () => {
   const handleCloneRepository = async () => {
     try {
       setLoading(true);
-      const requestBody = {
-        repoUrl: cloneForm.repoUrl,
-        branch: cloneForm.branch,
-        depth: cloneForm.depth,
-        singleBranch: cloneForm.singleBranch,
-        ...(cloneForm.showCredentials && cloneForm.credentials.username && cloneForm.credentials.password && {
-          credentials: cloneForm.credentials
-        })
-      };
+      
+      // Prepare clone options
+      const credentials = cloneForm.showCredentials && 
+                         cloneForm.credentials.username && 
+                         cloneForm.credentials.password 
+                         ? cloneForm.credentials 
+                         : undefined;
 
-      const response = await fetch('/api/clone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
+      // Call server action to clone repository
+      const result = await cloneRepositoryAction(
+        cloneForm.repoUrl,
+        cloneForm.branch || undefined,
+        parseInt(cloneForm.depth) || 1,
+        cloneForm.singleBranch,
+        credentials
+      );
+
+      if (result.success) {
         setCloneForm(initialCloneForm);
         setIsCloneModalOpen(false);
-        return { success: true, message: 'Repository cloned successfully!' };
-      } else {
-        throw new Error(data.error || 'Clone failed');
       }
+
+      return result;
     } catch (error) {
-      return { success: false, message: 'Clone failed', error };
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Clone failed', 
+        error 
+      };
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,7 @@ A powerful TypeScript Node.js application that manages GitLab repositories with 
 
 - **Repository Management**: Clone and manage GitLab repositories in temporary workspaces
 - **AI-Powered Analysis**: Integrate with Claude Code for intelligent code review and suggestions
-- **Smart Caching**: Efficient directory analysis caching with `.ai-cache` files
+
 - **Natural Language Queries**: Ask questions about your codebase in plain English
 - **Workspace Isolation**: Secure temporary workspace management
 - **TypeScript First**: Full type safety with comprehensive type definitions
@@ -28,7 +28,7 @@ gitlab-claude-manager/
 │   ├── managers/           # Core business logic
 │   │   ├── RepositoryManager.ts  # Repository operations
 │   │   ├── WorkspaceManager.ts   # Workspace handling
-│   │   └── CacheManager.ts       # Caching system
+
 │   ├── utils/              # Utility functions
 │   │   ├── gitOperations.ts     # Git utilities
 │   │   ├── fileSystem.ts        # File system utilities
@@ -94,7 +94,7 @@ CLAUDE_CODE_PATH=/usr/local/bin/claude-code
 
 # Application Settings
 MAX_WORKSPACE_SIZE_MB=1000
-CACHE_EXPIRY_DAYS=7
+# CACHE_EXPIRY_DAYS removed - no longer using caching
 TEMP_DIR_PREFIX=gitlab-claude-
 LOG_LEVEL=info
 
@@ -164,11 +164,8 @@ npm run dev -- list
 npm run dev -- list --all
 ```
 
-#### Cache Management
+#### Workspace Cleanup
 ```bash
-# Check cache status
-npm run dev -- cache-status workspace-id
-
 # Clean up workspaces
 npm run dev -- cleanup
 
@@ -193,7 +190,7 @@ npm run dev -- ask workspace-id "Are there any security vulnerabilities?"
 
 1. **RepositoryManager**: Handles GitLab repository operations
 2. **WorkspaceManager**: Manages temporary workspace lifecycle
-3. **CacheManager**: Handles intelligent caching with `.ai-cache` files
+
 4. **ClaudeClient**: Integrates with Claude Code CLI and API
 5. **GitLabClient**: Interfaces with GitLab API
 
@@ -206,16 +203,15 @@ The project uses a comprehensive TypeScript type system with:
 - **Utility Types**: For common patterns and transformations
 - **Discriminated Unions**: For different response types
 
-### Caching Strategy
+### Claude Code Integration
 
-The caching system uses `.ai-cache` files that contain:
+The system integrates with Claude Code CLI for:
 
-- Directory structure analysis
-- File type detection
-- Language identification
-- AI-generated summaries
-- Code improvement suggestions
-- Cache validation data
+- Intelligent code analysis
+- Natural language queries
+- Code suggestions and improvements
+- Automated git workflows
+- Context-aware responses
 
 ## 🧪 Testing
 
@@ -230,7 +226,7 @@ npm run test:watch
 npm run test:coverage
 
 # Run specific test file
-npm test -- --testNamePattern="CacheManager"
+npm test -- --testNamePattern="RepositoryManager"
 ```
 
 ## 🔒 Security
@@ -243,7 +239,7 @@ npm test -- --testNamePattern="CacheManager"
 
 ## 📈 Performance
 
-- **Intelligent Caching**: Avoid redundant analysis
+- **Workspace Isolation**: Secure temporary workspace management
 - **Lazy Loading**: Load components only when needed
 - **Streaming Operations**: Handle large repositories efficiently
 - **Concurrent Processing**: Parallel workspace operations
@@ -280,13 +276,11 @@ interface Workspace {
   lastAccessed: Date;
 }
 
-// Cache data structure
-interface CacheData {
-  lastCommitHash: CommitHash;
-  directoryHash: string;
-  lastUpdated: Date;
-  analysis: DirectoryAnalysis;
-  version: string;
+// Git operations
+interface GitInitResult {
+  mergeRequestRequired: boolean;
+  sourceBranch: string;
+  targetBranch: string;
 }
 
 // Claude Code integration
@@ -312,7 +306,7 @@ type Result<T, E = Error> =
 
 - [ ] **Phase 1**: Core repository management
 - [ ] **Phase 2**: Claude Code integration
-- [ ] **Phase 3**: Advanced caching strategies
+- [ ] **Phase 3**: Advanced git workflow automation
 - [ ] **Phase 4**: Web interface
 - [ ] **Phase 5**: Multi-provider support (GitHub, Bitbucket)
 
