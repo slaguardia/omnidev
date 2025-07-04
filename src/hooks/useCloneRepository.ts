@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CloneForm } from '@/components/dashboard/types';
+import { CloneForm } from '@/lib/dashboard/types';
 import { cloneRepositoryAction } from '@/lib/workspace';
 
 const initialCloneForm: CloneForm = {

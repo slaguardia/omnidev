@@ -6,9 +6,10 @@
 
 import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
-import { GitInitResult } from '@/lib/managers/RepositoryManager';
-import { initializeGitWorkflow } from '@/lib/claudeCode/gitWorkflow';
-import type { AsyncResult, FilePath } from '@/lib/types/index';
+import { GitInitResult } from '@/lib/managers/repository-manager';
+import { initializeGitWorkflow } from '@/lib/claudeCode/git-workflow';
+import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
+import type { AsyncResult } from '@/lib/types/index';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from '@/lib/claudeCode/types';
 
 /**
@@ -41,6 +42,21 @@ export async function askClaudeCode(
   });
 
   try {
+    // Get runtime configuration for API key
+    console.log(`[CLAUDE CODE] Loading runtime configuration...`);
+    const configStart = Date.now();
+    const config = await getRuntimeConfig();
+    console.log(`[CLAUDE CODE] ✅ Configuration loaded in ${Date.now() - configStart}ms`);
+    
+    // Validate that API key is configured
+    if (!config.claude.apiKey) {
+      console.error(`[CLAUDE CODE] ❌ No Claude API key found in configuration`);
+      return {
+        success: false,
+        error: new Error('Claude API key is not configured. Please set your API key in the application settings.')
+      };
+    }
+    
     // Verify working directory exists
     console.log(`[CLAUDE CODE] Verifying working directory: ${options.workingDirectory}`);
     const dirCheckStart = Date.now();
@@ -132,11 +148,15 @@ export async function askClaudeCode(
         shell: true,
         env: {
           ...process.env,
+          // Use API key from runtime configuration
+          ANTHROPIC_API_KEY: config.claude.apiKey,
           // Ensure non-interactive environment variables for automation
           TERM: 'dumb',
           NO_COLOR: '1'
         }
       });
+
+      console.log(`[CLAUDE CODE] ✅ Using API key from runtime configuration`);
 
       console.log(`[CLAUDE CODE] ✅ Process spawned in ${Date.now() - spawnStart}ms, PID: ${claudeProcess.pid}`);
 
@@ -175,7 +195,7 @@ export async function askClaudeCode(
           if (log.type === 'assistant' && log.message) {
             const message = log.message;
             if (message.content && Array.isArray(message.content)) {
-              const toolUse = message.content.find((c: any) => c.type === 'tool_use');
+              const toolUse = message.content.find((c: { type: string; name?: string }) => c.type === 'tool_use');
               if (toolUse) {
                 console.log(`[CLAUDE CODE] 🔧 Claude is using tool: ${toolUse.name}`);
               }
@@ -191,7 +211,7 @@ export async function askClaudeCode(
             console.log(`[CLAUDE CODE] 📊 JSON log ${jsonLogCount}: ${log.type || 'activity'}`);
           }
           
-        } catch (error) {
+        } catch {
           // Not valid JSON, treat as actual output (fallback for non-JSON output)
           actualOutput += jsonStr + '\n';
         }
@@ -305,9 +325,9 @@ export async function askClaudeCode(
         console.error(`[CLAUDE CODE] ❌ Process error after ${executionTime}ms:`, {
           error: error.message,
           name: error.name,
-          code: (error as any).code,
-          errno: (error as any).errno,
-          syscall: (error as any).syscall
+          code: (error as { code?: string }).code,
+          errno: (error as { errno?: number }).errno,
+          syscall: (error as { syscall?: string }).syscall
         });
         
         resolve({

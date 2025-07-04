@@ -1,13 +1,12 @@
 import "./globals.css";
 import { Metadata, Viewport } from "next";
-import { Link } from "@heroui/link";
 import clsx from "clsx";
 
 import { Providers } from "@/app/providers";
 
-import { siteConfig } from "@/config/site";
-import { fontSans } from "@/config/fonts";
-import { Navbar } from "@/components/navbar";
+import { siteConfig } from "@/lib/config/site";
+import { fontSans } from "@/lib/config/fonts";
+import { Navbar } from "@/components/NavBar";
 
 export const metadata: Metadata = {
   title: {

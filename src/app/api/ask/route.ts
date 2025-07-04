@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeWorkspaceManager } from '@/lib/managers/WorkspaceManager';
-import { loadWorkspace } from '@/lib/managers/WorkspaceManager';
+import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
+import { loadWorkspace } from '@/lib/managers/workspace-manager';
 import { askClaudeCode, checkClaudeCodeAvailability, handlePostClaudeCodeExecution } from '@/lib/claudeCode';
+import { withAuth } from '@/lib/auth/middleware';
 import { access } from 'node:fs/promises';
 import type { WorkspaceId } from '@/lib/types/index';
 
+// This api route needs either next-auth or api key authentication
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   console.log(`[ASK API] Request started at ${new Date().toISOString()}`);
 
   try {
+    // Authentication check
+    const authResult = await withAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
+    }
+
+    console.log(`[ASK API] Authentication successful for user: ${authResult.auth!.clientName} (${authResult.auth!.userId})`);
+
+    // Continue with existing logic...
     const { workspaceId, question, context, sourceBranch } = await request.json();
     console.log(`[ASK API] Request payload:`, {
       workspaceId,

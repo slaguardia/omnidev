@@ -5,6 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
 import type { AsyncResult, Result } from '@/lib/types/index';
 
 /**
@@ -26,7 +27,7 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
       };
     }
     console.log(`[AVAILABILITY CHECK] ✅ 'claude' command found in PATH`);
-  } catch (error) {
+  } catch {
     console.log(`[AVAILABILITY CHECK] ⚠️ Command existence check failed, proceeding with version check...`);
   }
 
@@ -37,45 +38,54 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
     controller.abort();
   }, 5000); // Reduced timeout to 5 seconds
 
-  try {
-    return await new Promise<Result<boolean>>((resolve) => {
-      let resolved = false;
-      let output = '';
-      let stdoutChunks = 0;
-      let stderrChunks = 0;
+      try {
+      // Get runtime configuration for API key outside the promise
+      const config = await getRuntimeConfig();
+      
+      return await new Promise<Result<boolean>>((resolve) => {
+        let resolved = false;
+        let output = '';
+        let stdoutChunks = 0;
+        let stderrChunks = 0;
 
-      const safeResolve = (result: Result<boolean>) => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeoutId);
-          const totalTime = Date.now() - startTime;
-          console.log(`[AVAILABILITY CHECK] Resolving after ${totalTime}ms with result:`, result);
-          resolve(result);
-        }
-      };
+        const safeResolve = (result: Result<boolean>) => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            const totalTime = Date.now() - startTime;
+            console.log(`[AVAILABILITY CHECK] Resolving after ${totalTime}ms with result:`, result);
+            resolve(result);
+          }
+        };
 
-      // Handle abort signal
-      controller.signal.addEventListener('abort', () => {
-        console.log(`[AVAILABILITY CHECK] 🚫 Abort signal received`);
-        if (testProcess && !testProcess.killed) {
-          console.log(`[AVAILABILITY CHECK] 🔪 Force killing process due to abort...`);
-          testProcess.kill('SIGKILL');
-        }
-        safeResolve({
-          success: true,
-          data: false
+        // Handle abort signal
+        controller.signal.addEventListener('abort', () => {
+          console.log(`[AVAILABILITY CHECK] 🚫 Abort signal received`);
+          if (testProcess && !testProcess.killed) {
+            console.log(`[AVAILABILITY CHECK] 🔪 Force killing process due to abort...`);
+            testProcess.kill('SIGKILL');
+          }
+          safeResolve({
+            success: true,
+            data: false
+          });
         });
-      });
 
-      // Phase 2: Try version command with better error handling
-      console.log(`[AVAILABILITY CHECK] Phase 2: Testing 'claude --version' command...`);
+        // Phase 2: Try version command with better error handling
+        console.log(`[AVAILABILITY CHECK] Phase 2: Testing 'claude --version' command...`);
+      
       const spawnStart = Date.now();
       
       const testProcess = spawn('claude', ['--version'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
         signal: controller.signal,
-        timeout: 5000 // Built-in timeout as backup
+        timeout: 5000, // Built-in timeout as backup
+        env: {
+          ...process.env,
+          // Use API key from runtime configuration if available
+          ANTHROPIC_API_KEY: config.claude.apiKey || process.env.ANTHROPIC_API_KEY,
+        }
       });
 
       console.log(`[AVAILABILITY CHECK] Process spawned in ${Date.now() - spawnStart}ms, PID: ${testProcess.pid || 'unknown'}`);
@@ -164,13 +174,13 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
         console.log(`[AVAILABILITY CHECK] Process error after ${executionTime}ms:`, {
           message: error.message,
           name: error.name,
-          code: (error as any).code,
-          errno: (error as any).errno,
-          syscall: (error as any).syscall
+          code: (error as { code?: string }).code,
+          errno: (error as { errno?: number }).errno,
+          syscall: (error as { syscall?: string }).syscall
         });
         
         // Handle specific error codes
-        if ((error as any).code === 'ENOENT') {
+        if ((error as { code?: string }).code === 'ENOENT') {
           console.log(`[AVAILABILITY CHECK] ❌ Command not found (ENOENT)`);
         }
         

@@ -12,6 +12,9 @@ import {
   SettingsTab,
 } from '@/components/dashboard';
 
+// Types
+import type { Workspace } from '@/lib/dashboard/types';
+
 // Hooks
 import { 
   useWorkspaces,
@@ -22,7 +25,7 @@ import {
 } from '@/hooks';
 
 // Utils
-import { getProjectDisplayName } from '@/lib/dashboardHelpers';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 import { Divider } from '@heroui/divider';
 
 // Replace the simple toast system with HeroUI toast
@@ -40,7 +43,7 @@ export default function DashboardPage() {
   
   // Custom hooks
   const { workspaces, loading: workspacesLoading, loadWorkspaces, handleCleanupWorkspace } = useWorkspaces();
-  const { envConfig, setEnvConfig, loading: envLoading, saveEnvironmentConfig, resetToDefaults } = useEnvironmentConfig();
+  const { envConfig, setEnvConfig, pendingSensitiveData, updateSensitiveData, loading: envLoading, saveEnvironmentConfig, resetToDefaults } = useEnvironmentConfig();
   const { 
     cloneForm, 
     setCloneForm, 
@@ -104,7 +107,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleGitConfigWithToast = async (workspaceId: string, workspace: any) => {
+  const handleGitConfigWithToast = async (workspaceId: string, workspace: Workspace) => {
     const result = await handleGetGitConfig(workspaceId, workspace);
     if (!result.success && result.message) {
       toast.error(result.message);
@@ -190,6 +193,8 @@ export default function DashboardPage() {
           <SettingsTab
             envConfig={envConfig}
             setEnvConfig={setEnvConfig}
+            pendingSensitiveData={pendingSensitiveData}
+            updateSensitiveData={updateSensitiveData}
             loading={loading}
             onSaveConfig={handleSaveEnvConfigWithToast}
             onResetToDefaults={resetToDefaults}

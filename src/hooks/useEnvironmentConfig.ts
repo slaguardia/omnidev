@@ -1,37 +1,40 @@
 import { useState, useEffect } from 'react';
-import { EnvironmentConfig } from '@/components/dashboard/types';
-import { getEnvironmentConfig, saveEnvironmentConfig as saveEnvConfig } from '@/lib/workspace/environmentConfig';
-
-const DEFAULT_ENV_CONFIG: EnvironmentConfig = {
-  GITLAB_URL: 'https://gitlab.com',
-  GITLAB_TOKEN: '',
-  CLAUDE_CODE_PATH: '/usr/local/bin/claude-code',
-  MAX_WORKSPACE_SIZE_MB: '1000',
-
-  TEMP_DIR_PREFIX: 'gitlab-claude-',
-  LOG_LEVEL: 'info',
-  ALLOWED_GITLAB_HOSTS: 'gitlab.com,your-internal-gitlab.com',
-  MAX_CONCURRENT_WORKSPACES: '5'
-};
+import { ClientSafeAppConfig } from '@/lib/types/index';
+import { getClientSafeConfig, updateConfigFromClient } from '@/lib/config/server-actions';
+import { getDefaultClientSafeConfig } from '@/lib/config/client-settings';
 
 export const useEnvironmentConfig = () => {
-  const [envConfig, setEnvConfig] = useState<EnvironmentConfig>(DEFAULT_ENV_CONFIG);
+  const [envConfig, setEnvConfig] = useState<ClientSafeAppConfig>(getDefaultClientSafeConfig());
+  const [pendingSensitiveData, setPendingSensitiveData] = useState<{
+    gitlabToken?: string;
+    claudeApiKey?: string;
+  }>({});
   const [loading, setLoading] = useState(false);
 
   const loadEnvironmentConfig = async () => {
     try {
-      const config = await getEnvironmentConfig();
+      const config = await getClientSafeConfig();
       setEnvConfig(config);
+      // Clear any pending sensitive data when loading fresh config
+      setPendingSensitiveData({});
     } catch (error) {
-      console.error('Failed to load environment config:', error);
+      console.error('Failed to load config:', error);
+      // Fall back to defaults
+      setEnvConfig(getDefaultClientSafeConfig());
     }
   };
 
   const saveEnvironmentConfig = async () => {
     try {
       setLoading(true);
-      await saveEnvConfig(envConfig);
-      return { success: true, message: 'Environment configuration saved!' };
+      const result = await updateConfigFromClient(envConfig, pendingSensitiveData);
+      if (result.success) {
+        // Clear pending sensitive data after successful save
+        setPendingSensitiveData({});
+        // Reload config to get updated status
+        await loadEnvironmentConfig();
+      }
+      return result;
     } catch (error) {
       return { 
         success: false, 
@@ -43,8 +46,17 @@ export const useEnvironmentConfig = () => {
     }
   };
 
+  const updateSensitiveData = (type: 'gitlabToken' | 'claudeApiKey', value: string) => {
+    setPendingSensitiveData(prev => ({
+      ...prev,
+      [type]: value
+    }));
+  };
+
   const resetToDefaults = () => {
-    setEnvConfig(DEFAULT_ENV_CONFIG);
+    const defaultConfig = getDefaultClientSafeConfig();
+    setEnvConfig(defaultConfig);
+    setPendingSensitiveData({});
   };
 
   useEffect(() => {
@@ -54,10 +66,11 @@ export const useEnvironmentConfig = () => {
   return {
     envConfig,
     setEnvConfig,
+    pendingSensitiveData,
+    updateSensitiveData,
     loading,
     loadEnvironmentConfig,
     saveEnvironmentConfig,
-    resetToDefaults,
-    DEFAULT_ENV_CONFIG
+    resetToDefaults
   };
 }; 

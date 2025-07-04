@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Bot, GitBranch } from "lucide-react";
 import { Select, SelectItem } from '@heroui/select';
 import { Textarea } from '@heroui/input';
-import { Workspace, ClaudeForm } from '@/components/dashboard/types';
+import { Workspace, ClaudeForm } from '@/lib/dashboard/types';
 import { useBranches } from '@/hooks';
 
 interface OperationsTabProps {
@@ -41,13 +41,13 @@ export default function OperationsTab({
       if (!claudeForm.sourceBranch) {
         setClaudeForm(prev => ({ 
           ...prev, 
-          sourceBranch: (selectedWorkspace as any).targetBranch || selectedWorkspace.branch 
+          sourceBranch: (selectedWorkspace as Workspace & { targetBranch?: string }).targetBranch || selectedWorkspace.branch 
         }));
       }
     } else {
       setClaudeForm(prev => ({ ...prev, sourceBranch: '' }));
     }
-  }, [claudeForm.workspaceId, selectedWorkspace, fetchBranches]);
+  }, [claudeForm.workspaceId, selectedWorkspace, fetchBranches, setClaudeForm]);
 
   return (
     <div className="space-y-6">
@@ -69,7 +69,10 @@ export default function OperationsTab({
               labelPlacement="outside"
               placeholder="Select a workspace"
               selectedKeys={claudeForm.workspaceId ? [claudeForm.workspaceId] : []}
-              onSelectionChange={(keys: any) => setClaudeForm(prev => ({ ...prev, workspaceId: Array.from(keys)[0] as string }))}
+              onSelectionChange={(keys: React.Key | Set<React.Key>) => {
+                const keyArray = Array.from(keys as Set<React.Key>);
+                setClaudeForm(prev => ({ ...prev, workspaceId: keyArray[0] as string }));
+              }}
               variant="bordered"
             >
               {workspaces.map((workspace) => (
@@ -87,7 +90,7 @@ export default function OperationsTab({
               description={selectedWorkspace ? (
                 <p className="flex items-center gap-1">
                   <GitBranch className="w-3 h-3" />
-                  Defaults to workspace target branch: <span className="font-mono">{(selectedWorkspace as any).targetBranch || selectedWorkspace.branch}</span>
+                  Defaults to workspace target branch: <span className="font-mono">{(selectedWorkspace as Workspace & { targetBranch?: string }).targetBranch || selectedWorkspace.branch}</span>
                 </p>
               ) : (
                 <p className="flex items-center gap-1">
@@ -105,8 +108,9 @@ export default function OperationsTab({
               selectedKeys={claudeForm.sourceBranch ? [claudeForm.sourceBranch] : []}
               onSelectionChange={
                 claudeForm.workspaceId 
-                  ? (keys: any) => {
-                      const selectedBranch = Array.from(keys)[0] as string;
+                  ? (keys: React.Key | Set<React.Key>) => {
+                      const keyArray = Array.from(keys as Set<React.Key>);
+                      const selectedBranch = keyArray[0] as string;
                       console.log('Branch selected:', selectedBranch, 'keys:', keys);
                       setClaudeForm(prev => ({ ...prev, sourceBranch: selectedBranch }));
                     }
@@ -114,11 +118,11 @@ export default function OperationsTab({
               }
               variant="bordered"
             >
-              {claudeForm.workspaceId && !loadingBranches ? branches.map((branch, index) => (
+              {claudeForm.workspaceId && !loadingBranches ? branches.map((branch) => (
                 <SelectItem key={branch}>
                   {branch}
                 </SelectItem>
-              )) : null}
+              )) : []}
             </Select>
             </div>
             <Textarea
@@ -132,7 +136,7 @@ export default function OperationsTab({
             />
             <Textarea
               label="Additional Context (optional)"
-              placeholder="I'm particularly interested in performance..."
+              placeholder="I&apos;m particularly interested in performance..."
               value={claudeForm.context}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClaudeForm(prev => ({ ...prev, context: e.target.value }))}
               variant="bordered"
@@ -157,7 +161,7 @@ export default function OperationsTab({
           <CardHeader>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Bot className="w-5 h-5 text-purple-500" />
-              Claude's Response
+              Claude&apos;s Response
             </h3>
           </CardHeader>
           <CardBody>
