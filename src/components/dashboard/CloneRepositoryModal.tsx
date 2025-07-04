@@ -7,7 +7,7 @@ import { Switch } from "@heroui/switch";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
 import { GitBranch, Info } from "lucide-react";
-import { CloneForm } from './types';
+import { CloneForm } from '@/lib/dashboard/types';
 
 interface CloneRepositoryModalProps {
   isOpen: boolean;

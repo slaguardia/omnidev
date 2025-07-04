@@ -1,0 +1,50 @@
+image: node:20
+
+cache:
+  key:
+    files:
+      - pnpm-lock.yaml
+    prefix: ${CI_JOB_NAME}
+  paths:
+    - node_modules/
+    - .pnpm-store/
+    - .next/cache/
+  policy: pull-push
+
+variables:
+  PNPM_VERSION: 10.6.5
+  NEXT_TELEMETRY_DISABLED: 1
+  GIT_DEPTH: 0
+
+before_script:
+  - npm install -g pnpm@${PNPM_VERSION}
+  - pnpm config set store-dir .pnpm-store
+  - pnpm install --no-frozen-lockfile --production=false
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_COMMIT_BRANCH
+      when: always
+
+lint:
+  stage: build
+  variables:
+    NODE_ENV: development
+  script:
+    - pnpm next lint
+
+build:
+  stage: build
+  variables:
+    NODE_ENV: production
+    # GitLab CI variables GITLAB_TOKEN and CLAUDE_API_KEY will be automatically available
+  script:
+    - pnpm next build --no-lint
+  artifacts:
+    paths:
+      - .next/
+    expire_in: 1 week
+  cache:
+    policy: pull-push

@@ -5,18 +5,27 @@
  */
 
 import { spawn } from 'node:child_process';
+import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
 import type { AsyncResult } from '@/lib/types/index';
 
 /**
  * Get Claude Code version information
  */
 export async function getClaudeCodeVersion(): Promise<AsyncResult<string>> {
+  // Get runtime configuration for API key
+  const config = await getRuntimeConfig();
+  
   return new Promise((resolve) => {
     let output = '';
     
     const versionProcess = spawn('claude', ['--version'], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true
+      shell: true,
+      env: {
+        ...process.env,
+        // Use API key from runtime configuration if available
+        ANTHROPIC_API_KEY: config.claude.apiKey || process.env.ANTHROPIC_API_KEY,
+      }
     });
 
     versionProcess.stdout?.on('data', (data) => {

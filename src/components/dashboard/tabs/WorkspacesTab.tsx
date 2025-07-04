@@ -4,7 +4,7 @@ import React from 'react';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { GitBranch, FolderOpen } from "lucide-react";
-import { Workspace } from '../types';
+import { Workspace } from '@/lib/dashboard/types';
 
 interface WorkspacesTabProps {
   workspaces: Workspace[];

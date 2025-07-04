@@ -1,29 +1,19 @@
-// Environment actions
-export {
-  getEnvironmentConfig,
-  saveEnvironmentConfig
-} from '@/lib/workspace/environmentConfig';
-
-// Server configuration (Node.js paths)
-export {
-  getConfigDir,
-  getConfigFile,
-  getConfigPaths
-} from '@/lib/workspace/serverConfig';
+// Configuration actions (now handled by src/config/settings.ts)
+// All configuration is stored in workspaces/app-config.json
 
 // Workspace management actions
 export {
   getWorkspaces,
   getWorkspaceStats,
   cloneRepositoryAction
-} from '@/lib/workspace/workspaceActions';
+} from '@/lib/workspace/workspace-actions';
 
 // Git configuration actions
 export {
   setWorkspaceGitConfig,
   getWorkspaceGitConfig,
   unsetWorkspaceGitConfig
-} from '@/lib/workspace/gitConfigActions';
+} from '@/lib/workspace/git-config-actions';
 
 // Cleanup actions
 export {
@@ -31,7 +21,4 @@ export {
   cleanupAllWorkspaces
 } from '@/lib/workspace/cleanup';
 
-// Shared types and constants
-export type {
-  EnvironmentConfig
-} from '@/lib/workspace/shared'; 
+// All types now in @/lib/types/index 

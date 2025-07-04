@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClaudeForm } from '@/components/dashboard/types';
+import { ClaudeForm } from '@/lib/dashboard/types';
 
 const initialClaudeForm: ClaudeForm = {
   workspaceId: '',

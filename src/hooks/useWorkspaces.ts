@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Workspace } from '@/components/dashboard/types';
+import { Workspace } from '@/lib/dashboard/types';
 import { getWorkspaces, cleanupWorkspace, cleanupAllWorkspaces } from '@/lib/workspace';
+import type { WorkspaceId } from '@/lib/types/index';
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -40,7 +41,7 @@ export const useWorkspaces = () => {
       if (workspaceId) {
         // Clean specific workspace
         console.log('[USE WORKSPACES] Cleaning specific workspace:', workspaceId);
-        await cleanupWorkspace(workspaceId as any);
+        await cleanupWorkspace(workspaceId as WorkspaceId);
         await loadWorkspaces();
         return { success: true, message: 'Workspace cleaned successfully!' };
       } else if (all) {

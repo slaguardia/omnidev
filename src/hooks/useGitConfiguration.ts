@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { GitConfigForm, Workspace } from '@/components/dashboard/types';
+import { GitConfigForm, Workspace } from '@/lib/dashboard/types';
 import { setWorkspaceGitConfig, getWorkspaceGitConfig } from '@/lib/workspace';
+import type { WorkspaceId } from '@/lib/types/index';
 
 const initialGitConfigForm: GitConfigForm = {
   workspaceId: '',
@@ -26,7 +27,7 @@ export const useGitConfiguration = () => {
       if (gitConfigForm.userName) config.userName = gitConfigForm.userName;  
       if (gitConfigForm.signingKey) config.signingKey = gitConfigForm.signingKey;
 
-      await setWorkspaceGitConfig(workspaceId as any, config);
+      await setWorkspaceGitConfig(workspaceId as WorkspaceId, config);
 
       setSelectedWorkspaceForGitConfig(null);
       setGitConfigForm(initialGitConfigForm);
@@ -41,7 +42,7 @@ export const useGitConfiguration = () => {
   const handleGetGitConfig = async (workspaceId: string, workspace: Workspace) => {
     setLoading(true);
     try {
-      const data = await getWorkspaceGitConfig(workspaceId as any);
+      const data = await getWorkspaceGitConfig(workspaceId as WorkspaceId);
       
       setGitConfigForm({
         workspaceId,

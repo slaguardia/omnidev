@@ -2,13 +2,11 @@
  * GitLab utilities for merge request formatting and git context
  */
 
-import { GitOperations } from '@/lib/git';
 import { getCurrentBranch } from '@/lib/git/branches';
 import { getStatus } from '@/lib/git/core';
 import type { 
   AsyncResult,
-  FilePath,
-  GitUrl
+  FilePath
 } from '@/lib/types/index';
 import type { MergeRequestContext } from './types';
 
@@ -17,7 +15,6 @@ import type { MergeRequestContext } from './types';
  * @deprecated Auto-generated summaries are no longer supported. Use manual descriptions.
  */
 export function formatMergeRequestDescription(
-  _summary: any, // Deprecated parameter
   context: MergeRequestContext
 ): string {
   console.warn('formatMergeRequestDescription is deprecated. Use manual descriptions instead.');

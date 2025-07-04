@@ -13,13 +13,13 @@ export type {
 export { checkClaudeCodeAvailability } from '@/lib/claudeCode/availability';
 
 // Git workflow
-export { initializeGitWorkflow } from '@/lib/claudeCode/gitWorkflow';
+export { initializeGitWorkflow } from '@/lib/claudeCode/git-workflow';
 
 // Main execution
 export { askClaudeCode } from '@/lib/claudeCode/execution';
 
 // Post-execution handling
-export { handlePostClaudeCodeExecution } from '@/lib/claudeCode/postExecution';
+export { handlePostClaudeCodeExecution } from '@/lib/claudeCode/post-execution';
 
 // Version utilities
 export { getClaudeCodeVersion } from '@/lib/claudeCode/version'; 

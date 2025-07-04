@@ -2,7 +2,7 @@
  * Types and interfaces for Git operations
  */
 
-import type { GitUrl, FilePath, CommitHash } from '@/lib/types/index';
+import type { CommitHash } from '@/lib/types/index';
 
 export interface GitCloneOptions {
   targetBranch?: string;

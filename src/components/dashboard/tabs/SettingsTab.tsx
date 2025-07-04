@@ -1,17 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Settings } from "lucide-react";
 import { Select, SelectItem } from '@heroui/select';
-import { EnvironmentConfig } from '../types';
+import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Divider } from '@heroui/divider';
+import { Snippet } from '@heroui/snippet';
 
 interface SettingsTabProps {
-  envConfig: EnvironmentConfig;
-  setEnvConfig: React.Dispatch<React.SetStateAction<EnvironmentConfig>>;
+  envConfig: ClientSafeAppConfig;
+  setEnvConfig: React.Dispatch<React.SetStateAction<ClientSafeAppConfig>>;
+  pendingSensitiveData: {
+    gitlabToken?: string;
+    claudeApiKey?: string;
+  };
+  updateSensitiveData: (type: 'gitlabToken' | 'claudeApiKey', value: string) => void;
   loading: boolean;
   onSaveConfig: () => void;
   onResetToDefaults: () => void;
@@ -20,10 +26,29 @@ interface SettingsTabProps {
 export default function SettingsTab({
   envConfig,
   setEnvConfig,
+  pendingSensitiveData,
+  updateSensitiveData,
   loading,
   onSaveConfig,
   onResetToDefaults
 }: SettingsTabProps) {
+  const [apiKey, setApiKey] = useState('');
+
+  async function generateApiKey() {
+    const res = await fetch('/api/generate-key', {
+      method: 'POST',
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error(err.error || 'Failed to generate key');
+      return;
+    }
+
+    const data = await res.json();
+    setApiKey(data.apiKey);
+  }
+
   return (
     <div className="space-y-6">
       <Card className="glass-card">
@@ -42,22 +67,33 @@ export default function SettingsTab({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="GitLab URL"
-                  value={envConfig.GITLAB_URL}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, GITLAB_URL: e.target.value }))}
+                  value={envConfig.gitlab.url}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
+                    ...prev, 
+                    gitlab: { ...prev.gitlab, url: e.target.value }
+                  }))}
                   variant="bordered"
                 />
                 <Input
                   label="GitLab Token"
                   type="password"
-                  value={envConfig.GITLAB_TOKEN}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, GITLAB_TOKEN: e.target.value }))}
+                  value={pendingSensitiveData.gitlabToken || ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSensitiveData('gitlabToken', e.target.value)}
                   variant="bordered"
+                  placeholder={envConfig.gitlab.tokenSet ? '••••••••••••••••' : 'Enter your GitLab token'}
+                  description={envConfig.gitlab.tokenSet ? 'Token is configured (enter new token to update)' : 'Your GitLab personal access token'}
                 />
               </div>
               <Input
                 label="Allowed GitLab Hosts"
-                value={envConfig.ALLOWED_GITLAB_HOSTS}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, ALLOWED_GITLAB_HOSTS: e.target.value }))}
+                value={envConfig.gitlab.allowedHosts.join(', ')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
+                  ...prev, 
+                  gitlab: { 
+                    ...prev.gitlab, 
+                    allowedHosts: e.target.value.split(',').map(h => h.trim()).filter(h => h)
+                  }
+                }))}
                 variant="bordered"
                 className="mt-4"
                 description="Comma-separated list of allowed hosts"
@@ -69,12 +105,24 @@ export default function SettingsTab({
               <h4 className="text-lg font-semibold text-secondary-500">Claude Configuration</h4>
               <Divider className="mb-4" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
+                <Input
+                  label="Claude API Key"
+                  type="password"
+                  value={pendingSensitiveData.claudeApiKey || ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSensitiveData('claudeApiKey', e.target.value)}
+                  variant="bordered"
+                  placeholder={envConfig.claude.apiKeySet ? '••••••••••••••••' : 'Enter your Claude API key'}
+                  description={envConfig.claude.apiKeySet ? 'API key is configured (enter new key to update)' : 'Your Claude API key for AI operations'}
+                />
                 <Input
                   label="Claude Code Path"
-                  value={envConfig.CLAUDE_CODE_PATH}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, CLAUDE_CODE_PATH: e.target.value }))}
+                  value={envConfig.claude.codeCliPath}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
+                    ...prev, 
+                    claude: { ...prev.claude, codeCliPath: e.target.value }
+                  }))}
                   variant="bordered"
+                  description="Path to claude-code CLI"
                 />
               </div>
             </div>
@@ -83,49 +131,86 @@ export default function SettingsTab({
             <div>
               <h4 className="text-lg font-semibold text-success-500">Application Settings</h4>
               <Divider className="mb-4" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Max Workspace Size (MB)"
-                  type="number"
-                  value={envConfig.MAX_WORKSPACE_SIZE_MB}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, MAX_WORKSPACE_SIZE_MB: e.target.value }))}
-                  variant="bordered"
-                />
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Temp Directory Prefix"
+                    value={envConfig.workspace.tempDirPrefix}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
+                      ...prev, 
+                      workspace: { ...prev.workspace, tempDirPrefix: e.target.value }
+                    }))}
+                    variant="bordered"
+                  />
 
-                <Input
-                  label="Temp Directory Prefix"
-                  value={envConfig.TEMP_DIR_PREFIX}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, TEMP_DIR_PREFIX: e.target.value }))}
-                  variant="bordered"
-                />
-                <Select
-                  label="Log Level"
-                  placeholder="Select log level"
-                  selectedKeys={[envConfig.LOG_LEVEL]}
-                  onSelectionChange={(keys: any) => setEnvConfig(prev => ({ ...prev, LOG_LEVEL: Array.from(keys)[0] as string }))}
-                  variant="bordered"
-                >
-                  <SelectItem key="error">Error</SelectItem>
-                  <SelectItem key="warn">Warning</SelectItem>
-                  <SelectItem key="info">Info</SelectItem>
-                  <SelectItem key="debug">Debug</SelectItem>
-                </Select>
-                <Input
-                  label="Max Concurrent Workspaces"
-                  type="number"
-                  value={envConfig.MAX_CONCURRENT_WORKSPACES}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ ...prev, MAX_CONCURRENT_WORKSPACES: e.target.value }))}
-                  variant="bordered"
-                  className="md:col-span-2"
-                />
+                  <Select
+                    label="Log Level"
+                    placeholder="Select log level"
+                    selectedKeys={[envConfig.logging.level]}
+                    onSelectionChange={(keys: React.Key | Set<React.Key>) => {
+                      const keyArray = Array.from(keys as Set<React.Key>);
+                      setEnvConfig(prev => ({ 
+                        ...prev, 
+                        logging: { ...prev.logging, level: keyArray[0] as 'debug' | 'info' | 'warn' | 'error' }
+                      }));
+                    }}
+                    variant="bordered"
+                  >
+                    <SelectItem key="error">Error</SelectItem>
+                    <SelectItem key="warn">Warning</SelectItem>
+                    <SelectItem key="info">Info</SelectItem>
+                    <SelectItem key="debug">Debug</SelectItem>
+                  </Select>
+                </div>
+
+                {/* API Key Generation */}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <Button
+                      color="success"
+                      onClick={generateApiKey}
+                      isLoading={loading}
+                      className="w-full sm:w-auto"
+                      variant="flat"
+                    >
+                      Generate New API Key
+                    </Button>
+                    <p className="text-sm text-gray-600">
+                      Generate a new API key for external access to this application.
+                    </p>
+                  </div>
+                  
+                  {apiKey && (
+                    <div className="p-4 bg-success-50 border border-success-200 rounded-lg space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-success-600 font-semibold">✓ API Key Generated Successfully</span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <Snippet
+                          hideSymbol
+                          variant="solid"
+                          className="text-sm font-mono w-full"
+                          color="default"
+                          onCopy={() => navigator.clipboard.writeText(apiKey)}
+                        >
+                          {'••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                        </Snippet>
+                        
+                        <p className="text-sm text-success-700">
+                          <strong>Important:</strong> Copy this key now — you won&apos;t be able to see it again for security reasons.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-
             {/* Save Configuration */}
-            <div className="flex justify-end gap-4">
+            <div className="flex justify-end gap-4 pt-4">
               <Button
-                color="default"
+                color="danger"
                 variant="flat"
                 onClick={onResetToDefaults}
               >

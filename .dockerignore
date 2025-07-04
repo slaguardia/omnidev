@@ -1,0 +1,80 @@
+# Dependencies
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Production builds
+.next/
+out/
+dist/
+build/
+
+# Environment variables
+.env*.local
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Test coverage
+coverage/
+.nyc_output
+
+# Temporary folders
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Workspaces directory (will be created in container)
+workspaces/
+
+# Tests
+tests/
+__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Documentation
+README.md
+docs/
+*.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Type checking cache
+*.tsbuildinfo 

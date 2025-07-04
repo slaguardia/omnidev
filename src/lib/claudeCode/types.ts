@@ -2,8 +2,8 @@
  * Types and interfaces for Claude Code integration
  */
 
-import type { FilePath, GitUrl, WorkspaceId } from '@/lib/types/index';
-import type { GitInitResult } from '@/lib/managers/RepositoryManager';
+import type { FilePath, WorkspaceId } from '@/lib/types/index';
+import type { GitInitResult } from '@/lib/managers/repository-manager';
 
 export interface ClaudeCodeOptions {
   context?: string;

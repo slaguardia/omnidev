@@ -179,14 +179,38 @@ export interface AppConfig {
   logging: LoggingConfig;
 }
 
+/**
+ * Client-safe configuration (sensitive data removed)
+ */
+export interface ClientSafeAppConfig {
+  gitlab: ClientSafeGitLabConfig;
+  claude: ClientSafeClaudeConfig;
+  workspace: WorkspaceConfig;
+  security: SecurityConfig;
+  logging: LoggingConfig;
+}
+
 export interface GitLabConfig {
   url: string;
   token: string;
   allowedHosts: string[];
 }
 
+export interface ClientSafeGitLabConfig {
+  url: string;
+  tokenSet: boolean; // Instead of the actual token
+  allowedHosts: string[];
+}
+
 export interface ClaudeConfig {
   apiKey: string;
+  codeCliPath: string;
+  maxTokens: number;
+  defaultTemperature: number;
+}
+
+export interface ClientSafeClaudeConfig {
+  apiKeySet: boolean; // Instead of the actual API key
   codeCliPath: string;
   maxTokens: number;
   defaultTemperature: number;
@@ -202,6 +226,7 @@ export interface SecurityConfig {
   allowedGitLabHosts: string[];
   maxWorkspaceSize: number;
   enableSandboxing: boolean;
+  apiKey: string;
 }
 
 export interface LoggingConfig {
@@ -217,7 +242,7 @@ export interface IconSvgProps {
   size?: number;
   width?: number;
   height?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

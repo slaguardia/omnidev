@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  workflow-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-app
+    ports:
+      - "3000:3000"
+    # Alternative: Use host networking (Linux only)
+    # network_mode: host
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      - NEXTAUTH_SECRET_FILE=/secrets/nextauth.secret
+      # NextAuth Configuration
+      # For production, set this to your actual domain (e.g., https://yourdomain.com)
+      # For local development, use http://localhost:3000
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      # GitLab Configuration (Optional - can be set via Settings UI)
+      # - GITLAB_URL=https://gitlab.com
+      # - GITLAB_TOKEN=${GITLAB_TOKEN}
+      
+      # Claude Configuration (Optional - can be set via Settings UI)
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Alternative: Set directly (less secure)
+      # - ANTHROPIC_API_KEY=sk-ant-your-key-here
+      # - CLAUDE_CODE_PATH=claude-code
+      
+      # Advanced Configuration (Optional - sensible defaults provided)
+      # - MAX_WORKSPACE_SIZE_MB=500
+      # - TEMP_DIR_PREFIX=gitlab-claude-
+      # - LOG_LEVEL=info
+      # - ALLOWED_GITLAB_HOSTS=gitlab.com
+      # - MAX_CONCURRENT_WORKSPACES=3
+    volumes:
+      # Persist workspaces data
+      - workflow_workspaces:/app/workspaces
+      - next_auth_secret:/secrets
+      # Optional: Mount .env file if you want to use environment variables
+      # - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/config/validate"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    entrypoint: ["/entrypoint.sh"]
+    command: ["node", "server.js"]
+
+  # Development service (uncomment for development)
+  # workflow-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev
+  #   container_name: workflow-dev
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=development
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #     - workflow_workspaces:/app/workspaces
+  #   command: pnpm run dev
+
+volumes:
+  workflow_workspaces:
+    driver: local 
+  next_auth_secret:

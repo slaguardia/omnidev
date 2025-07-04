@@ -1,8 +1,8 @@
 'use server';
 
 import type { WorkspaceId } from '@/lib/types/index';
-import { initializeWorkspaceManager, deleteWorkspace, getAllWorkspaces } from '@/lib/managers/WorkspaceManager';
-import { cleanupWorkspace as cleanupWorkspaceRepo } from '@/lib/managers/RepositoryManager';
+import { initializeWorkspaceManager, deleteWorkspace, getAllWorkspaces } from '@/lib/managers/workspace-manager';
+import { cleanupWorkspace as cleanupWorkspaceRepo } from '@/lib/managers/repository-manager';
 
 export async function cleanupWorkspace(workspaceId: WorkspaceId) {
   // Initialize workspace manager

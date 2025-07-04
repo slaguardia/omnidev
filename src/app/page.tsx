@@ -1,8 +1,8 @@
 import { Link } from "@heroui/link";
 import { Button } from "@heroui/button";
-import { Bug, Zap, Target, BookOpen, Search, GitBranch, Brain } from "lucide-react";
+import { Zap, BookOpen, Search, GitBranch, Brain } from "lucide-react";
 
-import { title, subtitle } from "@/components/primitives";
+import { title, subtitle } from "@/components/Primitives";
 
 export default function Home() {
   return (
@@ -88,7 +88,7 @@ export default function Home() {
           </h1>
           
           <div className={subtitle({ class: "mb-12 max-w-2xl mx-auto" })}>
-            Eats your <code className="px-2 py-1 bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded font-mono text-sm border border-red-200 dark:border-red-800">//BUGs</code> and asynchronously attacks your backlog.
+            Eats your <code className="px-2 py-1 bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded font-mono text-sm border border-red-200 dark:border-red-800">{`//BUGs`}</code> and asynchronously attacks your backlog.
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

@@ -307,7 +307,7 @@ export async function cleanBranches(workspacePath: FilePath, targetBranch: strin
 /**
  * Check if a branch is merged into target branch
  */
-async function isBranchMerged(workspacePath: FilePath, branchName: string, targetBranch: string): Promise<AsyncResult<boolean>> {
+export async function isBranchMerged(workspacePath: FilePath, branchName: string, targetBranch: string): Promise<AsyncResult<boolean>> {
   try {
     const git = simpleGit(workspacePath);
     // Check if branch is merged into target
