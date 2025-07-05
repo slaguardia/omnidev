@@ -49,31 +49,6 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   }
 }
 
-export async function getWorkspaceStats(): Promise<{
-  total: number;
-  active: number;
-  inactive: number;
-  totalSizeMB: number;
-}> {
-  console.log('[WORKSPACE ACTIONS] Starting getWorkspaceStats()');
-  
-  // Initialize workspace manager
-  const initResult = await initializeWorkspaceManager();
-  if (!initResult.success) {
-    console.error('[WORKSPACE ACTIONS] Failed to initialize workspace manager for stats:', initResult.error);
-    throw new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`);
-  }
-
-  const stats = await getWorkspaceStats();
-  console.log('[WORKSPACE ACTIONS] Workspace stats:', stats);
-  
-  return {
-    total: stats.total,
-    active: stats.active,
-    inactive: stats.inactive,
-    totalSizeMB: Math.round(stats.totalSizeMB / 1024 / 1024)
-  };
-}
 
 export async function cloneRepositoryAction(
   repoUrl: string,

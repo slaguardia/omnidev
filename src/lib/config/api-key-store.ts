@@ -6,20 +6,20 @@ import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth';
 
-const workspaceDir = path.resolve(process.cwd(), 'workspaces');
-const file = path.resolve(workspaceDir, 'api-keys.json');
+const dataDir = path.resolve(process.cwd(), 'data');
+const file = path.resolve(dataDir, 'api-keys.json');
 
-async function ensureWorkspaceDir() {
+async function ensureDataDir() {
   try {
-    await fs.access(workspaceDir);
+    await fs.access(dataDir);
   } catch {
-    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(dataDir, { recursive: true });
   }
 }
 
 export async function getApiKeys() {
   try {
-    await ensureWorkspaceDir();
+    await ensureDataDir();
     const data = await fs.readFile(file, 'utf-8');
     return JSON.parse(data);
   } catch {
@@ -38,8 +38,8 @@ export async function generateAndSaveApiKey() {
   // Convert to base64url for a URL-safe 86-character string
   const key = crypto.randomBytes(64).toString('base64url');
   
-  await ensureWorkspaceDir();
-  
+  await ensureDataDir();
+
   // Revoke all existing keys by creating a new array with only the new key
   const keys = [{
     key,

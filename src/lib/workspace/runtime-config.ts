@@ -3,7 +3,7 @@
 import { getConfig } from '@/lib/config/server-actions';
 
 /**
- * Get runtime configuration from workspaces/app-config.json
+ * Get runtime configuration from /data/app-config.json
  */
 export async function getRuntimeConfig() {
   return await getConfig();

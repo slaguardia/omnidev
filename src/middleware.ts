@@ -32,9 +32,9 @@ export async function middleware(request: NextRequest) {
     }
 
     const protectedPaths = [
-      // '/dashboard',
-      // '/dashboard/',
-      // '/dashboard/:path*',
+      '/dashboard',
+      '/dashboard/',
+      '/dashboard/:path*',
       '/settings',
       '/settings/:path*',
       '/api/user/:path*',

@@ -39,6 +39,7 @@ services:
     volumes:
       # Persist workspaces data
       - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
       - next_auth_secret:/secrets
       # Optional: Mount .env file if you want to use environment variables
       # - ./.env:/app/.env:ro
@@ -70,5 +71,7 @@ services:
 
 volumes:
   workflow_workspaces:
+    driver: local 
+  workflow_data:
     driver: local 
   next_auth_secret:

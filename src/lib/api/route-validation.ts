@@ -49,6 +49,7 @@ export function validateAndParseAskRouteParams(
 
 /**
  * Validates and parses edit route parameters with defaults
+ * TODO: make this better with Zod
  */
 export function validateAndParseEditRouteParams(
   body: EditRouteParams,
@@ -62,16 +63,25 @@ export function validateAndParseEditRouteParams(
     questionLength: question?.length || 0,
     contextLength: context?.length || 0,
     sourceBranch,
+    createMR,
+    taskId,
+    taskName,
+    newBranchName,
     timestamp: new Date().toISOString()
   });
 
   // Validate required fields
-  if (!workspaceId || !question) {
-    console.log(`[${logPrefix}] Invalid request - missing required fields`);
+  if (!workspaceId || !question || !sourceBranch || createMR === undefined) {
+    console.log(`[${logPrefix}] Invalid request - missing required fields`, {
+      workspaceId: !!workspaceId,
+      question: !!question,
+      sourceBranch: !!sourceBranch,
+      createMR: createMR
+    });
     return {
       success: false,
       error: NextResponse.json(
-        { error: 'Workspace ID and question are required' },
+        { error: 'Workspace ID, question, source branch, and create MR are required' },
         { status: 400 }
       )
     };

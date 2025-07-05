@@ -10,16 +10,23 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import type { AppConfig, ClientSafeAppConfig } from '@/lib/types/index';
 import { DEFAULT_CONFIG, validateConfig, validateClientSafeConfig } from './client-settings';
 
+/**
+ * Get the path to the app-config.json file in the data directory at the project root
+ */
+const dataDir = resolve(process.cwd(), 'data');
+
+function ensureDataDirSync() {
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+}
 
 /**
- * Configuration file path in workspaces directory
+ * Configuration file path in root directory
  */
 function getConfigFilePath(): string {
-  const workspaceDir = resolve(process.cwd(), 'workspaces');
-  if (!existsSync(workspaceDir)) {
-    mkdirSync(workspaceDir, { recursive: true });
-  }
-  return resolve(workspaceDir, 'app-config.json');
+  ensureDataDirSync();
+  return resolve(dataDir, 'app-config.json');
 }
 
 /**

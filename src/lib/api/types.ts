@@ -1,5 +1,5 @@
 import type { Workspace, WorkspaceId } from '@/lib/types/index';
-import type { AskForm, EditForm, ClaudeForm } from '@/lib/dashboard/types';
+import type { AskForm, EditForm } from '@/lib/dashboard/types';
 import { NextResponse } from 'next/server';
 
 export interface AskRouteParams {
@@ -52,9 +52,4 @@ export const transformEditFormToParams = (form: EditForm): EditRouteParams => {
     }
     
     return params;
-};
-
-// Main transformation function with type safety
-export const transformFormToApiParams = (form: ClaudeForm): AskRouteParams | EditRouteParams => {
-    return transformAskFormToParams(form);
 };

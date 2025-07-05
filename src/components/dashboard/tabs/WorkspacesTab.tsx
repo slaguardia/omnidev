@@ -26,7 +26,7 @@ export default function WorkspacesTab({
   getProjectDisplayName
 }: WorkspacesTabProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-hidden">
       {/* Clone Repository Button */}
       <div className="flex justify-center">
         <Button
