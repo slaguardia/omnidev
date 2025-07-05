@@ -9,6 +9,7 @@ import { Select, SelectItem } from '@heroui/select';
 import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Divider } from '@heroui/divider';
 import { Snippet } from '@heroui/snippet';
+import { generateAndSaveApiKey } from '@/lib/config/api-key-store';
 
 interface SettingsTabProps {
   envConfig: ClientSafeAppConfig;
@@ -35,18 +36,12 @@ export default function SettingsTab({
   const [apiKey, setApiKey] = useState('');
 
   async function generateApiKey() {
-    const res = await fetch('/api/generate-key', {
-      method: 'POST',
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      console.error(err.error || 'Failed to generate key');
-      return;
+    try {
+      const apiKey = await generateAndSaveApiKey();
+      setApiKey(apiKey);
+    } catch (error) {
+      console.error('Failed to generate key:', error);
     }
-
-    const data = await res.json();
-    setApiKey(data.apiKey);
   }
 
   return (

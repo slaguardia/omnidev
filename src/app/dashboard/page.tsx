@@ -20,7 +20,6 @@ import {
   useWorkspaces,
   useEnvironmentConfig,
   useCloneRepository,
-  useClaudeOperations,
   useGitConfiguration
 } from '@/hooks';
 
@@ -52,13 +51,6 @@ export default function DashboardPage() {
     loading: cloneLoading, 
     handleCloneRepository 
   } = useCloneRepository();
-  const { 
-    claudeForm, 
-    setClaudeForm, 
-    claudeResponse, 
-    loading: claudeLoading, 
-    handleAskClaude 
-  } = useClaudeOperations();
   const {
     gitConfigForm,
     setGitConfigForm,
@@ -75,15 +67,6 @@ export default function DashboardPage() {
     if (result.success) {
       toast.success(result.message);
       loadWorkspaces(); // Refresh workspaces
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handleClaudeWithToast = async () => {
-    const result = await handleAskClaude();
-    if (result.success) {
-      toast.success(result.message);
     } else {
       toast.error(result.message);
     }
@@ -124,7 +107,7 @@ export default function DashboardPage() {
     }
   };
 
-  const loading = workspacesLoading || envLoading || cloneLoading || claudeLoading || gitConfigLoading;
+  const loading = workspacesLoading || envLoading || cloneLoading || gitConfigLoading;
 
   return (
     <div className="max-w-7xl mx-auto relative mb-16">
@@ -178,15 +161,7 @@ export default function DashboardPage() {
         )}
 
         {activeTab === "operations" && (
-          <OperationsTab
-            workspaces={workspaces}
-            claudeForm={claudeForm}
-            setClaudeForm={setClaudeForm}
-            claudeResponse={claudeResponse}
-            loading={loading}
-            onAskClaude={handleClaudeWithToast}
-            getProjectDisplayName={getProjectDisplayName}
-          />
+          <OperationsTab />
         )}
 
         {activeTab === "settings" && (

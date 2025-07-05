@@ -16,7 +16,7 @@ export { checkClaudeCodeAvailability } from '@/lib/claudeCode/availability';
 export { initializeGitWorkflow } from '@/lib/claudeCode/git-workflow';
 
 // Main execution
-export { askClaudeCode } from '@/lib/claudeCode/execution';
+export { askClaudeCode } from '@/lib/claudeCode/orchestrator';
 
 // Post-execution handling
 export { handlePostClaudeCodeExecution } from '@/lib/claudeCode/post-execution';

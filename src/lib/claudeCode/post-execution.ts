@@ -8,9 +8,18 @@ import { hasUncommittedChanges, addAllFiles, commitChanges } from '@/lib/git/com
 import { pushChanges } from '@/lib/git/remotes';
 import { createMergeRequest } from '@/lib/gitlab/merge-requests';
 import { extractProjectIdFromUrl } from '@/lib/gitlab/api';
-import { GitInitResult } from '@/lib/managers/repository-manager';
 import type { AsyncResult, FilePath, GitUrl } from '@/lib/types/index';
 import type { PostExecutionResult } from './types';
+import { GitBranchWorkflowResult } from '../managers/repository-manager';
+
+interface PostExecutionParams {
+  workspacePath: FilePath;
+  gitBranchWorkflowResult: GitBranchWorkflowResult;
+  taskName: string | null;
+  taskId: string | null;
+  output: string;
+  repoUrl?: GitUrl;
+}
 
 /**
  * Handle post-Claude Code execution git operations
@@ -20,13 +29,11 @@ import type { PostExecutionResult } from './types';
  * - Creating merge requests or pushing changes
  */
 export async function handlePostClaudeCodeExecution(
-  workspacePath: FilePath,
-  gitInitResult: GitInitResult,
-  repoUrl?: GitUrl,
+  params: PostExecutionParams
 ): Promise<AsyncResult<PostExecutionResult>> {
   try {
     // Check if there are any changes to commit
-    const changesResult = await hasUncommittedChanges(workspacePath);
+    const changesResult = await hasUncommittedChanges(params.workspacePath);
     if (!changesResult.success) {
       return {
         success: false,
@@ -45,7 +52,7 @@ export async function handlePostClaudeCodeExecution(
     }
 
     // Add all files to staging
-    const addResult = await addAllFiles(workspacePath);
+    const addResult = await addAllFiles(params.workspacePath);
     if (!addResult.success) {
       return {
         success: false,
@@ -55,7 +62,7 @@ export async function handlePostClaudeCodeExecution(
 
     // Commit changes
     const defaultCommitMessage = `Automated changes via Claude Code - ${new Date().toISOString()}`;
-    const commitResult = await commitChanges(workspacePath, defaultCommitMessage);
+    const commitResult = await commitChanges(params.workspacePath, defaultCommitMessage);
     if (!commitResult.success) {
       return {
         success: false,
@@ -69,9 +76,9 @@ export async function handlePostClaudeCodeExecution(
     };
 
     // Handle merge request vs direct push
-    if (gitInitResult.mergeRequestRequired) {
+    if (params.gitBranchWorkflowResult.mergeRequestRequired) {
       // Push source branch to remote
-      const pushResult = await pushChanges(workspacePath, gitInitResult.sourceBranch);
+      const pushResult = await pushChanges(params.workspacePath, params.gitBranchWorkflowResult.sourceBranch);
       if (!pushResult.success) {
         return {
           success: false,
@@ -79,16 +86,25 @@ export async function handlePostClaudeCodeExecution(
         };
       }
 
+      let uniqueMergeRequestTitle;
+      if (params.taskName && params.taskName.trim() !== '' && params.taskId && params.taskId.trim() !== '') {
+        uniqueMergeRequestTitle = `${params.taskId} - ${params.taskName}`;
+      } else if (params.taskName && params.taskName.trim() !== '') {
+        uniqueMergeRequestTitle = params.taskName;
+      } else {
+        uniqueMergeRequestTitle = `Automated changes from Claude Code`;
+      }
+
       // Create merge request if GitLab API is available and repo URL is provided
-      if (repoUrl) {
-        const projectId = extractProjectIdFromUrl(repoUrl);
+      if (params.repoUrl) {
+        const projectId = extractProjectIdFromUrl(params.repoUrl);
         if (projectId) {
             const mrResult = await createMergeRequest({
               projectId,
-              sourceBranch: gitInitResult.sourceBranch,
-              targetBranch: gitInitResult.targetBranch,
-              title: `Automated changes from Claude Code`,
-              description: `This merge request contains automated changes made by Claude Code.\n\nCommit: ${commitResult.data}\nTimestamp: ${new Date().toISOString()}`
+              sourceBranch: params.gitBranchWorkflowResult.sourceBranch,
+              targetBranch: params.gitBranchWorkflowResult.targetBranch,
+              title: uniqueMergeRequestTitle,
+              description: params.output ? `${params.output}` : `This merge request contains automated changes made by Claude Code.\n\nCommit: ${commitResult.data}\nTimestamp: ${new Date().toISOString()}`
             });
 
             if (mrResult.success) {
@@ -98,12 +114,12 @@ export async function handlePostClaudeCodeExecution(
               console.warn('Failed to create merge request:', mrResult.error?.message);
             }
           } else {
-            console.warn('Could not extract project ID from repository URL:', repoUrl);
+            console.warn('Could not extract project ID from repository URL:', params.repoUrl);
           }
       }
     } else {
       // Push directly to source branch (no merge request needed)
-      const pushResult = await pushChanges(workspacePath, gitInitResult.sourceBranch);
+      const pushResult = await pushChanges(params.workspacePath, params.gitBranchWorkflowResult.sourceBranch);
       if (!pushResult.success) {
         return {
           success: false,
@@ -111,7 +127,7 @@ export async function handlePostClaudeCodeExecution(
         };
       }
 
-      result.pushedBranch = gitInitResult.sourceBranch;
+      result.pushedBranch = params.gitBranchWorkflowResult.sourceBranch;
     }
 
     return { success: true, data: result };
