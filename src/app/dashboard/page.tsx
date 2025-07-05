@@ -10,6 +10,7 @@ import {
   WorkspacesTab, 
   OperationsTab, 
   SettingsTab,
+  ClaudeMDTab,
 } from '@/components/dashboard';
 
 // Types
@@ -110,12 +111,12 @@ export default function DashboardPage() {
   const loading = workspacesLoading || envLoading || cloneLoading || gitConfigLoading;
 
   return (
-    <div className="max-w-7xl mx-auto relative mb-16">
+    <div className="w-full max-w-4xl mx-auto relative mb-16">
       {/* Blur effects for natural inset/outset */}
       <div className="absolute -inset-8 bg-gradient-to-r from-transparent via-red-50/20 to-transparent blur-xl rounded-3xl dark:via-red-950/10"></div>
       <div className="absolute -inset-4 bg-gradient-to-b from-background/60 to-background/80 rounded-2xl shadow-inner"></div>
       
-      <div className="relative z-10 p-8">
+      <div className="relative z-10 p-8 w-full overflow-hidden">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">
             <span style={{ background: 'linear-gradient(to right, #dc2626, #1e40af)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
@@ -142,12 +143,13 @@ export default function DashboardPage() {
       >
         <Tab key="workspaces" title="Workspaces" />
         <Tab key="operations" title="Operations" />
+        <Tab key="claude" title="CLAUDE.md" />
         <Tab key="settings" title="Environment Config" />
       </Tabs>
 
       <Divider className="my-4" />
 
-      <div className="mt-6">
+      <div className="mt-6 w-full min-h-[700px]">
         {activeTab === "workspaces" && (
           <WorkspacesTab
             workspaces={workspaces}
@@ -162,6 +164,10 @@ export default function DashboardPage() {
 
         {activeTab === "operations" && (
           <OperationsTab />
+        )}
+        
+        {activeTab === "claude" && (
+          <ClaudeMDTab />
         )}
 
         {activeTab === "settings" && (

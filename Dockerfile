@@ -83,6 +83,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Create workspaces directory with proper permissions
 RUN mkdir -p workspaces && chown nextjs:nodejs workspaces
 
+# Create data directory with proper permissions
+RUN mkdir -p data && chown nextjs:nodejs data
+
 # Create secrets directory at root level with proper permissions
 RUN mkdir -p /secrets && chown nextjs:nodejs /secrets
 

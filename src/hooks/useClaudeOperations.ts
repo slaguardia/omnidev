@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ClaudeForm, AskForm, EditForm } from '@/lib/dashboard/types';
-import { transformFormToApiParams } from '@/lib/api/types';
+import { EditRouteParams, AskRouteParams, transformAskFormToParams, transformEditFormToParams } from '@/lib/api/types';
 
 // Initial form states
 const initialAskForm: AskForm = {
@@ -62,7 +62,21 @@ export const useClaudeOperations = () => {
       const endpoint = isEditMode ? '/api/edit' : '/api/ask';
       
       // Transform form data to API parameters with type safety
-      const payload = transformFormToApiParams(claudeForm);
+      let payload: AskRouteParams | EditRouteParams;
+      if (isEditMode) {
+        payload = transformEditFormToParams(claudeForm as EditForm);
+      } else {
+        payload = transformAskFormToParams(claudeForm as AskForm);
+      }
+      
+      // Debug logging
+      console.log('[useClaudeOperations] Sending payload:', {
+        isEditMode,
+        endpoint,
+        payload,
+        claudeForm,
+        hasCreateMR: 'createMR' in claudeForm
+      });
       
       const response = await fetch(endpoint, {
         method: 'POST',

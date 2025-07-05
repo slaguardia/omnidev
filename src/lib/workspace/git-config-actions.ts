@@ -4,12 +4,20 @@ import type { WorkspaceId } from '@/lib/types/index';
 import { unsetWorkspaceGitConfig as gitUnsetConfig } from '@/lib/managers/repository-manager';
 import { getWorkspaceGitConfig as gitGetConfig } from '@/lib/managers/repository-manager';
 import { setWorkspaceGitConfig as gitSetConfig } from '@/lib/managers/repository-manager';
+import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
+import * as WorkspaceManager from '@/lib/managers/workspace-manager';
 
 export async function setWorkspaceGitConfig(
   workspaceId: WorkspaceId,
   config: { userEmail?: string; userName?: string; signingKey?: string }
 ) {
-  const result = await gitSetConfig(workspaceId, config);
+  // Initialize workspace manager first
+  const initResult = await initializeWorkspaceManager();
+  if (!initResult.success) {
+    throw new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`);
+  }
+
+  const result = await gitSetConfig(workspaceId, config, WorkspaceManager);
   
   if (!result.success) {
     throw new Error(result.error.message);
@@ -19,7 +27,13 @@ export async function setWorkspaceGitConfig(
 }
 
 export async function getWorkspaceGitConfig(workspaceId: WorkspaceId) {
-  const result = await gitGetConfig(workspaceId);
+  // Initialize workspace manager first
+  const initResult = await initializeWorkspaceManager();
+  if (!initResult.success) {
+    throw new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`);
+  }
+
+  const result = await gitGetConfig(workspaceId, WorkspaceManager);
   
   if (!result.success) {
     throw new Error(result.error.message);
@@ -32,7 +46,13 @@ export async function unsetWorkspaceGitConfig(
   workspaceId: WorkspaceId,
   keys: ('userEmail' | 'userName' | 'signingKey')[]
 ) {
-  const result = await gitUnsetConfig(workspaceId, keys);
+  // Initialize workspace manager first
+  const initResult = await initializeWorkspaceManager();
+  if (!initResult.success) {
+    throw new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`);
+  }
+
+  const result = await gitUnsetConfig(workspaceId, keys, WorkspaceManager);
   
   if (!result.success) {
     throw new Error(result.error.message);

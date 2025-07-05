@@ -45,7 +45,7 @@ export default function SettingsTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-hidden">
       <Card className="glass-card">
         <CardHeader>
           <h3 className="text-xl font-semibold flex items-center gap-2">
@@ -178,7 +178,7 @@ export default function SettingsTab({
                   {apiKey && (
                     <div className="p-4 bg-success-50 border border-success-200 rounded-lg space-y-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-success-600 font-semibold">✓ API Key Generated Successfully</span>
+                        <span className="text-success-600 font-semibold">✓ API Key Generated and Saved Successfully!</span>
                       </div>
                       
                       <div className="space-y-3">

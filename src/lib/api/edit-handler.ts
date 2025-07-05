@@ -99,6 +99,7 @@ export async function handleEditClaudeCodeRequest(
     
     // Execute Claude Code
     console.log(`[${logPrefix}] 🚀 Using Claude Code with execution parameters:`, {
+      createMR: createMR,
       questionLength: question.length,
       workingDirectory: workspace?.path,
       contextLength: context?.length || 0,

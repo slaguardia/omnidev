@@ -66,9 +66,9 @@ export default function OperationsTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-hidden">
       {/* Ask Claude */}
-      <Card className="glass-card max-w-2xl mx-auto">
+      <Card className="glass-card">
         <CardHeader>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Bot className="w-5 h-5 text-purple-500" />
@@ -271,7 +271,7 @@ export default function OperationsTab() {
 
       {/* Claude Response */}
       {claudeResponse && (
-        <Card className="glass-card max-w-2xl mx-auto">
+        <Card className="glass-card">
           <CardHeader>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Bot className="w-5 h-5 text-purple-500" />
