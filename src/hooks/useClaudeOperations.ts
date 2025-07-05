@@ -1,27 +1,73 @@
 import { useState } from 'react';
-import { ClaudeForm } from '@/lib/dashboard/types';
+import { ClaudeForm, AskForm, EditForm } from '@/lib/dashboard/types';
+import { transformFormToApiParams } from '@/lib/api/types';
 
-const initialClaudeForm: ClaudeForm = {
+// Initial form states
+const initialAskForm: AskForm = {
   workspaceId: '',
   question: '',
   context: '',
-  sourceBranch: ''
+  sourceBranch: '',
+};
+
+const initialEditForm: EditForm = {
+  workspaceId: '',
+  question: '',
+  context: '',
+  sourceBranch: '',
+  createMR: true,
+  taskId: '',
+  taskName: '',
+  newBranchName: '',
 };
 
 export const useClaudeOperations = () => {
-  const [claudeForm, setClaudeForm] = useState<ClaudeForm>(initialClaudeForm);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [claudeForm, setClaudeForm] = useState<ClaudeForm>(initialAskForm);
   const [claudeResponse, setClaudeResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Helper function to check the form type
+  const isEditForm = (form: ClaudeForm): form is EditForm => isEditMode;
+
+  // Helper function to switch to Ask mode
+  const switchToAskMode = () => {
+    setIsEditMode(false);
+    setClaudeForm({
+      ...initialAskForm,
+      workspaceId: claudeForm.workspaceId,
+      question: claudeForm.question,
+      context: claudeForm.context,
+      sourceBranch: claudeForm.sourceBranch,
+    });
+  };
+
+  // Helper function to switch to Edit mode
+  const switchToEditMode = () => {
+    setIsEditMode(true);
+    setClaudeForm({
+      ...initialEditForm,
+      workspaceId: claudeForm.workspaceId,
+      question: claudeForm.question,
+      context: claudeForm.context,
+      sourceBranch: claudeForm.sourceBranch,
+    });
+  };
 
   const handleAskClaude = async () => {
     try {
       setLoading(true);
       setClaudeResponse(null);
       
-      const response = await fetch('/api/ask', {
+      const endpoint = isEditMode ? '/api/edit' : '/api/ask';
+      
+      // Transform form data to API parameters with type safety
+      const payload = transformFormToApiParams(claudeForm);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(claudeForm)
+        body: JSON.stringify(payload)
       });
       
       const data = await response.json();
@@ -50,18 +96,16 @@ export const useClaudeOperations = () => {
     }
   };
 
-  const resetClaudeForm = () => {
-    setClaudeForm(initialClaudeForm);
-    setClaudeResponse(null);
-  };
-
   return {
     claudeForm,
-    setClaudeForm,
     claudeResponse,
-    setClaudeResponse,
-    loading,
     handleAskClaude,
-    resetClaudeForm
+    isEditForm,
+    isEditMode,
+    loading,
+    setClaudeForm,
+    setClaudeResponse,
+    switchToAskMode,
+    switchToEditMode,
   };
 }; 

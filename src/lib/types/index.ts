@@ -17,7 +17,7 @@ export interface Workspace {
   repoUrl: GitUrl;
   targetBranch: string;
   createdAt: Date;
-  lastAccessed: Date;
+  lastAccessed: Date
   metadata?: WorkspaceMetadata;
 }
 
@@ -39,78 +39,9 @@ export interface WorkspaceGitConfig {
   defaultBranch?: string;
 }
 
-
-
-/**
- * File system types
- */
-export interface FileTreeNode {
-  name: string;
-  path: FilePath;
-  type: 'file' | 'directory';
-  size?: number;
-  lastModified?: Date;
-  children?: FileTreeNode[];
-  mimeType?: string;
-}
-
-/**
- * Claude Code integration types
- */
-export interface ClaudeCodeResponse {
-  analysis: string;
-  suggestions: string[];
-  modifiedFiles?: FilePath[];
-  confidence: number;
-  timestamp: Date;
-}
-
-export interface ClaudeCodeRequest {
-  workspaceId: WorkspaceId;
-  prompt: string;
-  context?: ClaudeCodeContext;
-  options?: ClaudeCodeOptions;
-}
-
-export interface ClaudeCodeContext {
-  files?: FilePath[];
-  directories?: FilePath[];
-  language?: string;
-  framework?: string;
-}
-
-export interface ClaudeCodeOptions {
-  maxTokens?: number;
-  temperature?: number;
-  includeTests?: boolean;
-  preserveFormatting?: boolean;
-}
-
 /**
  * GitLab API types
  */
-export interface GitLabRepository {
-  id: number;
-  name: string;
-  path: string;
-  pathWithNamespace: string;
-  httpUrlToRepo: GitUrl;
-  sshUrlToRepo: GitUrl;
-  defaultBranch: string;
-  lastActivityAt: Date;
-}
-
-export interface GitLabBranch {
-  name: string;
-  commit: {
-    id: CommitHash;
-    message: string;
-    authorName: string;
-    authoredDate: Date;
-  };
-  protected: boolean;
-}
-
 export interface GitLabMergeRequest {
   id: number;
   iid: number;
@@ -127,45 +58,6 @@ export interface GitLabMergeRequest {
     name: string;
     username: string;
   };
-}
-
-export interface CreateMergeRequestOptions {
-  projectId: string | number;
-  title: string;
-  description: string;
-  sourceBranch: string;
-  targetBranch: string;
-  assigneeId?: number;
-  labels?: string[];
-  removeSourceBranch?: boolean;
-  squash?: boolean;
-}
-
-// MergeRequestSummary interface removed - auto-generated summaries deprecated
-
-/**
- * Error types
- */
-export class WorkspaceError extends Error {
-  constructor(
-    message: string,
-    public readonly code: WorkspaceErrorCode,
-    public readonly workspaceId?: WorkspaceId
-  ) {
-    super(message);
-    this.name = 'WorkspaceError';
-  }
-}
-
-export enum WorkspaceErrorCode {
-  NOT_FOUND = 'WORKSPACE_NOT_FOUND',
-  CREATION_FAILED = 'WORKSPACE_CREATION_FAILED',
-  ACCESS_DENIED = 'WORKSPACE_ACCESS_DENIED',
-  SIZE_LIMIT_EXCEEDED = 'WORKSPACE_SIZE_LIMIT_EXCEEDED',
-  INVALID_REPOSITORY = 'INVALID_REPOSITORY',
-  GIT_OPERATION_FAILED = 'GIT_OPERATION_FAILED',
-
-  CLAUDE_API_ERROR = 'CLAUDE_API_ERROR'
 }
 
 /**
@@ -254,24 +146,8 @@ export type Result<T, E = Error> =
 
 export type AsyncResult<T, E = Error> = Promise<Result<T, E>>;
 
-export type Paginated<T> = {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
-};
-
 export interface GitCredentials {
   username: string;
   password: string; // This could be a personal access token
   provider?: 'gitlab' | 'github' | 'bitbucket' | 'other';
 }
-
-export interface GitCloneRequestOptions {
-  branch?: string;
-  depth?: number;
-  singleBranch?: boolean;
-  credentials?: GitCredentials;
-} 

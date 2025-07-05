@@ -10,7 +10,8 @@
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "docker:restart": "docker compose restart"
+    "docker:restart": "docker compose restart",
+    "docker:prune": "docker system prune -a -f --volumes"
   },
   "dependencies": {
     "@eslint/js": "^9.29.0",

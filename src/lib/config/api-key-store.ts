@@ -1,7 +1,10 @@
-// lib/apiKeyStore.ts
+'use server'; 
+
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/auth';
 
 const workspaceDir = path.resolve(process.cwd(), 'workspaces');
 const file = path.resolve(workspaceDir, 'api-keys.json');
@@ -24,7 +27,13 @@ export async function getApiKeys() {
   }
 }
 
-export async function saveApiKey(userId: string) {
+export async function generateAndSaveApiKey() {
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user?.name) {
+    throw new Error('Unauthorized - please sign in to generate an API key');
+  }
+
   // Generate a 64-byte (512-bit) cryptographically secure random key
   // Convert to base64url for a URL-safe 86-character string
   const key = crypto.randomBytes(64).toString('base64url');
@@ -34,7 +43,7 @@ export async function saveApiKey(userId: string) {
   // Revoke all existing keys by creating a new array with only the new key
   const keys = [{
     key,
-    userId,
+    userId: session.user.name,
     createdAt: new Date().toISOString(),
   }];
 

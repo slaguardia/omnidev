@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import type { AppConfig, ClientSafeAppConfig } from '@/lib/types/index';
 import { DEFAULT_CONFIG, validateConfig, validateClientSafeConfig } from './client-settings';
 
+
 /**
  * Configuration file path in workspaces directory
  */
@@ -202,4 +203,4 @@ export async function initializeConfigSystem(): Promise<void> {
     console.error('Configuration initialization failed:', error);
     // Don't throw - let the app start anyway
   }
-} 
+}

@@ -17,5 +17,4 @@
 - Automatically commit successful changes with descriptive messages
 - If tests fail, analyze and fix issues before committing
 - Follow TDD practices: write tests first when adding features
-- All operations must remain within the workspace boundary
 - **IMPORTANT: DO NOT PERFORM ANY GIT OPERATIONS (COMMIT, ADD, PUSH, etc.)**

@@ -5,110 +5,51 @@
  */
 
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
-import { GitInitResult } from '@/lib/managers/repository-manager';
-import { initializeGitWorkflow } from '@/lib/claudeCode/git-workflow';
-import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
 import type { AsyncResult } from '@/lib/types/index';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from '@/lib/claudeCode/types';
-
-/**
- * Detect if a question involves editing operations
- */
-async function isEditRequest(question: string): Promise<boolean> {
-  const editKeywords = [
-    'dev-test', 'dev-test mode', 'development mode'
-  ];
-  
-  const questionLower = question.toLowerCase();
-  return editKeywords.some(keyword => questionLower.includes(keyword));
-}
+import { initializeClaudeCode } from './initialization';
 
 /**
  * Execute Claude Code ask command and capture output
  */
 export async function askClaudeCode(
-  question: string,
-  options: ClaudeCodeOptions,
+  params: ClaudeCodeOptions,
 ): Promise<AsyncResult<ClaudeCodeResult>> {
   const startTime = Date.now();
   console.log(`[CLAUDE CODE] Starting execution at ${new Date().toISOString()}`);
   console.log(`[CLAUDE CODE] Parameters:`, {
-    questionLength: question.length,
-    workingDirectory: options.workingDirectory,
-    contextLength: options.context?.length || 0,
-    sourceBranch: options.sourceBranch,
-    workspaceId: options.workspaceId
+    questionLength: params.question.length,
+    workingDirectory: params.workingDirectory,
+    contextLength: params.context?.length || 0,
+    workspaceId: params.workspaceId
   });
 
   try {
-    // Get runtime configuration for API key
-    console.log(`[CLAUDE CODE] Loading runtime configuration...`);
-    const configStart = Date.now();
-    const config = await getRuntimeConfig();
-    console.log(`[CLAUDE CODE] ✅ Configuration loaded in ${Date.now() - configStart}ms`);
-    
-    // Validate that API key is configured
-    if (!config.claude.apiKey) {
-      console.error(`[CLAUDE CODE] ❌ No Claude API key found in configuration`);
+    // Initialize Claude Code
+    const initResult = await initializeClaudeCode(params);
+    if (!initResult.success) {
       return {
         success: false,
-        error: new Error('Claude API key is not configured. Please set your API key in the application settings.')
+        error: new Error(`Failed to initialize Claude Code: ${initResult.error?.message}`)
       };
     }
-    
-    // Verify working directory exists
-    console.log(`[CLAUDE CODE] Verifying working directory: ${options.workingDirectory}`);
-    const dirCheckStart = Date.now();
-    try {
-      await access(options.workingDirectory);
-      console.log(`[CLAUDE CODE] ✅ Working directory verified in ${Date.now() - dirCheckStart}ms`);
-    } catch (error) {
-      console.error(`[CLAUDE CODE] ❌ Working directory not accessible:`, error);
-      return {
-        success: false,
-        error: new Error(`Working directory does not exist: ${options.workingDirectory}`)
-      };
-    }
+    const config = initResult.data?.config;
 
-    // Check if this is an edit request that needs permissions
-    const needsPermissions = await isEditRequest(question);
-    console.log(`[CLAUDE CODE] Request type analysis:`, {
-      isEditRequest: needsPermissions,
-      needsPermissions
-    });
-    
-    // Initialize git workflow for edit operations
-    let gitInitResult: GitInitResult | undefined;
-    if (needsPermissions && options.workspaceId) {
-      console.log(`[CLAUDE CODE] 🔄 Initializing git workflow for edit request...`);
-      const gitInitStart = Date.now();
-      
-      const result = await initializeGitWorkflow(options.workspaceId, options.sourceBranch, options.mrOptions?.taskId || '');
-      const gitInitTime = Date.now() - gitInitStart;
-      
-      if (!result.success) {
-        console.warn(`[CLAUDE CODE] ⚠️ Git workflow initialization failed in ${gitInitTime}ms:`, result.error?.message);
-        // Don't fail the request, just warn - Claude Code might still work
-      } else {
-        console.log(`[CLAUDE CODE] ✅ Git workflow initialized successfully in ${gitInitTime}ms`);
-        gitInitResult = result.data;
-      }
-    }
-    
+    // =================================================================================
     // Build command with enhanced monitoring flags
+    // =================================================================================
     const baseCommand = 'claude --verbose';
-    const skipPermissionsFlag = needsPermissions ? ' --dangerously-skip-permissions' : '';
+    const skipPermissionsFlag = params.editRequest ? ' --dangerously-skip-permissions' : '';
     const outputFormatFlag = ' --output-format stream-json';
     
     // Build the full input that will be sent
-    let fullInput = question;
+    let fullInput = params.question;
     
-    if (options.context) {
-      fullInput += `\n\nContext: ${options.context}`;
+    if (params.context) {
+      fullInput += `\n\nContext: ${params.context}`;
     }
     
-    if (needsPermissions) {
+    if (params.editRequest) {
       fullInput += '\n\nIMPORTANT: Only work within the current workspace directory. Do not access files outside this workspace.';
     }
     
@@ -120,7 +61,7 @@ export async function askClaudeCode(
     const activityCheckInterval = 30000; // Check activity every 30 seconds
     
     console.log(`[CLAUDE CODE] 🚀 Executing: ${command}`);
-    console.log(`[CLAUDE CODE] Input: ${fullInput.length} chars, ${needsPermissions ? 'edit' : 'read-only'} mode, activity-based timeout`);
+    console.log(`[CLAUDE CODE] Input: ${fullInput.length} chars, ${params.editRequest ? 'edit' : 'read-only'} mode, activity-based timeout`);
     
     if (fullInput.length > 200) {
       console.log(`[CLAUDE CODE] Input preview: ${fullInput.substring(0, 200)}...`);
@@ -128,7 +69,9 @@ export async function askClaudeCode(
       console.log(`[CLAUDE CODE] Input: ${fullInput}`);
     }
 
+    // =================================================================================
     // Execute Claude Code and capture output
+    // =================================================================================
     return new Promise((resolve) => {
       let actualOutput = '';
       let rawStdout = '';
@@ -143,7 +86,7 @@ export async function askClaudeCode(
       const spawnStart = Date.now();
 
       const claudeProcess = spawn(command, {
-        cwd: options.workingDirectory,
+        cwd: params.workingDirectory,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
         env: {
@@ -296,10 +239,6 @@ export async function askClaudeCode(
           const result: ClaudeCodeResult = {
             output: output || 'Claude Code executed successfully but produced no output'
           };
-          if (gitInitResult) {
-            result.gitInitResult = gitInitResult;
-            console.log(`[CLAUDE CODE] ✅ Including git init result in response`);
-          }
           
           console.log(`[CLAUDE CODE] 🎯 Execution completed successfully in ${executionTime}ms with ${jsonLogCount} JSON logs`);
           resolve({ 
