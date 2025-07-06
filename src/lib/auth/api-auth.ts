@@ -1,5 +1,8 @@
 'use server'
 
+import { getApiKeys } from "../config/api-key-store";
+import { ApiKey } from "../config/types";
+
 export interface AuthResult {
   success: boolean;
   error?: string;
@@ -20,12 +23,12 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
     };
   }
 
-  // Get API keys from environment variables
-  const validApiKeys = process.env.VALID_API_KEYS?.split(',') || [];
-  const adminApiKey = process.env.ADMIN_API_KEY;
+  // Get API keys from storage
+  const apiKeys = await getApiKeys();
+  const validApiKeys = apiKeys.map((key: ApiKey) => key.key);
   
-  if (!validApiKeys.length && !adminApiKey) {
-    console.error('No API keys configured. Set VALID_API_KEYS or ADMIN_API_KEY environment variable.');
+  if (!validApiKeys.length) {
+    console.error('No API keys configured.');
     return {
       success: false,
       error: 'Authentication service not configured'
@@ -33,7 +36,7 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
   }
 
   // Check if provided key is valid
-  const isValidKey = validApiKeys.includes(apiKey) || apiKey === adminApiKey;
+  const isValidKey = validApiKeys.includes(apiKey);
   
   if (!isValidKey) {
     return {
@@ -43,13 +46,12 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
   }
 
   // Determine user context based on key
-  const isAdmin = apiKey === adminApiKey;
   const keyIndex = validApiKeys.indexOf(apiKey);
   
   return {
     success: true,
-    userId: isAdmin ? 'admin' : `client-${keyIndex}`,
-    clientName: isAdmin ? 'Admin' : `Client ${keyIndex + 1}`
+    userId: `client-${keyIndex}`,
+    clientName: `Client ${keyIndex + 1}`
   };
 }
 

@@ -50,3 +50,9 @@ export interface LoggingConfig {
   format: 'json' | 'text';
   enableFileLogging: boolean;
 }
+
+export interface ApiKey {
+  key: string;
+  userId: string;
+  createdAt: string;
+}
