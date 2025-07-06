@@ -6,7 +6,7 @@ import type { Workspace } from '@/lib/workspace/types';
 export interface AskRouteParams {
     workspaceId: WorkspaceId;
     question: string;
-    context: string | null;
+    context?: string | null;
     sourceBranch: string;
 }
 

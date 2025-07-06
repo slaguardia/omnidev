@@ -37,7 +37,7 @@ export function validateAndParseAskRouteParams(
   const parsedData: AskRouteParams = {
     workspaceId: workspaceId,
     question: question,
-    context: context,
+    context: context || null,
     sourceBranch: sourceBranch,
   };
 
@@ -91,7 +91,7 @@ export function validateAndParseEditRouteParams(
   const parsedData: EditRouteParams = {
     workspaceId: workspaceId,
     question: question,
-    context: context,
+    context: context || null,
     sourceBranch: sourceBranch,
     createMR: createMR,
     taskId: taskId || '',
