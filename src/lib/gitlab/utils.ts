@@ -7,7 +7,7 @@ import { getStatus } from '@/lib/git/core';
 import type { 
   AsyncResult,
   FilePath
-} from '@/lib/types/index';
+} from '@/lib/common/types';
 import type { MergeRequestContext } from './types';
 
 /**

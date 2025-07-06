@@ -1,76 +1,110 @@
 'use server';
 
-import type { WorkspaceId } from '@/lib/types/index';
-import { initializeWorkspaceManager, deleteWorkspace, getAllWorkspaces } from '@/lib/managers/workspace-manager';
-import { cleanupWorkspace as cleanupWorkspaceRepo } from '@/lib/managers/repository-manager';
+import { cleanupWorkspaceFiles } from './repository';
+import { getAllWorkspaces, deleteWorkspace } from './storage';
+import type { WorkspaceId } from '@/lib/common/types';
 
-export async function cleanupWorkspace(workspaceId: WorkspaceId) {
-  // Initialize workspace manager
-  const initResult = await initializeWorkspaceManager();
-  if (!initResult.success) {
-    throw new Error(`Failed to initialize workspace manager: ${initResult.error.message}`);
-  }
-
-  // Clean specific workspace
-  const cleanResult = await cleanupWorkspaceRepo(workspaceId);
-  if (!cleanResult.success) {
-    throw new Error(`Failed to clean workspace: ${cleanResult.error?.message}`);
-  }
-
-  // Remove from persistent storage
-  const deleteResult = await deleteWorkspace(workspaceId);
-  if (!deleteResult.success) {
-    console.warn('Warning: Failed to remove workspace from persistent storage');
-  }
-
-  return {
-    success: true,
-    message: `Workspace ${workspaceId} cleaned successfully`,
-    cleanedWorkspaces: 1
-  };
+export interface CleanupResult {
+  success: boolean;
+  message: string;
+  cleanedWorkspaces: number;
+  totalWorkspaces?: number;
+  errors?: string[];
 }
 
-export async function cleanupAllWorkspaces(force: boolean = false) {
-  if (!force) {
-    throw new Error('Force flag is required for bulk cleanup operations');
-  }
-
-  // Initialize workspace manager
-  const initResult = await initializeWorkspaceManager();
-  if (!initResult.success) {
-    throw new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`);
-  }
-
-  // Get all workspaces
-  const workspacesResult = await getAllWorkspaces();
-  if (!workspacesResult.success) {
-    throw new Error(`Failed to get workspaces: ${workspacesResult.error?.message}`);
-  }
-
-  const allWorkspaces = workspacesResult.data;
-  let cleanedCount = 0;
-  const errors: string[] = [];
-
-  // Clean each workspace
-  for (const workspace of allWorkspaces) {
-    try {
-      const cleanResult = await cleanupWorkspaceRepo(workspace.id);
-      if (cleanResult.success) {
-        await deleteWorkspace(workspace.id);
-        cleanedCount++;
-      } else {
-        errors.push(`Failed to clean ${workspace.id}: ${cleanResult.error?.message}`);
-      }
-    } catch (error) {
-      errors.push(`Error cleaning ${workspace.id}: ${error instanceof Error ? error.message : String(error)}`);
+/**
+ * Clean up a single workspace (files and storage)
+ */
+export async function cleanupWorkspace(workspaceId: WorkspaceId): Promise<CleanupResult> {
+  try {
+    // Clean workspace repository and files
+    const cleanResult = await cleanupWorkspaceFiles(workspaceId);
+    if (!cleanResult.success) {
+      return {
+        success: false,
+        message: `Failed to clean workspace: ${cleanResult.error?.message}`,
+        cleanedWorkspaces: 0
+      };
     }
+
+    // Remove from persistent storage
+    const deleteResult = await deleteWorkspace(workspaceId);
+    if (!deleteResult.success) {
+      console.warn('Warning: Failed to remove workspace from persistent storage');
+    }
+
+    return {
+      success: true,
+      message: `Workspace ${workspaceId} cleaned successfully`,
+      cleanedWorkspaces: 1
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to clean workspace: ${error instanceof Error ? error.message : String(error)}`,
+      cleanedWorkspaces: 0
+    };
+  }
+}
+
+/**
+ * Clean up all workspaces
+ */
+export async function cleanupAllWorkspaces(force: boolean = false): Promise<CleanupResult> {
+  if (!force) {
+    return {
+      success: false,
+      message: 'Force flag is required for bulk cleanup operations',
+      cleanedWorkspaces: 0
+    };
   }
 
-  return {
-    success: true,
-    message: `Cleaned ${cleanedCount}/${allWorkspaces.length} workspaces`,
-    cleanedWorkspaces: cleanedCount,
-    totalWorkspaces: allWorkspaces.length,
-    errors: errors.length > 0 ? errors : undefined
-  };
-} 
+  try {
+    // Get all workspaces
+    const workspacesResult = await getAllWorkspaces();
+    if (!workspacesResult.success) {
+      return {
+        success: false,
+        message: `Failed to get workspaces: ${workspacesResult.error?.message}`,
+        cleanedWorkspaces: 0
+      };
+    }
+
+    const allWorkspaces = workspacesResult.data;
+    let cleanedCount = 0;
+    const errors: string[] = [];
+
+    // Clean each workspace
+    for (const workspace of allWorkspaces) {
+      try {
+        const cleanResult = await cleanupWorkspace(workspace.id);
+        if (cleanResult.success) {
+          cleanedCount++;
+        } else {
+          errors.push(`Failed to clean ${workspace.id}: ${cleanResult.message}`);
+        }
+      } catch (error) {
+        errors.push(`Error cleaning ${workspace.id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    const result: CleanupResult = {
+      success: true,
+      message: `Cleaned ${cleanedCount}/${allWorkspaces.length} workspaces`,
+      cleanedWorkspaces: cleanedCount,
+      totalWorkspaces: allWorkspaces.length,
+    };
+
+    if (errors.length > 0) {
+      result.errors = errors;
+    }
+
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to cleanup workspaces: ${error instanceof Error ? error.message : String(error)}`,
+      cleanedWorkspaces: 0
+    };
+  }
+}

@@ -3,27 +3,49 @@
 import React from 'react';
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import { Workspace, GitConfigForm } from '@/lib/dashboard/types';
+import { addToast } from "@heroui/toast";
+import { Workspace } from '@/lib/dashboard/types';
+import { useGitConfiguration } from '@/hooks';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 
 interface GitConfigModalProps {
   workspace: Workspace | null;
   onClose: () => void;
-  onSave: (workspaceId: string) => Promise<void>;
-  gitConfigForm: GitConfigForm;
-  setGitConfigForm: React.Dispatch<React.SetStateAction<GitConfigForm>>;
-  loading: boolean;
-  getProjectDisplayName: (repoUrl: string) => string;
+  onSaveSuccess: () => void;
 }
 
 export default function GitConfigModal({
   workspace,
   onClose,
-  onSave,
-  gitConfigForm,
-  setGitConfigForm,
-  loading,
-  getProjectDisplayName
+  onSaveSuccess
 }: GitConfigModalProps) {
+  const {
+    gitConfigForm,
+    setGitConfigForm,
+    loading,
+    handleSetGitConfig,
+    handleGetGitConfig,
+  } = useGitConfiguration();
+
+  // Handler with toast notifications
+  const handleSetGitConfigWithToast = async (workspaceId: string) => {
+    const result = await handleSetGitConfig(workspaceId);
+    if (result.success) {
+      addToast({ title: "Success", description: result.message, color: "success" });
+      onSaveSuccess(); // Refresh workspaces to show updated config
+      onClose(); // Close modal
+    } else {
+      addToast({ title: "Error", description: result.message, color: "danger" });
+    }
+  };
+
+  // Load git config when workspace changes
+  React.useEffect(() => {
+    if (workspace) {
+      handleGetGitConfig(workspace.id, workspace);
+    }
+  }, [workspace, handleGetGitConfig]);
+
   if (!workspace) return null;
 
   return (
@@ -34,7 +56,7 @@ export default function GitConfigModal({
           <Button
             size="sm"
             variant="light"
-            onClick={onClose}
+            onPress={onClose}
           >
             ✕
           </Button>
@@ -90,14 +112,14 @@ export default function GitConfigModal({
             color="default"
             variant="flat"
             className="flex-1"
-            onClick={onClose}
+            onPress={onClose}
           >
             Cancel
           </Button>
           <Button
             color="primary"
             className="flex-1"
-            onClick={() => onSave(gitConfigForm.workspaceId)}
+            onPress={() => handleSetGitConfigWithToast(gitConfigForm.workspaceId)}
             isLoading={loading}
           >
             Save Configuration

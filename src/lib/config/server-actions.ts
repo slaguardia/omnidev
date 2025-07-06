@@ -7,8 +7,9 @@
 
 import { resolve } from 'node:path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import type { AppConfig, ClientSafeAppConfig } from '@/lib/types/index';
-import { DEFAULT_CONFIG, validateConfig, validateClientSafeConfig } from './client-settings';
+import type { AppConfig, ClientSafeAppConfig } from '@/lib/config/types';
+import { DEFAULT_CONFIG, validateConfig } from '@/lib/config/client-settings';
+import { createErrorResponse, createSuccessResponse } from '@/lib/common/actions';
 
 /**
  * Get the path to the app-config.json file in the data directory at the project root
@@ -30,6 +31,19 @@ function getConfigFilePath(): string {
 }
 
 /**
+ * Deep merge utility specifically for AppConfig objects
+ */
+function mergeAppConfig(defaults: AppConfig, override: Partial<AppConfig>): AppConfig {
+  return {
+    gitlab: { ...defaults.gitlab, ...override.gitlab },
+    claude: { ...defaults.claude, ...override.claude },
+    workspace: { ...defaults.workspace, ...override.workspace },
+    security: { ...defaults.security, ...override.security },
+    logging: { ...defaults.logging, ...override.logging }
+  };
+}
+
+/**
  * Load configuration from file or return defaults
  */
 function loadConfigFromFile(): AppConfig {
@@ -43,25 +57,12 @@ function loadConfigFromFile(): AppConfig {
     const configData = readFileSync(configPath, 'utf-8');
     const savedConfig = JSON.parse(configData) as Partial<AppConfig>;
     
-    // Merge with defaults to ensure all fields exist
-    return {
-      gitlab: { ...DEFAULT_CONFIG.gitlab, ...savedConfig.gitlab },
-      claude: { ...DEFAULT_CONFIG.claude, ...savedConfig.claude },
-      workspace: { ...DEFAULT_CONFIG.workspace, ...savedConfig.workspace },
-      security: { ...DEFAULT_CONFIG.security, ...savedConfig.security },
-      logging: { ...DEFAULT_CONFIG.logging, ...savedConfig.logging }
-    };
+    // Use specific merge function
+    return mergeAppConfig(DEFAULT_CONFIG, savedConfig);
   } catch (error) {
     console.warn('Failed to load config file, using defaults:', error);
     return { ...DEFAULT_CONFIG };
   }
-}
-
-/**
- * Server action: Get current configuration (INTERNAL USE ONLY - contains sensitive data)
- */
-export async function getConfig(): Promise<AppConfig> {
-  return loadConfigFromFile();
 }
 
 /**
@@ -87,6 +88,13 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
 }
 
 /**
+ * Server action: Get current configuration (INTERNAL USE ONLY - contains sensitive data)
+ */
+export async function getConfig(): Promise<AppConfig> {
+  return loadConfigFromFile();
+}
+
+/**
  * Server action: Get client-safe configuration (sensitive data removed)
  */
 export async function getClientSafeConfig(): Promise<ClientSafeAppConfig> {
@@ -102,27 +110,17 @@ export async function saveConfig(config: AppConfig): Promise<{ success: boolean;
     // Validate configuration first
     const errors = validateConfig(config);
     if (errors.length > 0) {
-      return {
-        success: false,
-        message: 'Configuration validation failed',
-        errors
-      };
+      return createErrorResponse('Configuration validation failed', errors);
     }
 
     const configPath = getConfigFilePath();
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     
     console.log('Configuration saved successfully to:', configPath);
-    return {
-      success: true,
-      message: 'Configuration saved successfully!'
-    };
+    return createSuccessResponse('Configuration saved successfully!');
   } catch (error) {
     console.error('Failed to save configuration:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to save configuration'
-    };
+    return createErrorResponse(error instanceof Error ? error.message : 'Failed to save configuration');
   }
 }
 
@@ -137,16 +135,6 @@ export async function updateConfigFromClient(
   }
 ): Promise<{ success: boolean; message: string; errors?: string[] }> {
   try {
-    // Validate client-safe configuration first
-    const clientErrors = validateClientSafeConfig(clientConfig);
-    if (clientErrors.length > 0) {
-      return {
-        success: false,
-        message: 'Configuration validation failed',
-        errors: clientErrors
-      };
-    }
-
     // Load current configuration
     const currentConfig = loadConfigFromFile();
     
@@ -168,14 +156,11 @@ export async function updateConfigFromClient(
       logging: clientConfig.logging
     };
 
-    // Save the updated configuration
+    // Use the shared save function with validation
     return await saveConfig(updatedConfig);
   } catch (error) {
     console.error('Failed to update configuration:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update configuration'
-    };
+    return createErrorResponse(error instanceof Error ? error.message : 'Failed to update configuration');
   }
 }
 
@@ -184,30 +169,4 @@ export async function updateConfigFromClient(
  */
 export async function getWorkspaceBaseDir(): Promise<string> {
   return resolve(process.cwd(), 'workspaces');
-}
-
-/**
- * Server action: Initialize configuration system
- */
-export async function initializeConfigSystem(): Promise<void> {
-  try {
-    // Ensure workspaces directory exists
-    const workspaceDir = await getWorkspaceBaseDir();
-    if (!existsSync(workspaceDir)) {
-      mkdirSync(workspaceDir, { recursive: true });
-    }
-    
-    // Load configuration (creates defaults if none exist)
-    const config = await getConfig();
-    const errors = validateConfig(config);
-    
-    if (errors.length > 0) {
-      console.warn('Configuration has issues:', errors);
-    } else {
-      console.log('Configuration system initialized');
-    }
-  } catch (error) {
-    console.error('Configuration initialization failed:', error);
-    // Don't throw - let the app start anyway
-  }
 }

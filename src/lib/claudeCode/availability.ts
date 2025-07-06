@@ -5,8 +5,8 @@
  */
 
 import { spawn } from 'node:child_process';
-import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
-import type { AsyncResult, Result } from '@/lib/types/index';
+import { getConfig } from '@/lib/config/server-actions';
+import type { AsyncResult, Result } from '@/lib/common/types';
 
 /**
  * Check if Claude Code is available in the system
@@ -40,7 +40,7 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
 
       try {
       // Get runtime configuration for API key outside the promise
-      const config = await getRuntimeConfig();
+      const config = await getConfig();
       
       return await new Promise<Result<boolean>>((resolve) => {
         let resolved = false;

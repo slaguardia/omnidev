@@ -8,9 +8,9 @@ import { hasUncommittedChanges, addAllFiles, commitChanges } from '@/lib/git/com
 import { pushChanges } from '@/lib/git/remotes';
 import { createMergeRequest } from '@/lib/gitlab/merge-requests';
 import { extractProjectIdFromUrl } from '@/lib/gitlab/api';
-import type { AsyncResult, FilePath, GitUrl } from '@/lib/types/index';
+import type { AsyncResult, FilePath, GitUrl } from '@/lib/common/types';
 import type { PostExecutionResult } from './types';
-import { GitBranchWorkflowResult } from '../managers/repository-manager';
+import { GitBranchWorkflowResult } from '@/lib/workspace/repository';
 
 interface PostExecutionParams {
   workspacePath: FilePath;

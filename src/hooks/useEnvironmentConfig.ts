@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClientSafeAppConfig } from '@/lib/types/index';
+import { ClientSafeAppConfig } from '@/lib/config/types';
 import { getClientSafeConfig, updateConfigFromClient } from '@/lib/config/server-actions';
 import { getDefaultClientSafeConfig } from '@/lib/config/client-settings';
 

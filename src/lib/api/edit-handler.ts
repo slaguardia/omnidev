@@ -3,7 +3,7 @@ import { askClaudeCode, checkClaudeCodeAvailability, handlePostClaudeCodeExecuti
 import { withAuth } from '@/lib/auth/middleware';
 import { validateAndLoadWorkspace } from './workspace-validation';
 import { EditRouteParams } from './types';
-import { GitBranchWorkflowResult } from '../managers/repository-manager';
+import { GitBranchWorkflowResult } from '@/lib/workspace/repository';
 
 /**
  * API handler for edit operations

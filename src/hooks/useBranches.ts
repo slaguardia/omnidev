@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
+import { initializeWorkspaceStorage, loadWorkspace } from '@/lib/workspace/storage';
+import { loadAllWorkspacesFromStorage } from '@/lib/workspace/repository';
 import { getAllRemoteBranches } from '@/lib/git/branches';
-import { loadAllWorkspacesFromStorage } from '@/lib/managers/repository-manager';
-import type { WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/common/types';
 
 export const useBranches = () => {
   const [branches, setBranches] = useState<string[]>([]);
@@ -13,7 +13,7 @@ export const useBranches = () => {
       setLoading(true);
       
       // Initialize managers
-      await initializeWorkspaceManager();
+      await initializeWorkspaceStorage();
       await loadAllWorkspacesFromStorage();
 
       // Get workspace

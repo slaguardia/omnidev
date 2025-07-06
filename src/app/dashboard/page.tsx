@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { addToast } from "@heroui/toast";
 import { Tab, Tabs } from "@heroui/tabs";
 // Components
 import { 
@@ -19,96 +18,30 @@ import type { Workspace } from '@/lib/dashboard/types';
 // Hooks
 import { 
   useWorkspaces,
-  useEnvironmentConfig,
-  useCloneRepository,
   useGitConfiguration
 } from '@/hooks';
 
 // Utils
-import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 import { Divider } from '@heroui/divider';
-
-// Replace the simple toast system with HeroUI toast
-const toast = {
-  success: (message: string) => {
-    addToast({ title: "Success", description: message, color: "success" });
-  },
-  error: (message: string) => {
-    addToast({ title: "Error", description: message, color: "danger" });
-  }
-};
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("workspaces");
   
   // Custom hooks
-  const { workspaces, loading: workspacesLoading, loadWorkspaces, handleCleanupWorkspace } = useWorkspaces();
-  const { envConfig, setEnvConfig, pendingSensitiveData, updateSensitiveData, loading: envLoading, saveEnvironmentConfig, resetToDefaults } = useEnvironmentConfig();
-  const { 
-    cloneForm, 
-    setCloneForm, 
-    isCloneModalOpen, 
-    setIsCloneModalOpen, 
-    loading: cloneLoading, 
-    handleCloneRepository 
-  } = useCloneRepository();
+  const { loadWorkspaces } = useWorkspaces();
   const {
-    gitConfigForm,
-    setGitConfigForm,
     selectedWorkspaceForGitConfig,
-    loading: gitConfigLoading,
-    handleSetGitConfig,
-    handleGetGitConfig,
-    closeGitConfigModal
+    closeGitConfigModal,
+    handleGetGitConfig
   } = useGitConfiguration();
 
-  // Handlers with toast notifications
-  const handleCloneWithToast = async () => {
-    const result = await handleCloneRepository();
-    if (result.success) {
-      toast.success(result.message);
-      loadWorkspaces(); // Refresh workspaces
-    } else {
-      toast.error(result.message);
-    }
-  };
+  // Modal states
+  const [isCloneModalOpen, setIsCloneModalOpen] = useState(false);
 
-  const handleCleanupWithToast = async (workspaceId?: string, all = false) => {
-    const result = await handleCleanupWorkspace(workspaceId, all);
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
+  // Handlers for git configuration modal
+  const handleGitConfigModal = async (workspaceId: string, workspace: Workspace) => {
+    await handleGetGitConfig(workspaceId, workspace);
   };
-
-  const handleSaveEnvConfigWithToast = async () => {
-    const result = await saveEnvironmentConfig();
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handleGitConfigWithToast = async (workspaceId: string, workspace: Workspace) => {
-    const result = await handleGetGitConfig(workspaceId, workspace);
-    if (!result.success && result.message) {
-      toast.error(result.message);
-    }
-  };
-
-  const handleSetGitConfigWithToast = async (workspaceId: string) => {
-    const result = await handleSetGitConfig(workspaceId);
-    if (result.success) {
-      toast.success(result.message);
-      loadWorkspaces(); // Refresh workspaces to show updated config
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const loading = workspacesLoading || envLoading || cloneLoading || gitConfigLoading;
 
   return (
     <div className="w-full max-w-4xl mx-auto relative mb-16">
@@ -152,13 +85,8 @@ export default function DashboardPage() {
       <div className="mt-6 w-full min-h-[700px]">
         {activeTab === "workspaces" && (
           <WorkspacesTab
-            workspaces={workspaces}
-            loading={loading}
-            onRefreshWorkspaces={loadWorkspaces}
             onOpenCloneModal={() => setIsCloneModalOpen(true)}
-            onConfigureGit={handleGitConfigWithToast}
-            onDeleteWorkspace={handleCleanupWithToast}
-            getProjectDisplayName={getProjectDisplayName}
+            onConfigureGit={handleGitConfigModal}
           />
         )}
 
@@ -171,15 +99,7 @@ export default function DashboardPage() {
         )}
 
         {activeTab === "settings" && (
-          <SettingsTab
-            envConfig={envConfig}
-            setEnvConfig={setEnvConfig}
-            pendingSensitiveData={pendingSensitiveData}
-            updateSensitiveData={updateSensitiveData}
-            loading={loading}
-            onSaveConfig={handleSaveEnvConfigWithToast}
-            onResetToDefaults={resetToDefaults}
-          />
+          <SettingsTab />
         )}
       </div>
 
@@ -187,21 +107,14 @@ export default function DashboardPage() {
       <CloneRepositoryModal
         isOpen={isCloneModalOpen}
         onOpenChange={setIsCloneModalOpen}
-        onClone={handleCloneWithToast}
-        cloneForm={cloneForm}
-        setCloneForm={setCloneForm}
-        loading={loading}
+        onCloneSuccess={loadWorkspaces}
       />
 
       {/* Git Configuration Modal */}
       <GitConfigModal
         workspace={selectedWorkspaceForGitConfig}
         onClose={closeGitConfigModal}
-        onSave={handleSetGitConfigWithToast}
-        gitConfigForm={gitConfigForm}
-        setGitConfigForm={setGitConfigForm}
-        loading={loading}
-        getProjectDisplayName={getProjectDisplayName}
+        onSaveSuccess={loadWorkspaces}
       />
     </div>
     </div>

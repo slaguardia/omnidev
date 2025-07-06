@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteClaudeMdContent, saveClaudeMdContent } from '@/lib/workspace/claudemd';
+import { deleteClaudeMdContent, saveClaudeMdContent } from '@/lib/claudeCode/claudemd';
 
 // Save the CLAUDE.md file content
 export async function POST(request: NextRequest) {

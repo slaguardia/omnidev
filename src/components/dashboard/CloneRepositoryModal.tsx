@@ -6,26 +6,40 @@ import { Input } from "@heroui/input";
 import { Switch } from "@heroui/switch";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
+import { addToast } from "@heroui/toast";
 import { GitBranch, Info } from "lucide-react";
-import { CloneForm } from '@/lib/dashboard/types';
+import { useCloneRepository } from '@/hooks';
 
 interface CloneRepositoryModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onClone: () => Promise<void>;
-  cloneForm: CloneForm;
-  setCloneForm: React.Dispatch<React.SetStateAction<CloneForm>>;
-  loading: boolean;
+  onCloneSuccess: () => void;
 }
 
 export default function CloneRepositoryModal({
   isOpen,
   onOpenChange,
-  onClone,
-  cloneForm,
-  setCloneForm,
-  loading
+  onCloneSuccess
 }: CloneRepositoryModalProps) {
+  const { 
+    cloneForm, 
+    setCloneForm, 
+    loading, 
+    handleCloneRepository 
+  } = useCloneRepository();
+
+  // Handler with toast notifications
+  const handleCloneWithToast = async () => {
+    const result = await handleCloneRepository();
+    if (result.success) {
+      addToast({ title: "Success", description: result.message, color: "success" });
+      onCloneSuccess(); // Refresh workspaces
+      onOpenChange(false); // Close modal
+    } else {
+      addToast({ title: "Error", description: result.message, color: "danger" });
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -139,12 +153,12 @@ export default function CloneRepositoryModal({
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button color="default" variant="flat" onClick={onClose}>
+              <Button color="default" variant="flat" onPress={onClose}>
                 Cancel
               </Button>
               <Button
                 color="success"
-                onClick={onClone}
+                onPress={handleCloneWithToast}
                 isLoading={loading}
                 isDisabled={!cloneForm.repoUrl}
               >

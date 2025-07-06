@@ -3,28 +3,33 @@
 import React from 'react';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
+import { addToast } from "@heroui/toast";
 import { GitBranch, FolderOpen } from "lucide-react";
 import { Workspace } from '@/lib/dashboard/types';
+import { useWorkspaces } from '@/hooks';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 
 interface WorkspacesTabProps {
-  workspaces: Workspace[];
-  loading: boolean;
-  onRefreshWorkspaces: () => void;
   onOpenCloneModal: () => void;
   onConfigureGit: (workspaceId: string, workspace: Workspace) => void;
-  onDeleteWorkspace: (workspaceId: string) => void;
-  getProjectDisplayName: (repoUrl: string) => string;
 }
 
 export default function WorkspacesTab({
-  workspaces,
-  loading,
-  onRefreshWorkspaces,
   onOpenCloneModal,
-  onConfigureGit,
-  onDeleteWorkspace,
-  getProjectDisplayName
+  onConfigureGit
 }: WorkspacesTabProps) {
+  const { workspaces, loading, loadWorkspaces, handleCleanupWorkspace } = useWorkspaces();
+
+  // Handler with toast notifications
+  const handleCleanupWithToast = async (workspaceId?: string, all = false) => {
+    const result = await handleCleanupWorkspace(workspaceId, all);
+    if (result.success) {
+      addToast({ title: "Success", description: result.message, color: "success" });
+    } else {
+      addToast({ title: "Error", description: result.message, color: "danger" });
+    }
+  };
+
   return (
     <div className="space-y-6 w-full overflow-hidden">
       {/* Clone Repository Button */}
@@ -32,7 +37,7 @@ export default function WorkspacesTab({
         <Button
           color="success"
           size="md"
-          onClick={onOpenCloneModal}
+          onPress={onOpenCloneModal}
           className="flex items-center gap-2"
         >
           <GitBranch className="w-4 h-4" />
@@ -50,7 +55,7 @@ export default function WorkspacesTab({
           <Button 
             color="primary" 
             size="sm"
-            onClick={onRefreshWorkspaces}
+            onPress={loadWorkspaces}
             isLoading={loading}
           >
             Refresh
@@ -70,7 +75,7 @@ export default function WorkspacesTab({
                       color="primary"
                       size="sm"
                       variant="flat"
-                      onClick={() => onConfigureGit(workspace.id, workspace)}
+                      onPress={() => onConfigureGit(workspace.id, workspace)}
                       isLoading={loading}
                     >
                       Configure Git
@@ -79,7 +84,7 @@ export default function WorkspacesTab({
                       color="danger"
                       size="sm"
                       variant="flat"
-                      onClick={() => onDeleteWorkspace(workspace.id)}
+                      onPress={() => handleCleanupWithToast(workspace.id)}
                       isLoading={loading}
                     >
                       Delete
@@ -109,7 +114,7 @@ export default function WorkspacesTab({
             {workspaces.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-default-600 mb-4">No workspaces found</p>
-                <Button color="primary" onClick={onOpenCloneModal}>
+                <Button color="primary" onPress={onOpenCloneModal}>
                   Clone your first repository
                 </Button>
               </div>

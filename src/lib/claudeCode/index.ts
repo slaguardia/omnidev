@@ -20,6 +20,3 @@ export { askClaudeCode } from '@/lib/claudeCode/orchestrator';
 
 // Post-execution handling
 export { handlePostClaudeCodeExecution } from '@/lib/claudeCode/post-execution';
-
-// Version utilities
-export { getClaudeCodeVersion } from '@/lib/claudeCode/version'; 
