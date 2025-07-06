@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GitConfigForm, Workspace } from '@/lib/dashboard/types';
 import { setWorkspaceGitConfig, getWorkspaceGitConfig } from '@/lib/workspace';
-import type { WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/common/types';
 
 const initialGitConfigForm: GitConfigForm = {
   workspaceId: '',

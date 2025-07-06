@@ -4,8 +4,8 @@ import clsx from "clsx";
 
 import { Providers } from "@/app/providers";
 
-import { siteConfig } from "@/lib/config/site";
-import { fontSans } from "@/lib/config/fonts";
+import { siteConfig } from "@/lib/common/site";
+import { fontSans } from "@/lib/common/fonts";
 import { Navbar } from "@/components/NavBar";
 
 export const metadata: Metadata = {

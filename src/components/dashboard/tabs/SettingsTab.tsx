@@ -4,36 +4,34 @@ import React, { useState } from 'react';
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
+import { addToast } from "@heroui/toast";
 import { Settings } from "lucide-react";
-import { Select, SelectItem } from '@heroui/select';
-import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Divider } from '@heroui/divider';
 import { Snippet } from '@heroui/snippet';
 import { generateAndSaveApiKey } from '@/lib/config/api-key-store';
+import { useEnvironmentConfig } from '@/hooks';
 
-interface SettingsTabProps {
-  envConfig: ClientSafeAppConfig;
-  setEnvConfig: React.Dispatch<React.SetStateAction<ClientSafeAppConfig>>;
-  pendingSensitiveData: {
-    gitlabToken?: string;
-    claudeApiKey?: string;
-  };
-  updateSensitiveData: (type: 'gitlabToken' | 'claudeApiKey', value: string) => void;
-  loading: boolean;
-  onSaveConfig: () => void;
-  onResetToDefaults: () => void;
-}
-
-export default function SettingsTab({
-  envConfig,
-  setEnvConfig,
-  pendingSensitiveData,
-  updateSensitiveData,
-  loading,
-  onSaveConfig,
-  onResetToDefaults
-}: SettingsTabProps) {
+export default function SettingsTab() {
   const [apiKey, setApiKey] = useState('');
+  const { 
+    envConfig, 
+    setEnvConfig, 
+    pendingSensitiveData, 
+    updateSensitiveData, 
+    loading, 
+    saveEnvironmentConfig, 
+    resetToDefaults 
+  } = useEnvironmentConfig();
+
+  // Handler with toast notifications
+  const handleSaveEnvConfigWithToast = async () => {
+    const result = await saveEnvironmentConfig();
+    if (result.success) {
+      addToast({ title: "Success", description: result.message, color: "success" });
+    } else {
+      addToast({ title: "Error", description: result.message, color: "danger" });
+    }
+  };
 
   async function generateApiKey() {
     try {
@@ -127,43 +125,12 @@ export default function SettingsTab({
               <h4 className="text-lg font-semibold text-success-500">Application Settings</h4>
               <Divider className="mb-4" />
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Temp Directory Prefix"
-                    value={envConfig.workspace.tempDirPrefix}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
-                      ...prev, 
-                      workspace: { ...prev.workspace, tempDirPrefix: e.target.value }
-                    }))}
-                    variant="bordered"
-                  />
-
-                  <Select
-                    label="Log Level"
-                    placeholder="Select log level"
-                    selectedKeys={[envConfig.logging.level]}
-                    onSelectionChange={(keys: React.Key | Set<React.Key>) => {
-                      const keyArray = Array.from(keys as Set<React.Key>);
-                      setEnvConfig(prev => ({ 
-                        ...prev, 
-                        logging: { ...prev.logging, level: keyArray[0] as 'debug' | 'info' | 'warn' | 'error' }
-                      }));
-                    }}
-                    variant="bordered"
-                  >
-                    <SelectItem key="error">Error</SelectItem>
-                    <SelectItem key="warn">Warning</SelectItem>
-                    <SelectItem key="info">Info</SelectItem>
-                    <SelectItem key="debug">Debug</SelectItem>
-                  </Select>
-                </div>
-
                 {/* API Key Generation */}
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <Button
                       color="success"
-                      onClick={generateApiKey}
+                      onPress={generateApiKey}
                       isLoading={loading}
                       className="w-full sm:w-auto"
                       variant="flat"
@@ -207,13 +174,13 @@ export default function SettingsTab({
               <Button
                 color="danger"
                 variant="flat"
-                onClick={onResetToDefaults}
+                onPress={resetToDefaults}
               >
                 Reset to Defaults
               </Button>
               <Button
                 color="primary"
-                onClick={onSaveConfig}
+                onPress={handleSaveEnvConfigWithToast}
                 isLoading={loading}
               >
                 Save Configuration

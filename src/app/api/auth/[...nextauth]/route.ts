@@ -107,11 +107,34 @@ const authOptions: NextAuthOptions = {
       return token;
     },
     async redirect({url, baseUrl}: {url: string, baseUrl: string}) {
-      console.log('url', url);
-      console.log('baseUrl', baseUrl);
+      console.log('[AUTH] Redirect callback - url:', url);
+      console.log('[AUTH] Redirect callback - baseUrl:', baseUrl);
       
-      // Let NextAuth handle redirects with default behavior
-      return url;
+      // Validate and sanitize the URL
+      try {
+        // If url is relative, make it absolute with baseUrl
+        if (url.startsWith('/')) {
+          const redirectUrl = new URL(url, baseUrl);
+          console.log('[AUTH] Redirect callback - constructed absolute URL:', redirectUrl.toString());
+          return redirectUrl.toString();
+        }
+        
+        // If url is absolute, validate it's a valid URL
+        const parsedUrl = new URL(url);
+        
+        // Only allow redirects to the same origin for security
+        const parsedBaseUrl = new URL(baseUrl);
+        if (parsedUrl.origin !== parsedBaseUrl.origin) {
+          console.log('[AUTH] Redirect callback - external URL blocked, redirecting to dashboard');
+          return `${baseUrl}/dashboard`;
+        }
+        
+        console.log('[AUTH] Redirect callback - validated URL:', parsedUrl.toString());
+        return parsedUrl.toString();
+      } catch (error) {
+        console.error('[AUTH] Redirect callback - invalid URL, redirecting to dashboard:', error);
+        return `${baseUrl}/dashboard`;
+      }
     }
   },
   debug: process.env.NODE_ENV === 'development',

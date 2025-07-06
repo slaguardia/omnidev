@@ -97,7 +97,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
               variant="flat"
               size="sm"
               startContent={<Settings className="w-4 h-4" />}
-              onClick={onNavigateToSettings}
+              onPress={onNavigateToSettings}
               className="mt-3"
             >
               Open Settings

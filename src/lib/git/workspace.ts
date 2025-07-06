@@ -5,7 +5,7 @@
  */
 
 import { simpleGit, CleanOptions } from 'simple-git';
-import type { FilePath, AsyncResult } from '@/lib/types/index';
+import type { FilePath, AsyncResult } from '@/lib/common/types';
 
 /**
  * Clean workspace (remove untracked files and directories)

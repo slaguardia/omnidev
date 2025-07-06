@@ -1,6 +1,8 @@
-import { GitBranchWorkflowResult, loadAllWorkspacesFromStorage, getWorkspace } from '@/lib/managers/repository-manager';
-import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
-import type { AsyncResult, WorkspaceId } from '@/lib/types/index';
+'use server';
+
+import { initializeWorkspaceStorage } from '@/lib/workspace/storage';
+import { GitBranchWorkflowResult, loadAllWorkspacesFromStorage, getWorkspace } from '@/lib/workspace/repository';
+import type { AsyncResult, WorkspaceId } from '@/lib/common/types';
 import { GitOperations } from '../git';
 
 
@@ -143,12 +145,12 @@ export interface GitWorkflowOptions {
  */
 export async function initializeGitWorkflow(params: GitWorkflowOptions): Promise<AsyncResult<GitBranchWorkflowResult>> {
   try {
-    // Initialize workspace manager
-    const initResult = await initializeWorkspaceManager();
+    // Initialize workspace storage
+    const initResult = await initializeWorkspaceStorage();
     if (!initResult.success) {
       return {
         success: false,
-        error: new Error(`Failed to initialize workspace manager: ${initResult.error?.message}`)
+        error: new Error(`Failed to initialize workspace storage: ${initResult.error?.message}`)
       };
     }
 

@@ -3,9 +3,9 @@
  */
 import { Gitlab } from '@gitbeaker/rest';
 import type { 
-  GitLabMergeRequest,
   AsyncResult
-} from '@/lib/types/index';
+} from '@/lib/common/types';
+import type { GitLabMergeRequest } from '@/lib/gitlab/types';
 
 interface CreateMergeRequestParams {
   projectId: string | number;

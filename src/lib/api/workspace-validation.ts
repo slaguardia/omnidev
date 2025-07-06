@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
+import { initializeWorkspaceStorage, loadWorkspace } from '@/lib/workspace/storage';
 import { access } from 'node:fs/promises';
-import type { WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/common/types';
 import { WorkspaceValidationResult } from './types';
 
 /**
@@ -18,7 +18,7 @@ export async function validateAndLoadWorkspace(
   // Initialize workspace manager
   console.log(`[${logPrefix}] Initializing workspace manager...`);
   const initStart = Date.now();
-  const initResult = await initializeWorkspaceManager();
+  const initResult = await initializeWorkspaceStorage();
   console.log(`[${logPrefix}] Workspace manager initialized in ${Date.now() - initStart}ms`);
   
   if (!initResult.success) {

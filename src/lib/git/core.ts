@@ -6,7 +6,7 @@
 
 import { simpleGit, SimpleGit } from 'simple-git';
 import { mkdir, stat } from 'fs/promises';
-import type { GitUrl, FilePath, AsyncResult } from '@/lib/types/index';
+import type { GitUrl, FilePath, AsyncResult } from '@/lib/common/types';
 import type { GitCloneOptions, GitStatus } from '@/lib/git/types';
 
 /**

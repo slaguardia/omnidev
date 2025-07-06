@@ -1,7 +1,10 @@
+'use server';
+
 import { access } from 'node:fs/promises';
 import { ClaudeCodeOptions } from './types';
 import { getConfig } from '@/lib/config/server-actions';
-import { AppConfig, AsyncResult } from '@/lib/types';
+import { AsyncResult } from '@/lib/common/types';
+import { AppConfig } from '@/lib/config/types';
 
 /**
  * Initialize Claude Code with runtime configuration and validation

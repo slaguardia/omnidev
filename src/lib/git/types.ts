@@ -1,8 +1,4 @@
-/**
- * Types and interfaces for Git operations
- */
-
-import type { CommitHash } from '@/lib/types/index';
+import type { CommitHash } from '@/lib/common/types';
 
 export interface GitCloneOptions {
   targetBranch?: string;
@@ -41,3 +37,9 @@ export interface GitConfig {
   userName?: string;
   signingKey?: string;
 } 
+
+export interface GitCredentials {
+  username: string;
+  password: string; // This could be a personal access token
+  provider?: 'gitlab' | 'github' | 'bitbucket' | 'other';
+}

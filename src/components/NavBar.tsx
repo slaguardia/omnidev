@@ -18,7 +18,7 @@ import NextLink from "next/link";
 import clsx from "clsx";
 import { useSession, signOut } from "next-auth/react";
 
-import { siteConfig } from "@/lib/config/site";
+import { siteConfig } from "@/lib/common/site";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import {
   TwitterIcon,

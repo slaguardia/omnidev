@@ -6,7 +6,7 @@ import { Gitlab } from '@gitbeaker/rest';
 import type { 
   AsyncResult,
   GitUrl
-} from '@/lib/types/index';
+} from '@/lib/common/types';
 
 /**
  * Extract project ID from GitLab repository URL

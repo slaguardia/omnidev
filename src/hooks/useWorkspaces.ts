@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Workspace } from '@/lib/dashboard/types';
 import { getWorkspaces, cleanupWorkspace, cleanupAllWorkspaces } from '@/lib/workspace';
-import type { WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/common/types';
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);

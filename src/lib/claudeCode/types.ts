@@ -2,7 +2,7 @@
  * Types and interfaces for Claude Code integration
  */
 
-import type { FilePath, WorkspaceId } from '@/lib/types/index';
+import type { FilePath, WorkspaceId } from '@/lib/common/types';
 
 export interface ClaudeCodeOptions {
   editRequest: boolean;

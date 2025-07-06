@@ -11,16 +11,6 @@ import { Switch } from '@heroui/switch';
 import { useBranches, useWorkspaces, useClaudeOperations } from '@/hooks';
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 
-// Replace the simple toast system with HeroUI toast
-const toast = {
-  success: (message: string) => {
-    addToast({ title: "Success", description: message, color: "success" });
-  },
-  error: (message: string) => {
-    addToast({ title: "Error", description: message, color: "danger" });
-  }
-};
-
 export default function OperationsTab() {
   const { workspaces } = useWorkspaces();
   const { branches, loading: loadingBranches, fetchBranches } = useBranches();
@@ -59,9 +49,9 @@ export default function OperationsTab() {
   const handleClaudeWithToast = async () => {
     const result = await handleAskClaude();
     if (result.success) {
-      toast.success(result.message);
+      addToast({ title: "Success", description: result.message, color: "success" });
     } else {
-      toast.error(result.message);
+      addToast({ title: "Error", description: result.message, color: "danger" });
     }
   };
 

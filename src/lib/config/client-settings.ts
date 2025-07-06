@@ -3,7 +3,7 @@
  * No Node.js APIs - safe for browser use
  */
 
-import type { AppConfig, ClientSafeAppConfig } from '@/lib/types/index';
+import type { AppConfig, ClientSafeAppConfig } from '@/lib/config/types';
 
 /**
  * Default configuration values
@@ -97,59 +97,26 @@ export function validateConfig(config: AppConfig): string[] {
 }
 
 /**
- * Validate client-safe configuration
+ * Validate client-safe configuration (uses same validation as full config)
  */
 export function validateClientSafeConfig(config: ClientSafeAppConfig): string[] {
-  const errors: string[] = [];
-
-  // Validate GitLab URL format
-  if (config.gitlab.url && !config.gitlab.url.startsWith('http')) {
-    errors.push('GitLab URL must be a valid HTTP(S) URL');
-  }
-
-  // Validate workspace limits
-  if (config.workspace.maxSizeMB <= 0) {
-    errors.push('Workspace size limit must be positive');
-  }
-
-  if (config.workspace.maxConcurrent <= 0) {
-    errors.push('Concurrent workspace limit must be positive');
-  }
-
-  // Validate logging level
-  const validLogLevels = ['debug', 'info', 'warn', 'error'];
-  if (!validLogLevels.includes(config.logging.level)) {
-    errors.push('Log level must be one of: debug, info, warn, error');
-  }
-
-  return errors;
-}
-
-/**
- * Check if configuration is complete (has required tokens)
- */
-export function isConfigurationComplete(config: AppConfig): boolean {
-  return !!(config.gitlab.token && config.claude.apiKey);
-}
-
-/**
- * Get configuration status for UI
- */
-export function getConfigurationStatus(config: AppConfig) {
-  return {
+  // Convert client-safe config to full config format for validation
+  const fullConfigForValidation: AppConfig = {
     gitlab: {
-      configured: !!config.gitlab.token,
-      url: config.gitlab.url
+      url: config.gitlab.url,
+      token: '', // Not validated
+      allowedHosts: config.gitlab.allowedHosts
     },
     claude: {
-      configured: !!config.claude.apiKey,
-      codeCliPath: config.claude.codeCliPath
+      apiKey: '', // Not validated
+      codeCliPath: config.claude.codeCliPath,
+      maxTokens: config.claude.maxTokens,
+      defaultTemperature: config.claude.defaultTemperature
     },
-    workspace: {
-      baseDir: '/app/workspaces', // Static for client
-      maxSizeMB: config.workspace.maxSizeMB,
-      maxConcurrent: config.workspace.maxConcurrent
-    },
-    isComplete: isConfigurationComplete(config)
+    workspace: config.workspace,
+    security: config.security,
+    logging: config.logging
   };
-} 
+
+  return validateConfig(fullConfigForValidation);
+}

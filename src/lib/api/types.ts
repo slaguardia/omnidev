@@ -1,6 +1,7 @@
-import type { Workspace, WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/common/types';
 import type { AskForm, EditForm } from '@/lib/dashboard/types';
 import { NextResponse } from 'next/server';
+import type { Workspace } from '@/lib/workspace/types';
 
 export interface AskRouteParams {
     workspaceId: WorkspaceId;

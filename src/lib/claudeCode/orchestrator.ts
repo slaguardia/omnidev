@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import type { AsyncResult } from '@/lib/types/index';
+import type { AsyncResult } from '@/lib/common/types';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from '@/lib/claudeCode/types';
 import { initializeClaudeCode } from './initialization';
 

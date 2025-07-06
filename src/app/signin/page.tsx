@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
@@ -15,13 +16,13 @@ export default function SigninPage() {
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [error, setError] = useState('');
   const [userExists, setUserExists] = useState<boolean | null>(null);
-  const [authSuccess, setAuthSuccess] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     confirmPassword: ''
   });
   const { data: session, status } = useSession();
+  const router = useRouter();
 
   // Check if user exists on component mount
   useEffect(() => {
@@ -39,12 +40,13 @@ export default function SigninPage() {
     checkUser();
   }, []);
 
-  // Redirect to dashboard if already authenticated or auth was successful
+  // Redirect to dashboard if already authenticated
   useEffect(() => {
-    if ((status === 'authenticated' && session) || authSuccess) {
+    if (status === 'authenticated' && session) {
       console.log('[SIGNIN] User authenticated, redirecting to dashboard');
+      router.push('/dashboard');
     }
-  }, [status, session, authSuccess]);
+  }, [status, session, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -82,14 +84,27 @@ export default function SigninPage() {
 
     console.log('[SIGNIN] Attempting authentication...');
     try {
-      await signIn('credentials', {
+      const result = await signIn('credentials', {
         username: formData.username,
         password: formData.password,
-        callbackUrl: '/dashboard'
+        callbackUrl: '/dashboard',
+        redirect: false, // Handle redirect manually to avoid flash
       });
 
-      setAuthSuccess(true);
-      
+      if (result?.error) {
+        setError(result.error === "CredentialsSignin"
+          ? "Invalid username or password"
+          : result.error);
+        setIsLoading(false);
+      } else if (result?.ok) {
+        // Success - redirect manually
+        console.log('[SIGNIN] Authentication successful, redirecting...');
+        window.location.href = '/dashboard';
+        // Don't set loading to false here - let the redirect happen
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+        setIsLoading(false);
+      }
     } catch (err) {
       console.error('[SIGNIN] Authentication error:', err);
       setError('An unexpected error occurred. Please try again.');
@@ -97,16 +112,14 @@ export default function SigninPage() {
     }
   };
 
-  // Show loading state while checking user status, if session is loading, or after successful auth
-  if (isCheckingUser || status === 'loading' || authSuccess) {
+  // Show loading state while checking user status or if session is loading
+  if (isCheckingUser || status === 'loading') {
     return (
       <div className="w-full max-w-md mx-auto text-center">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="text-default-600">
-            {isCheckingUser ? 'Checking system status...' : 
-             authSuccess ? 'Authentication successful! Redirecting...' : 
-             'Loading session...'}
+            {isCheckingUser ? 'Checking system status...' : 'Loading session...'}
           </p>
         </div>
       </div>

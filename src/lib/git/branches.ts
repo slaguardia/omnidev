@@ -5,7 +5,7 @@
  */
 
 import { simpleGit } from 'simple-git';
-import type { FilePath, AsyncResult, CommitHash } from '@/lib/types/index';
+import type { FilePath, AsyncResult, CommitHash } from '@/lib/common/types';
 import type { GitBranchInfo } from '@/lib/git/types';
 
 /**
