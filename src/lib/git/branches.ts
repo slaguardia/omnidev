@@ -27,7 +27,7 @@ async function addToSafeDirectory(directoryPath: FilePath): Promise<void> {
 export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncResult<string>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     // Try to add to safe directory first if we get an ownership error
     try {
       const status = await git.status();
@@ -36,7 +36,7 @@ export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncRe
       if (!currentBranch) {
         return {
           success: false,
-          error: new Error('No current branch found (detached HEAD?)')
+          error: new Error('No current branch found (detached HEAD?)'),
         };
       }
 
@@ -45,7 +45,7 @@ export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncRe
       // If it's an ownership error, try adding to safe directory and retry
       if (String(error).includes('dubious ownership')) {
         await addToSafeDirectory(workspacePath);
-        
+
         // Retry after adding to safe directory
         const status = await git.status();
         const currentBranch = status.current;
@@ -53,20 +53,20 @@ export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncRe
         if (!currentBranch) {
           return {
             success: false,
-            error: new Error('No current branch found (detached HEAD?)')
+            error: new Error('No current branch found (detached HEAD?)'),
           };
         }
 
         return { success: true, data: currentBranch };
       }
-      
+
       // Re-throw if it's not an ownership error
       throw error;
     }
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get current branch: ${error}`)
+      error: new Error(`Failed to get current branch: ${error}`),
     };
   }
 }
@@ -88,7 +88,7 @@ export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<
         name: branchName,
         isRemote: branchName.startsWith('remotes/'),
         isCurrent: branchData.current,
-        commitHash: branchData.commit as CommitHash
+        commitHash: branchData.commit as CommitHash,
       });
     }
 
@@ -96,7 +96,7 @@ export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get branches: ${error}`)
+      error: new Error(`Failed to get branches: ${error}`),
     };
   }
 }
@@ -107,7 +107,7 @@ export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<
 export async function getDefaultBranch(workspacePath: FilePath): Promise<AsyncResult<string>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     // Use git remote show origin (most reliable method)
     try {
       const remoteOutput = await git.raw(['remote', 'show', 'origin']);
@@ -118,7 +118,7 @@ export async function getDefaultBranch(workspacePath: FilePath): Promise<AsyncRe
     } catch {
       // Fallback to common defaults
     }
-    
+
     // Simple fallback: check for main or master
     const branches = await git.raw(['ls-remote', '--heads', 'origin']);
     if (branches.includes('refs/heads/main')) {
@@ -127,16 +127,15 @@ export async function getDefaultBranch(workspacePath: FilePath): Promise<AsyncRe
     if (branches.includes('refs/heads/master')) {
       return { success: true, data: 'master' };
     }
-    
+
     return {
       success: false,
-      error: new Error('Could not determine default branch')
+      error: new Error('Could not determine default branch'),
     };
-    
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get default branch: ${error}`)
+      error: new Error(`Failed to get default branch: ${error}`),
     };
   }
 }
@@ -150,14 +149,14 @@ export async function getLocalBranches(workspacePath: FilePath): Promise<AsyncRe
     const branches = await git.branch();
 
     const localBranches = Object.keys(branches.branches)
-      .filter(branchName => !branchName.startsWith('remotes/'))
-      .map(branchName => branchName.trim());
+      .filter((branchName) => !branchName.startsWith('remotes/'))
+      .map((branchName) => branchName.trim());
 
     return { success: true, data: localBranches };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get local branches: ${error}`)
+      error: new Error(`Failed to get local branches: ${error}`),
     };
   }
 }
@@ -165,7 +164,9 @@ export async function getLocalBranches(workspacePath: FilePath): Promise<AsyncRe
 /**
  * Get all remote branches for branch selection UI
  */
-export async function getAllRemoteBranches(workspacePath: FilePath): Promise<AsyncResult<string[]>> {
+export async function getAllRemoteBranches(
+  workspacePath: FilePath
+): Promise<AsyncResult<string[]>> {
   try {
     const git = simpleGit(workspacePath);
 
@@ -173,8 +174,8 @@ export async function getAllRemoteBranches(workspacePath: FilePath): Promise<Asy
     const remoteBranchesOutput = await git.raw(['ls-remote', '--heads', 'origin']);
     const remoteBranchNames = remoteBranchesOutput
       .split('\n')
-      .filter(line => line.trim())
-      .map(line => {
+      .filter((line) => line.trim())
+      .map((line) => {
         // Extract branch name from "hash refs/heads/branch-name"
         const match = line.match(/refs\/heads\/(.+)$/);
         return match ? match[1] : null;
@@ -188,7 +189,7 @@ export async function getAllRemoteBranches(workspacePath: FilePath): Promise<Asy
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get all branches: ${error}`)
+      error: new Error(`Failed to get all branches: ${error}`),
     };
   }
 }
@@ -196,10 +197,14 @@ export async function getAllRemoteBranches(workspacePath: FilePath): Promise<Asy
 /**
  * Delete a local branch
  */
-export async function deleteBranch(workspacePath: FilePath, branchName: string, force = false): Promise<AsyncResult<void>> {
+export async function deleteBranch(
+  workspacePath: FilePath,
+  branchName: string,
+  force = false
+): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     // Use -D for force delete, -d for normal delete
     const deleteFlag = force ? '-D' : '-d';
     await git.branch([deleteFlag, branchName]);
@@ -208,7 +213,7 @@ export async function deleteBranch(workspacePath: FilePath, branchName: string, 
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to delete branch ${branchName}: ${error}`)
+      error: new Error(`Failed to delete branch ${branchName}: ${error}`),
     };
   }
 }
@@ -216,14 +221,17 @@ export async function deleteBranch(workspacePath: FilePath, branchName: string, 
 /**
  * Switch to a different branch
  */
-export async function switchBranch(workspacePath: FilePath, branchName: string): Promise<AsyncResult<void>> {
+export async function switchBranch(
+  workspacePath: FilePath,
+  branchName: string
+): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     // Check if branch exists locally
     const branches = await git.branch();
     const localBranches = Object.keys(branches.branches);
-    
+
     if (localBranches.includes(branchName)) {
       // Switch to existing local branch
       await git.checkout(branchName);
@@ -236,23 +244,26 @@ export async function switchBranch(workspacePath: FilePath, branchName: string):
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to switch branch: ${error}`)
+      error: new Error(`Failed to switch branch: ${error}`),
     };
   }
 }
 
 /**
- * Cleanup branches (remove merged branches and local branches that are not remote) 
+ * Cleanup branches (remove merged branches and local branches that are not remote)
  * Note: this function is called when the code is on the target branch
  */
-export async function cleanBranches(workspacePath: FilePath, targetBranch: string): Promise<AsyncResult<void>> {
+export async function cleanBranches(
+  workspacePath: FilePath,
+  targetBranch: string
+): Promise<AsyncResult<void>> {
   try {
     console.log('[GIT WORKFLOW] Cleaning branches...');
     const git = simpleGit(workspacePath);
-    
+
     // Get current branch to avoid deleting it
     const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
-    
+
     const localBranches = await git.branch();
     const remoteBranches = await getAllRemoteBranches(workspacePath);
     // Only proceed if we can get remote branches
@@ -268,15 +279,15 @@ export async function cleanBranches(workspacePath: FilePath, targetBranch: strin
 
     // Create set of protected branch names (parsed)
     const protectedBranchNames = new Set([
-      currentBranch, 
-      targetBranch, 
-      ...remoteBranches.data.map(parseBranchName)
+      currentBranch,
+      targetBranch,
+      ...remoteBranches.data.map(parseBranchName),
     ]);
 
     // Delete safe branches that meet criteria
     for (const branchName of Object.keys(localBranches.branches || {})) {
       const branch = localBranches.branches?.[branchName];
-      
+
       // Skip remote tracking branches (can't be deleted with git branch -D)
       if (branchName.startsWith('remotes/')) {
         console.log(`[GIT WORKFLOW] Skipping remote tracking branch: ${branchName}`);
@@ -289,15 +300,19 @@ export async function cleanBranches(workspacePath: FilePath, targetBranch: strin
 
       // Skip if protected
       if (isProtected) {
-        console.log(`[GIT WORKFLOW] Branch ${branchName} (${parsedBranchName}) is protected, skipping...`);
+        console.log(
+          `[GIT WORKFLOW] Branch ${branchName} (${parsedBranchName}) is protected, skipping...`
+        );
         continue;
       }
 
       // Delete branch if it's not protected
-      console.log(`[GIT WORKFLOW] Local branch ${branchName} (${parsedBranchName}) is not protected, deleting...`);
+      console.log(
+        `[GIT WORKFLOW] Local branch ${branchName} (${parsedBranchName}) is not protected, deleting...`
+      );
       await deleteBranch(workspacePath, branchName, true);
     }
-    
+
     return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: new Error(`Failed to clean branches: ${error}`) };
@@ -307,17 +322,22 @@ export async function cleanBranches(workspacePath: FilePath, targetBranch: strin
 /**
  * Check if a branch is merged into target branch
  */
-export async function isBranchMerged(workspacePath: FilePath, branchName: string, targetBranch: string): Promise<AsyncResult<boolean>> {
+export async function isBranchMerged(
+  workspacePath: FilePath,
+  branchName: string,
+  targetBranch: string
+): Promise<AsyncResult<boolean>> {
   try {
     const git = simpleGit(workspacePath);
     // Check if branch is merged into target
     const mergedBranches = await git.raw(['branch', '--merged', targetBranch]);
-    const isMerged = mergedBranches.split('\n')
-      .map(line => line.trim().replace(/^\*\s*/, ''))
+    const isMerged = mergedBranches
+      .split('\n')
+      .map((line) => line.trim().replace(/^\*\s*/, ''))
       .includes(branchName);
-    
+
     return { success: true, data: isMerged };
   } catch (error) {
     return { success: false, error: new Error(`Failed to check if branch is merged: ${error}`) };
   }
-} 
+}

@@ -2,11 +2,6 @@
 
 This guide will help you dockerize and run the Workflow Manager application using Docker.
 
-## Prerequisites
-
-- Docker Desktop installed on your system
-- Git configured with proper line endings (see Line Endings section below)
-
 ## Files Overview
 
 - `Dockerfile` - Production-optimized multi-stage build
@@ -19,16 +14,22 @@ This guide will help you dockerize and run the Workflow Manager application usin
 ### Production Build
 
 1. **Build and run with Docker Compose:**
+
    ```bash
    docker-compose up --build -d
    ```
 
 2. **Or build and run manually:**
+
+   Build the image:
+
    ```bash
-   # Build the image
    docker build -t workflow-app .
-   
-   # Run the container
+   ```
+
+   Run the container:
+
+   ```bash
    docker run -p 3000:3000 --name workflow-app workflow-app
    ```
 
@@ -38,17 +39,24 @@ This guide will help you dockerize and run the Workflow Manager application usin
 ### Development Setup
 
 1. **Use the development service in docker-compose.yml:**
+
+   First uncomment the workflow-dev service in docker-compose.yml, then:
+
    ```bash
-   # Uncomment the workflow-dev service in docker-compose.yml first
    docker-compose -f docker-compose.yml up workflow-dev --build
    ```
 
 2. **Or run development container manually:**
+
+   Build development image:
+
    ```bash
-   # Build development image
    docker build -f Dockerfile.dev -t workflow-app-dev .
-   
-   # Run with volume mounting for hot reloading
+   ```
+
+   Run with volume mounting for hot reloading:
+
+   ```bash
    docker run -p 3000:3000 -v "$(pwd)":/app -v /app/node_modules --name workflow-dev workflow-app-dev
    ```
 
@@ -61,16 +69,23 @@ The application supports configuration through environment variables. You can:
 
 ### Common Environment Variables
 
+**GitLab Configuration:**
+
 ```bash
-# GitLab Configuration
 GITLAB_URL=https://gitlab.com
 GITLAB_TOKEN=your_gitlab_token_here
+```
 
-# Claude Configuration  
+**Claude Configuration:**
+
+```bash
 CLAUDE_API_KEY=your_claude_api_key_here
 CLAUDE_CODE_PATH=claude-code
+```
 
-# Advanced Configuration
+**Advanced Configuration:**
+
+```bash
 MAX_WORKSPACE_SIZE_MB=500
 TEMP_DIR_PREFIX=gitlab-claude-
 LOG_LEVEL=info
@@ -81,6 +96,7 @@ MAX_CONCURRENT_WORKSPACES=3
 ## Data Persistence
 
 The Docker setup includes a named volume `workflow_workspaces` to persist:
+
 - Cloned repositories
 - Workspace data
 - Configuration files
@@ -89,49 +105,79 @@ The Docker setup includes a named volume `workflow_workspaces` to persist:
 
 ### Managing the Application
 
+Start the application:
+
 ```bash
-# Start the application
 docker-compose up -d
+```
 
-# Stop the application
+Stop the application:
+
+```bash
 docker-compose down
+```
 
-# View logs
+View logs:
+
+```bash
 docker-compose logs -f workflow-app
+```
 
-# Restart the application
+Restart the application:
+
+```bash
 docker-compose restart workflow-app
+```
 
-# Update and rebuild
+Update and rebuild:
+
+```bash
 docker-compose up --build -d
 ```
 
 ### Development Commands
 
+Access the container shell:
+
 ```bash
-# Access the container shell
 docker-compose exec workflow-app sh
+```
 
-# Run tests inside container
+Run tests inside container:
+
+```bash
 docker-compose exec workflow-app pnpm test
+```
 
-# Check application health
+Check application health:
+
+```bash
 docker-compose exec workflow-app wget -qO- http://localhost:3000/api/config/validate
 ```
 
 ### Cleanup
 
+Remove containers and networks:
+
 ```bash
-# Remove containers and networks
 docker-compose down
+```
 
-# Remove containers, networks, and volumes
+Remove containers, networks, and volumes:
+
+```bash
 docker-compose down -v
+```
 
-# Remove all related images
+Remove all related images:
+
+```bash
 docker rmi workflow-app workflow-app-dev
+```
 
-# Clean up dangling images
+Clean up dangling images:
+
+```bash
 docker image prune
 ```
 
@@ -139,11 +185,15 @@ docker image prune
 
 ### Docker Swarm
 
-```bash
-# Initialize swarm (if not already done)
-docker swarm init
+Initialize swarm (if not already done):
 
-# Deploy stack
+```bash
+docker swarm init
+```
+
+Deploy stack:
+
+```bash
 docker stack deploy -c docker-compose.yml workflow
 ```
 
@@ -167,13 +217,13 @@ spec:
         app: workflow-app
     spec:
       containers:
-      - name: workflow-app
-        image: workflow-app:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: NODE_ENV
-          value: "production"
+        - name: workflow-app
+          image: workflow-app:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: 'production'
 ```
 
 ## Troubleshooting
@@ -181,28 +231,35 @@ spec:
 ### Common Issues
 
 1. **Port already in use:**
-   ```bash
-   # Change the port mapping in docker-compose.yml
+
+   Change the port mapping in docker-compose.yml:
+
+   ```yaml
    ports:
-     - "3001:3000"  # Use port 3001 instead
+     - '3001:3000'
    ```
 
 2. **Permission issues with workspaces:**
+
+   Fix volume permissions:
+
    ```bash
-   # Fix volume permissions
    docker-compose exec workflow-app chown -R nextjs:nodejs /app/workspaces
    ```
 
 3. **Build failures:**
+
+   Clean build with no cache:
+
    ```bash
-   # Clean build with no cache
    docker-compose build --no-cache
    ```
 
 4. **Memory issues:**
-   ```bash
-   # Increase Docker memory limit in Docker Desktop settings
-   # Or add memory limits to docker-compose.yml
+
+   Increase Docker memory limit in Docker Desktop settings, or add memory limits to docker-compose.yml:
+
+   ```yaml
    deploy:
      resources:
        limits:
@@ -212,11 +269,13 @@ spec:
 ### Health Checks
 
 The container includes health checks that verify:
+
 - Application is responding on port 3000
 - API endpoints are accessible
 - Configuration validation passes
 
 Check health status:
+
 ```bash
 docker-compose ps
 docker inspect --format='{{.State.Health.Status}}' workflow-app
@@ -234,6 +293,7 @@ docker inspect --format='{{.State.Health.Status}}' workflow-app
 ### Monitoring
 
 Add monitoring with tools like:
+
 - Prometheus + Grafana
 - Docker stats: `docker stats workflow-app`
 - Health endpoint: `curl http://localhost:3000/api/config/validate`
@@ -252,55 +312,87 @@ Add monitoring with tools like:
 3. Set up backup strategy for persistent data
 4. Consider using a reverse proxy (nginx, traefik) for production
 
-## Line Endings
+# VM Setup
 
-**Important for Windows users:** Docker containers expect Unix-style line endings (LF) but Windows may create files with Windows-style line endings (CRLF). This can cause issues, especially with shell scripts.
+✅ Prerequisites
+Ubuntu VM (20.04, 22.04, etc.) running inside VirtualBox
 
-### Common Issues
+You’re logged in with a user that has sudo privileges
 
-- `docker-entrypoint.sh` failing with `/bin/sh: bad interpreter`
-- Container startup failures due to script execution errors
-- Unexpected behavior in shell scripts
+Internet access on the VM
 
-### Solutions
+🔧 Step-by-Step: Install Docker Engine
 
-1. **Configure Git globally (recommended):**
-   ```bash
-   git config --global core.autocrlf false
-   git config --global core.eol lf
-   ```
+1. Update packages
+   bash
+   Copy
+   Edit
+   sudo apt update && sudo apt upgrade -y
+2. Install dependencies
+   bash
+   Copy
+   Edit
+   sudo apt install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+3. Add Docker’s official GPG key
+   bash
+   Copy
+   Edit
+   sudo mkdir -p /etc/apt/keyrings
 
-2. **Fix existing files:**
-   ```bash
-   # On Windows with Git Bash
-   dos2unix docker-entrypoint.sh
-   dos2unix Dockerfile
-   
-   # Or using sed
-   sed -i 's/\r$//' docker-entrypoint.sh
-   ```
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+ sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 4. Set up the stable Docker repo
+bash
+Copy
+Edit
+echo \
+ "deb [arch=$(dpkg --print-architecture) \
+ signed-by=/etc/apt/keyrings/docker.gpg] \
+ https://download.docker.com/linux/ubuntu \
+ $(lsb_release -cs) stable" | \
+ sudo tee /etc/apt/sources.list.d/docker.list > /dev/null 5. Update apt and install Docker
+bash
+Copy
+Edit
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io 6. Post-install: Allow non-root usage (optional)
+bash
+Copy
+Edit
+sudo usermod -aG docker $USER
+Then log out and log back in (or run newgrp docker) for changes to take effect.
 
-3. **VS Code/Cursor settings:**
-   - Set "Files: Eol" to `\n` (LF)
-   - Check the bottom-right corner of the editor and click "CRLF" to change to "LF"
+7. Verify Docker is running
+   bash
+   Copy
+   Edit
+   docker version
+   docker run hello-world
+   🧠 Notes:
+   If docker run hello-world works, Docker is ready.
 
-4. **Add .gitattributes file:**
-   ```gitattributes
-   # Ensure Docker files always use LF
-   Dockerfile text eol=lf
-   docker-entrypoint.sh text eol=lf
-   *.sh text eol=lf
-   ```
+If you're using a cloud-init VM or a minimal base image, you may need to manually install sudo or other dependencies.
 
-### Verification
+Consider installing Docker Compose if needed:
 
-Check line endings in your files:
-```bash
-# Show line endings
-file docker-entrypoint.sh
-# Should show: ASCII text, with no \r characters
+bash
+Copy
+Edit
+sudo apt install docker-compose-plugin
 
-# Or use od command
-od -c docker-entrypoint.sh | head
-# Should not show \r characters
-```
+1. Add your user to the docker group:
+   bash
+   Copy
+   Edit
+   sudo usermod -aG docker $USER
+2. Apply the group change:
+   You must log out and log back in for the group change to take effect.
+   Or, just run:
+
+bash
+Copy
+Edit
+newgrp docker

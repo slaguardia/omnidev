@@ -3,27 +3,22 @@
 import { nanoid } from 'nanoid';
 import { join } from 'node:path';
 import { mkdir, rm, access } from 'node:fs/promises';
-import { 
-  cloneRepository as gitCloneRepository, 
+import {
+  cloneRepository as gitCloneRepository,
   validateGitUrl,
-  extractRepoName
+  extractRepoName,
 } from '@/lib/git/core';
 import { getCurrentBranch } from '@/lib/git/branches';
 import { getCurrentCommitHash } from '@/lib/git/commits';
 import { type GitCloneOptions } from '@/lib/git/types';
 import { getWorkspaceBaseDir } from '@/lib/config/server-actions';
-import { 
-  saveWorkspace, 
+import {
+  saveWorkspace,
   getAllWorkspaces as getStoredWorkspaces,
   loadWorkspace as loadStoredWorkspace,
-  initializeWorkspaceStorage
+  initializeWorkspaceStorage,
 } from './storage';
-import type {
-  WorkspaceId,
-  GitUrl,
-  FilePath,
-  AsyncResult,
-} from '@/lib/common/types';
+import type { WorkspaceId, GitUrl, FilePath, AsyncResult } from '@/lib/common/types';
 import type { Workspace, WorkspaceMetadata } from '@/lib/workspace/types';
 import type { GitCredentials } from '@/lib/git/types';
 
@@ -48,7 +43,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   try {
     // Initialize workspace storage first
     const initResult = await initializeWorkspaceStorage();
-    
+
     if (!initResult.success) {
       console.error('Failed to initialize workspace storage:', initResult.error);
       return [];
@@ -56,7 +51,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 
     // Load workspaces from storage
     const loadResult = await loadAllWorkspacesFromStorage();
-    
+
     if (!loadResult.success) {
       console.error('Failed to load workspaces from storage:', loadResult.error);
       return [];
@@ -64,7 +59,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 
     // Get the workspace list
     const workspaceList = await listWorkspaces();
-    
+
     return workspaceList;
   } catch (error) {
     console.error('Error fetching workspaces:', error);
@@ -96,7 +91,7 @@ export async function cloneRepositoryAction(
     if (!(await validateGitUrl(repoUrl as GitUrl))) {
       return {
         success: false,
-        message: 'Invalid Git repository URL'
+        message: 'Invalid Git repository URL',
       };
     }
 
@@ -105,7 +100,7 @@ export async function cloneRepositoryAction(
     if (!initResult.success) {
       return {
         success: false,
-        message: `Failed to initialize workspace storage: ${initResult.error?.message}`
+        message: `Failed to initialize workspace storage: ${initResult.error?.message}`,
       };
     }
 
@@ -118,23 +113,20 @@ export async function cloneRepositoryAction(
     } = {
       depth,
       singleBranch,
-      ...(credentials && { credentials })
+      ...(credentials && { credentials }),
     };
-    
+
     if (branch) {
       cloneOptions.targetBranch = branch;
     }
-    
-    const cloneResult = await cloneRepository(
-      repoUrl as GitUrl,
-      cloneOptions
-    );
+
+    const cloneResult = await cloneRepository(repoUrl as GitUrl, cloneOptions);
 
     if (!cloneResult.success) {
       return {
         success: false,
         message: cloneResult.error?.message || 'Failed to clone repository',
-        error: cloneResult.error
+        error: cloneResult.error,
       };
     }
 
@@ -149,14 +141,14 @@ export async function cloneRepositoryAction(
       data: {
         repoName,
         targetPath: workspace.path,
-        workspaceId: workspace.id
-      }
+        workspaceId: workspace.id,
+      },
     };
   } catch (error) {
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Clone failed',
-      error
+      error,
     };
   }
 }
@@ -174,25 +166,27 @@ export async function cloneRepository(
     if (duplicateCheck.success && duplicateCheck.data) {
       return {
         success: false,
-        error: new Error(`Workspace already exists for ${repoUrl} on branch ${duplicateCheck.data.targetBranch} (ID: ${duplicateCheck.data.id}). Use existing workspace or clean it first.`)
+        error: new Error(
+          `Workspace already exists for ${repoUrl} on branch ${duplicateCheck.data.targetBranch} (ID: ${duplicateCheck.data.id}). Use existing workspace or clean it first.`
+        ),
       };
     }
-    
+
     // Generate workspace ID
     const workspaceId = options.workspaceId || (nanoid(10) as WorkspaceId);
-    
+
     // Create workspace directory
     const workspaceBaseDir = await getWorkspaceBaseDir();
     const workspacePath = join(workspaceBaseDir, `workspace-${workspaceId}`) as FilePath;
-    
+
     // Ensure base directory exists
     await mkdir(workspaceBaseDir, { recursive: true });
-    
+
     // Validate Git URL
     if (!(await validateGitUrl(repoUrl))) {
       return {
         success: false,
-        error: new Error(`Invalid Git URL: ${repoUrl}`)
+        error: new Error(`Invalid Git URL: ${repoUrl}`),
       };
     }
 
@@ -201,7 +195,7 @@ export async function cloneRepository(
       ...(options.targetBranch && { targetBranch: options.targetBranch }),
       depth: options.depth || 1,
       singleBranch: options.singleBranch !== false,
-      ...(options.credentials && { credentials: options.credentials })
+      ...(options.credentials && { credentials: options.credentials }),
     });
 
     if (!cloneResult.success) {
@@ -213,7 +207,7 @@ export async function cloneRepository(
     if (!currentBranchResult.success) {
       return {
         success: false,
-        error: new Error(`Failed to get current branch: ${currentBranchResult.error.message}`)
+        error: new Error(`Failed to get current branch: ${currentBranchResult.error.message}`),
       };
     }
     const actualBranch = currentBranchResult.data;
@@ -223,7 +217,7 @@ export async function cloneRepository(
     if (!commitResult.success) {
       return {
         success: false,
-        error: new Error(`Failed to get commit hash: ${commitResult.error.message}`)
+        error: new Error(`Failed to get commit hash: ${commitResult.error.message}`),
       };
     }
 
@@ -239,8 +233,8 @@ export async function cloneRepository(
         size: 0, // Simplified size calculation
         commitHash: commitResult.data,
         isActive: true,
-        ...(options.tags && { tags: options.tags })
-      }
+        ...(options.tags && { tags: options.tags }),
+      },
     };
 
     // Store workspace in memory
@@ -253,11 +247,10 @@ export async function cloneRepository(
     }
 
     return { success: true, data: workspace };
-
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to clone repository: ${error}`)
+      error: new Error(`Failed to clone repository: ${error}`),
     };
   }
 }
@@ -268,7 +261,7 @@ export async function cloneRepository(
 export async function getWorkspace(workspaceId: WorkspaceId): Promise<Workspace | null> {
   // Check in-memory first
   let workspace = workspaces.get(workspaceId);
-  
+
   if (!workspace) {
     // Try to load from persistent storage
     const loadResult = await loadStoredWorkspace(workspaceId);
@@ -277,13 +270,13 @@ export async function getWorkspace(workspaceId: WorkspaceId): Promise<Workspace 
       workspaces.set(workspaceId, workspace);
     }
   }
-  
+
   if (workspace) {
     // Update last accessed time
     workspace.lastAccessed = new Date();
     workspaces.set(workspaceId, workspace);
   }
-  
+
   return workspace || null;
 }
 
@@ -294,7 +287,7 @@ export async function listWorkspaces(): Promise<Workspace[]> {
   const workspaceArray = Array.from(workspaces.values()).sort(
     (a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime()
   );
-  
+
   return workspaceArray;
 }
 
@@ -317,7 +310,7 @@ export async function loadAllWorkspacesFromStorage(): Promise<AsyncResult<void>>
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to load workspaces from storage: ${error}`)
+      error: new Error(`Failed to load workspaces from storage: ${error}`),
     };
   }
 }
@@ -328,7 +321,7 @@ export async function loadAllWorkspacesFromStorage(): Promise<AsyncResult<void>>
 export async function cleanupWorkspaceFiles(workspaceId: WorkspaceId): Promise<AsyncResult<void>> {
   try {
     let workspace = workspaces.get(workspaceId);
-    
+
     // If not in memory, try to load from storage
     if (!workspace) {
       const loadResult = await loadStoredWorkspace(workspaceId);
@@ -336,12 +329,12 @@ export async function cleanupWorkspaceFiles(workspaceId: WorkspaceId): Promise<A
         workspace = loadResult.data;
       }
     }
-    
+
     // If still not found, try to construct path based on workspace ID
     if (!workspace) {
       const workspaceBaseDir = await getWorkspaceBaseDir();
       const workspacePath = join(workspaceBaseDir, `workspace-${workspaceId}`) as FilePath;
-      
+
       // Check if directory exists
       try {
         await access(workspacePath);
@@ -352,12 +345,12 @@ export async function cleanupWorkspaceFiles(workspaceId: WorkspaceId): Promise<A
           repoUrl: 'unknown' as GitUrl,
           targetBranch: 'unknown',
           createdAt: new Date(),
-          lastAccessed: new Date()
+          lastAccessed: new Date(),
         };
       } catch {
         return {
           success: false,
-          error: new Error(`Workspace ${workspaceId} not found`)
+          error: new Error(`Workspace ${workspaceId} not found`),
         };
       }
     }
@@ -375,11 +368,10 @@ export async function cleanupWorkspaceFiles(workspaceId: WorkspaceId): Promise<A
     workspaces.delete(workspaceId);
 
     return { success: true, data: undefined };
-
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to cleanup workspace: ${error}`)
+      error: new Error(`Failed to cleanup workspace: ${error}`),
     };
   }
 }
@@ -398,7 +390,7 @@ export async function updateWorkspace(
     if (!workspace) {
       return {
         success: false,
-        error: new Error(`Workspace ${workspaceId} not found`)
+        error: new Error(`Workspace ${workspaceId} not found`),
       };
     }
 
@@ -409,12 +401,12 @@ export async function updateWorkspace(
       lastAccessed: new Date(),
       metadata: {
         ...workspace.metadata,
-        ...updates.metadata
-      } as WorkspaceMetadata
+        ...updates.metadata,
+      } as WorkspaceMetadata,
     };
 
     workspaces.set(workspaceId, updatedWorkspace);
-    
+
     // Save to persistent storage
     const saveResult = await saveWorkspace(updatedWorkspace);
     if (!saveResult.success) {
@@ -422,11 +414,10 @@ export async function updateWorkspace(
     }
 
     return { success: true, data: updatedWorkspace };
-
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to update workspace: ${error}`)
+      error: new Error(`Failed to update workspace: ${error}`),
     };
   }
 }
@@ -435,7 +426,7 @@ export async function updateWorkspace(
  * Check for existing workspace with same repository and branch
  */
 async function checkForDuplicateWorkspace(
-  repoUrl: GitUrl, 
+  repoUrl: GitUrl,
   targetBranch?: string
 ): Promise<AsyncResult<Workspace | null>> {
   try {
@@ -443,9 +434,9 @@ async function checkForDuplicateWorkspace(
     if (!existingWorkspacesResult.success) {
       return existingWorkspacesResult;
     }
-    
+
     const existingWorkspaces = existingWorkspacesResult.data;
-    
+
     // Find duplicate workspace
     for (const workspace of existingWorkspaces) {
       // Check if same repository URL
@@ -454,19 +445,19 @@ async function checkForDuplicateWorkspace(
         if (!targetBranch) {
           continue;
         }
-        
+
         // Check if same branch
         if (workspace.targetBranch === targetBranch) {
           return { success: true, data: workspace };
         }
       }
     }
-    
+
     return { success: true, data: null };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to check for duplicate workspace: ${error}`)
+      error: new Error(`Failed to check for duplicate workspace: ${error}`),
     };
   }
-} 
+}

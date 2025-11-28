@@ -28,27 +28,30 @@ export interface CloneForm {
   };
 }
 
-// Form types that match API parameter types
-export interface AskForm {
+export interface ClaudeForm {
   workspaceId: string;
   question: string;
   context: string;
   sourceBranch: string;
 }
 
-export interface EditForm extends AskForm {
-  createMR: boolean;
-  taskId: string;
-  taskName: string;
-  newBranchName: string;
-}
-
-// Union type for the form state
-export type ClaudeForm = AskForm | EditForm;
-
 export interface GitConfigForm {
   workspaceId: string;
   userEmail: string;
   userName: string;
   signingKey: string;
-} 
+}
+
+export interface AskForm {
+  workspaceId: string;
+  question: string;
+  context?: string;
+  sourceBranch: string;
+}
+
+export interface EditForm extends AskForm {
+  createMR: boolean;
+  taskId?: string;
+  taskName?: string;
+  newBranchName?: string;
+}

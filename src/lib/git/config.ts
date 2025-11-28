@@ -17,27 +17,27 @@ export async function setWorkspaceGitConfig(
 ): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     // Set user.email if provided
     if (config.userEmail) {
       await git.raw(['config', 'user.email', config.userEmail]);
     }
-    
+
     // Set user.name if provided
     if (config.userName) {
       await git.raw(['config', 'user.name', config.userName]);
     }
-    
+
     // Set signing key if provided
     if (config.signingKey) {
       await git.raw(['config', 'user.signingkey', config.signingKey]);
     }
-    
+
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to set git config: ${error}`)
+      error: new Error(`Failed to set git config: ${error}`),
     };
   }
 }
@@ -45,11 +45,13 @@ export async function setWorkspaceGitConfig(
 /**
  * Get local git configuration for the workspace
  */
-export async function getWorkspaceGitConfig(workspacePath: FilePath): Promise<AsyncResult<GitConfig>> {
+export async function getWorkspaceGitConfig(
+  workspacePath: FilePath
+): Promise<AsyncResult<GitConfig>> {
   try {
     const git = simpleGit(workspacePath);
     const config: GitConfig = {};
-    
+
     // Get user.email
     try {
       const email = await git.raw(['config', '--get', 'user.email']);
@@ -59,7 +61,7 @@ export async function getWorkspaceGitConfig(workspacePath: FilePath): Promise<As
     } catch {
       // Config not set, that's fine
     }
-    
+
     // Get user.name
     try {
       const name = await git.raw(['config', '--get', 'user.name']);
@@ -69,7 +71,7 @@ export async function getWorkspaceGitConfig(workspacePath: FilePath): Promise<As
     } catch {
       // Config not set, that's fine
     }
-    
+
     // Get signing key
     try {
       const signingKey = await git.raw(['config', '--get', 'user.signingkey']);
@@ -79,12 +81,12 @@ export async function getWorkspaceGitConfig(workspacePath: FilePath): Promise<As
     } catch {
       // Config not set, that's fine
     }
-    
+
     return { success: true, data: config };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get git config: ${error}`)
+      error: new Error(`Failed to get git config: ${error}`),
     };
   }
 }
@@ -98,7 +100,7 @@ export async function unsetWorkspaceGitConfig(
 ): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     for (const key of keys) {
       try {
         switch (key) {
@@ -116,12 +118,12 @@ export async function unsetWorkspaceGitConfig(
         // Config might not exist, that's fine
       }
     }
-    
+
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to unset git config: ${error}`)
+      error: new Error(`Failed to unset git config: ${error}`),
     };
   }
-} 
+}

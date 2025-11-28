@@ -12,8 +12,8 @@ const initialCloneForm: CloneForm = {
   showCredentials: false,
   credentials: {
     username: '',
-    password: ''
-  }
+    password: '',
+  },
 };
 
 export const useCloneRepository = () => {
@@ -24,13 +24,14 @@ export const useCloneRepository = () => {
   const handleCloneRepository = async () => {
     try {
       setLoading(true);
-      
+
       // Prepare clone options
-      const credentials = cloneForm.showCredentials && 
-                         cloneForm.credentials.username && 
-                         cloneForm.credentials.password 
-                         ? cloneForm.credentials 
-                         : undefined;
+      const credentials =
+        cloneForm.showCredentials &&
+        cloneForm.credentials.username &&
+        cloneForm.credentials.password
+          ? cloneForm.credentials
+          : undefined;
 
       // Call server action to clone repository
       const result = await cloneRepositoryAction(
@@ -48,10 +49,10 @@ export const useCloneRepository = () => {
 
       return result;
     } catch (error) {
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Clone failed', 
-        error 
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Clone failed',
+        error,
       };
     } finally {
       setLoading(false);
@@ -69,6 +70,6 @@ export const useCloneRepository = () => {
     setIsCloneModalOpen,
     loading,
     handleCloneRepository,
-    resetCloneForm
+    resetCloneForm,
   };
-}; 
+};

@@ -1,43 +1,38 @@
 'use client';
 
 import React from 'react';
-import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { addToast } from "@heroui/toast";
-import { GitBranch, FolderOpen } from "lucide-react";
+import { Button } from '@heroui/button';
+import { Card, CardBody, CardHeader } from '@heroui/card';
+import { GitBranch, FolderOpen } from 'lucide-react';
 import { Workspace } from '@/lib/dashboard/types';
-import { useWorkspaces } from '@/hooks';
-import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 
 interface WorkspacesTabProps {
+  workspaces: Workspace[];
+  loading: boolean;
+  onRefreshWorkspaces: () => void;
   onOpenCloneModal: () => void;
   onConfigureGit: (workspaceId: string, workspace: Workspace) => void;
+  onDeleteWorkspace: (workspaceId: string) => void;
+  getProjectDisplayName: (repoUrl: string) => string;
 }
 
 export default function WorkspacesTab({
+  workspaces,
+  loading,
+  onRefreshWorkspaces,
   onOpenCloneModal,
-  onConfigureGit
+  onConfigureGit,
+  onDeleteWorkspace,
+  getProjectDisplayName,
 }: WorkspacesTabProps) {
-  const { workspaces, loading, loadWorkspaces, handleCleanupWorkspace } = useWorkspaces();
-
-  // Handler with toast notifications
-  const handleCleanupWithToast = async (workspaceId?: string, all = false) => {
-    const result = await handleCleanupWorkspace(workspaceId, all);
-    if (result.success) {
-      addToast({ title: "Success", description: result.message, color: "success" });
-    } else {
-      addToast({ title: "Error", description: result.message, color: "danger" });
-    }
-  };
-
   return (
-    <div className="space-y-6 w-full overflow-hidden">
+    <div className="space-y-6">
       {/* Clone Repository Button */}
       <div className="flex justify-center">
         <Button
           color="success"
           size="md"
-          onPress={onOpenCloneModal}
+          onClick={onOpenCloneModal}
           className="flex items-center gap-2"
         >
           <GitBranch className="w-4 h-4" />
@@ -52,12 +47,7 @@ export default function WorkspacesTab({
             <FolderOpen className="w-5 h-5 text-blue-500" />
             All Workspaces
           </h3>
-          <Button 
-            color="primary" 
-            size="sm"
-            onPress={loadWorkspaces}
-            isLoading={loading}
-          >
+          <Button color="primary" size="sm" onClick={onRefreshWorkspaces} isLoading={loading}>
             Refresh
           </Button>
         </CardHeader>
@@ -67,7 +57,9 @@ export default function WorkspacesTab({
               <div key={workspace.id} className="p-4 border border-default-200 rounded-lg">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <h4 className="font-semibold text-lg">{getProjectDisplayName(workspace.repoUrl)}</h4>
+                    <h4 className="font-semibold text-lg">
+                      {getProjectDisplayName(workspace.repoUrl)}
+                    </h4>
                     <p className="text-sm text-default-500">Branch: {workspace.branch}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -75,7 +67,7 @@ export default function WorkspacesTab({
                       color="primary"
                       size="sm"
                       variant="flat"
-                      onPress={() => onConfigureGit(workspace.id, workspace)}
+                      onClick={() => onConfigureGit(workspace.id, workspace)}
                       isLoading={loading}
                     >
                       Configure Git
@@ -84,7 +76,7 @@ export default function WorkspacesTab({
                       color="danger"
                       size="sm"
                       variant="flat"
-                      onPress={() => handleCleanupWithToast(workspace.id)}
+                      onClick={() => onDeleteWorkspace(workspace.id)}
                       isLoading={loading}
                     >
                       Delete
@@ -99,7 +91,9 @@ export default function WorkspacesTab({
                   )}
                   {workspace.metadata?.gitConfig && (
                     <div className="mt-2 p-2 bg-default-50 rounded">
-                      <p className="text-xs font-semibold text-default-700 mb-1">Git Configuration:</p>
+                      <p className="text-xs font-semibold text-default-700 mb-1">
+                        Git Configuration:
+                      </p>
                       {workspace.metadata.gitConfig.userName && (
                         <p className="text-xs">Name: {workspace.metadata.gitConfig.userName}</p>
                       )}
@@ -114,7 +108,7 @@ export default function WorkspacesTab({
             {workspaces.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-default-600 mb-4">No workspaces found</p>
-                <Button color="primary" onPress={onOpenCloneModal}>
+                <Button color="primary" onClick={onOpenCloneModal}>
                   Clone your first repository
                 </Button>
               </div>
@@ -124,4 +118,4 @@ export default function WorkspacesTab({
       </Card>
     </div>
   );
-} 
+}

@@ -3,10 +3,7 @@
     "target": "es5",
     "module": "esnext",
     "moduleResolution": "node",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -30,24 +27,12 @@
     "emitDecoratorMetadata": true,
     "baseUrl": "./src",
     "paths": {
-      "@/*": [
-        "*"
-      ],
-      "@/types/*": [
-        "types/*"
-      ],
-      "@/managers/*": [
-        "managers/*"
-      ],
-      "@/utils/*": [
-        "utils/*"
-      ],
-      "@/api/*": [
-        "api/*"
-      ],
-      "@/config/*": [
-        "config/*"
-      ]
+      "@/*": ["*"],
+      "@/types/*": ["types/*"],
+      "@/managers/*": ["managers/*"],
+      "@/utils/*": ["utils/*"],
+      "@/api/*": ["api/*"],
+      "@/config/*": ["config/*"]
     },
     "allowJs": true,
     "noEmit": true,
@@ -59,13 +44,6 @@
       }
     ]
   },
-  "include": [
-    "next-env.d.ts",
-    "src/**/*",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "tests"
-  ]
+  "include": ["next-env.d.ts", "src/**/*", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "tests"]
 }

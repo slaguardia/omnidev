@@ -9,27 +9,10 @@ export async function middleware(request: NextRequest) {
     if (process.env.NEXTAUTH_SECRET) {
       tokenParams.secret = process.env.NEXTAUTH_SECRET;
     }
-    
-    const token = await getToken(tokenParams);
-    
-    const isAuthenticated = !!token;
-    const pathname = request.nextUrl.pathname;
 
-    // Add debug logging to track authentication state
-    console.log('[MIDDLEWARE] Processing:', pathname);
-    console.log('[MIDDLEWARE] Token present:', !!token);
-    console.log('[MIDDLEWARE] Is authenticated:', isAuthenticated);
-    
-    // Debug cookies to see what's being sent
-    const cookies = request.cookies.getAll();
-    const authCookies = cookies.filter(cookie => 
-      cookie.name.includes('next-auth') || cookie.name.includes('session')
-    );
-    console.log('[MIDDLEWARE] Auth-related cookies:', authCookies.map(c => ({ name: c.name, hasValue: !!c.value })));
-    
-    if (token) {
-      console.log('[MIDDLEWARE] Token details:', { id: token.id, name: token.name });
-    }
+    const token = await getToken(tokenParams);
+
+    const isAuthenticated = !!token;
 
     const protectedPaths = [
       '/dashboard',
@@ -40,11 +23,11 @@ export async function middleware(request: NextRequest) {
       '/api/user/:path*',
     ];
 
+    const pathname = request.nextUrl.pathname;
+
     const isProtected = protectedPaths.some((path) =>
       new RegExp(`^${path.replace(/:\w+\*/g, '.*')}$`).test(pathname)
     );
-
-    console.log('[MIDDLEWARE] Is protected path:', isProtected);
 
     if (isProtected && !isAuthenticated) {
       console.log('[MIDDLEWARE] Redirecting to signin from:', pathname);
@@ -59,7 +42,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(dashboardUrl);
     }
 
-    console.log('[MIDDLEWARE] Allowing request to proceed to:', pathname);
     return NextResponse.next();
   } catch (error) {
     console.error('[MIDDLEWARE] Error:', error);

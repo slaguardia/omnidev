@@ -1,5 +1,12 @@
 image: node:20
 
+# Define pipeline stages
+stages:
+  - test
+  - build
+  - docker
+  - docker-test
+
 cache:
   key:
     files:
@@ -28,12 +35,36 @@ workflow:
     - if: $CI_COMMIT_BRANCH
       when: always
 
+# Test Stage - Run tests with coverage
+test:
+  stage: test
+  variables:
+    NODE_ENV: test
+  script:
+    - pnpm test:coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    expire_in: 1 week
+    when: always
+  cache:
+    policy: pull
+
+# Lint Stage - Comprehensive code quality checks
+# Runs typecheck (TypeScript), ESLint, Prettier, and depcheck
 lint:
-  stage: build
+  stage: test
   variables:
     NODE_ENV: development
   script:
-    - pnpm next lint
+    - pnpm lint:all
+  cache:
+    policy: pull
 
 build:
   stage: build
@@ -41,10 +72,107 @@ build:
     NODE_ENV: production
     # GitLab CI variables GITLAB_TOKEN and CLAUDE_API_KEY will be automatically available
   script:
-    - pnpm next build --no-lint
+    - pnpm build
   artifacts:
     paths:
       - .next/
     expire_in: 1 week
   cache:
     policy: pull-push
+  needs:
+    - test
+    - lint
+
+# Docker Build Stage - Build and optionally push Docker image
+docker-build:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_TAG_LATEST: $CI_REGISTRY_IMAGE:latest
+  before_script:
+    - docker info
+  script:
+    # Build the Docker image
+    - docker build -t $IMAGE_TAG -t $IMAGE_TAG_LATEST .
+    # Optionally push to GitLab Container Registry (uncomment when ready)
+    # - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    # - docker push $IMAGE_TAG
+    # - docker push $IMAGE_TAG_LATEST
+  needs:
+    - build
+  rules:
+    # Only run on main/master branch or merge requests
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+
+# Docker Security Test Stage - Verify sandbox configuration
+docker-sandbox-verify:
+  stage: docker-test
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    CONTAINER_NAME: workflow-sandbox-test-$CI_PIPELINE_ID
+  before_script:
+    - docker info
+  script:
+    # Build the Docker image for testing
+    - echo "Building Docker image for sandbox testing..."
+    - docker build -t $IMAGE_TAG .
+
+    # Start the container in detached mode
+    - |
+      docker run -d \
+        --name $CONTAINER_NAME \
+        -e SANDBOX_ENABLED=true \
+        -e DOCKER_ENV=true \
+        -e INTERNAL_GIT_PATH=/opt/internal/bin/git \
+        -e CLAUDE_CODE_WRAPPER=/usr/local/bin/claude-code-wrapper \
+        -e NEXTAUTH_SECRET=test-secret-for-ci \
+        -e NEXTAUTH_URL=http://localhost:3000 \
+        $IMAGE_TAG
+
+    # Wait for container to be ready
+    - sleep 5
+
+    # Verify container is running
+    - docker ps | grep $CONTAINER_NAME
+
+    # Run sandbox verification script
+    - echo "Running sandbox verification tests..."
+    - docker exec $CONTAINER_NAME /bin/bash /app/scripts/verify-sandbox.sh
+
+    # Additional manual checks
+    - echo "Testing git blocking..."
+    - docker exec $CONTAINER_NAME sh -c 'git --version 2>&1 | grep -q BLOCKED' && echo "✓ Git blocking verified" || (echo "✗ Git blocking FAILED" && exit 1)
+
+    - echo "Testing internal git access..."
+    - docker exec $CONTAINER_NAME /opt/internal/bin/git --version && echo "✓ Internal git accessible" || (echo "✗ Internal git FAILED" && exit 1)
+
+    - echo "Testing standard tools access..."
+    - docker exec $CONTAINER_NAME curl --version > /dev/null && echo "✓ curl accessible" || (echo "✗ curl FAILED" && exit 1)
+    - docker exec $CONTAINER_NAME wget --version > /dev/null && echo "✓ wget accessible" || (echo "✗ wget FAILED" && exit 1)
+
+    - echo "All sandbox security tests passed!"
+  after_script:
+    # Cleanup: Stop and remove the test container
+    - docker stop $CONTAINER_NAME || true
+    - docker rm $CONTAINER_NAME || true
+  needs:
+    - build
+  rules:
+    # Run on main/master branch and merge requests
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: on_success

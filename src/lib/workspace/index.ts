@@ -1,44 +1,21 @@
 // Configuration actions (now handled by src/config/settings.ts)
-// All configuration is stored in /data/app-config.json
+// All configuration is stored in workspaces/app-config.json
 
-// Workspace Storage - Persistent workspace management
+// Workspace management actions
 export {
-  initializeWorkspaceStorage,
-  saveWorkspace,
-  loadWorkspace,
-  getAllWorkspaces,
-  deleteWorkspace,
-  updateWorkspace,
-  workspaceExists
-} from './storage';
-
-// Workspace Repository - Repository cloning and management
-export {
-  cloneRepository,
-  cloneRepositoryAction,
-  getWorkspace,
   getWorkspaces,
-  listWorkspaces,
-  loadAllWorkspacesFromStorage,
-  cleanupWorkspaceFiles,
-  updateWorkspace as updateWorkspaceRepository,
-  type GitBranchWorkflowResult,
-  type CloneRepositoryOptions
-} from './repository';
+  getWorkspaceStats,
+  cloneRepositoryAction,
+} from '@/lib/workspace/workspace-actions';
 
-// Workspace Git Configuration - Git config management
+// Git configuration actions
 export {
   setWorkspaceGitConfig,
   getWorkspaceGitConfig,
   unsetWorkspaceGitConfig,
-  type GitConfig
-} from './git-config';
+} from '@/lib/workspace/git-config-actions';
 
-// Workspace Cleanup - High-level cleanup functions (recommended)
-export {
-  cleanupWorkspace,
-  cleanupAllWorkspaces,
-  type CleanupResult
-} from './cleanup';
+// Cleanup actions
+export { cleanupWorkspace, cleanupAllWorkspaces } from '@/lib/workspace/cleanup';
 
-// All types now in @/lib/types/index 
+// All types now in @/lib/types/index

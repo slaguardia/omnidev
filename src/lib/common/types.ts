@@ -1,30 +1,15 @@
 /**
  * Core type definitions for GitLab Claude Manager
+ * Re-exports from the main types module to ensure type compatibility
  */
 
-// Branded types for better type safety
-export type WorkspaceId = string & { readonly brand: unique symbol };
-export type GitUrl = string & { readonly brand: unique symbol };
-export type FilePath = string & { readonly brand: unique symbol };
-export type CommitHash = string & { readonly brand: unique symbol };
-
-/**
- * UI Component types
- */
-export interface IconSvgProps {
-  size?: number;
-  width?: number;
-  height?: number;
-  [key: string]: unknown;
-}
-
-/**
- * Utility types
- */
-export type Result<T, E = Error> = 
-  | { success: true; data: T }
-  | { success: false; error: E };
-
-export type AsyncResult<T, E = Error> = Promise<Result<T, E>>;
-
-
+// Re-export branded types from the main types module
+export type {
+  WorkspaceId,
+  GitUrl,
+  FilePath,
+  CommitHash,
+  IconSvgProps,
+  Result,
+  AsyncResult,
+} from '@/lib/types/index';

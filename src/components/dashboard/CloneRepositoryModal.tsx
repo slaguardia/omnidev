@@ -1,45 +1,31 @@
 'use client';
 
 import React from 'react';
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Switch } from "@heroui/switch";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
-import { Tooltip } from "@heroui/tooltip";
-import { addToast } from "@heroui/toast";
-import { GitBranch, Info } from "lucide-react";
-import { useCloneRepository } from '@/hooks';
+import { Button } from '@heroui/button';
+import { Input } from '@heroui/input';
+import { Switch } from '@heroui/switch';
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
+import { Tooltip } from '@heroui/tooltip';
+import { GitBranch, Info } from 'lucide-react';
+import { CloneForm } from '@/lib/dashboard/types';
 
 interface CloneRepositoryModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCloneSuccess: () => void;
+  onClone: () => Promise<void>;
+  cloneForm: CloneForm;
+  setCloneForm: React.Dispatch<React.SetStateAction<CloneForm>>;
+  loading: boolean;
 }
 
 export default function CloneRepositoryModal({
   isOpen,
   onOpenChange,
-  onCloneSuccess
+  onClone,
+  cloneForm,
+  setCloneForm,
+  loading,
 }: CloneRepositoryModalProps) {
-  const { 
-    cloneForm, 
-    setCloneForm, 
-    loading, 
-    handleCloneRepository 
-  } = useCloneRepository();
-
-  // Handler with toast notifications
-  const handleCloneWithToast = async () => {
-    const result = await handleCloneRepository();
-    if (result.success) {
-      addToast({ title: "Success", description: result.message, color: "success" });
-      onCloneSuccess(); // Refresh workspaces
-      onOpenChange(false); // Close modal
-    } else {
-      addToast({ title: "Error", description: result.message, color: "danger" });
-    }
-  };
-
   return (
     <Modal
       isOpen={isOpen}
@@ -48,12 +34,12 @@ export default function CloneRepositoryModal({
       size="2xl"
       scrollBehavior="inside"
       classNames={{
-        base: "dark:bg-slate-800/80 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20",
-        backdrop: "",
-        header: "",
-        body: "",
-        footer: "",
-        closeButton: "",
+        base: 'dark:bg-slate-800/80 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+        backdrop: '',
+        header: '',
+        body: '',
+        footer: '',
+        closeButton: '',
       }}
     >
       <ModalContent>
@@ -71,14 +57,18 @@ export default function CloneRepositoryModal({
                   label="Repository URL"
                   placeholder="https://gitlab.com/user/repo.git"
                   value={cloneForm.repoUrl}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCloneForm(prev => ({ ...prev, repoUrl: e.target.value }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCloneForm((prev) => ({ ...prev, repoUrl: e.target.value }))
+                  }
                   variant="bordered"
                 />
                 <Input
                   label="Branch (optional)"
                   placeholder="main"
                   value={cloneForm.branch}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCloneForm(prev => ({ ...prev, branch: e.target.value }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCloneForm((prev) => ({ ...prev, branch: e.target.value }))
+                  }
                   variant="bordered"
                 />
                 <div className="flex gap-4">
@@ -86,7 +76,9 @@ export default function CloneRepositoryModal({
                     label="Depth"
                     type="number"
                     value={cloneForm.depth}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCloneForm(prev => ({ ...prev, depth: e.target.value }))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setCloneForm((prev) => ({ ...prev, depth: e.target.value }))
+                    }
                     variant="bordered"
                     className="flex-1"
                   />
@@ -94,7 +86,9 @@ export default function CloneRepositoryModal({
                     <div className="flex items-center gap-2">
                       <Switch
                         isSelected={cloneForm.singleBranch}
-                        onValueChange={(checked: boolean) => setCloneForm(prev => ({ ...prev, singleBranch: checked }))}
+                        onValueChange={(checked: boolean) =>
+                          setCloneForm((prev) => ({ ...prev, singleBranch: checked }))
+                        }
                       />
                       <span className="text-sm">Single Branch</span>
                       <Tooltip
@@ -109,28 +103,31 @@ export default function CloneRepositoryModal({
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <Switch
                     isSelected={cloneForm.showCredentials}
-                    onValueChange={(checked: boolean) => setCloneForm(prev => ({ ...prev, showCredentials: checked }))}
+                    onValueChange={(checked: boolean) =>
+                      setCloneForm((prev) => ({ ...prev, showCredentials: checked }))
+                    }
                   />
                   <span className="text-sm">Private Repository (requires authentication)</span>
                 </div>
-                
+
                 {cloneForm.showCredentials && (
                   <div className="space-y-3 p-4 bg-default-50 rounded-lg border border-default-200">
                     <div className="text-sm text-default-600 mb-2">
-                      <strong>Tip:</strong> For GitLab, use your username and personal access token (not password)
+                      <strong>Tip:</strong> For GitLab, use your username and personal access token
+                      (not password)
                     </div>
                     <Input
                       label="Username"
                       placeholder="your-username"
                       value={cloneForm.credentials.username}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                        setCloneForm(prev => ({ 
-                          ...prev, 
-                          credentials: { ...prev.credentials, username: e.target.value }
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setCloneForm((prev) => ({
+                          ...prev,
+                          credentials: { ...prev.credentials, username: e.target.value },
                         }))
                       }
                       variant="bordered"
@@ -140,10 +137,10 @@ export default function CloneRepositoryModal({
                       type="password"
                       placeholder="glpat-xxxxxxxxxxxxxxxxxxxx"
                       value={cloneForm.credentials.password}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                        setCloneForm(prev => ({ 
-                          ...prev, 
-                          credentials: { ...prev.credentials, password: e.target.value }
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setCloneForm((prev) => ({
+                          ...prev,
+                          credentials: { ...prev.credentials, password: e.target.value },
                         }))
                       }
                       variant="bordered"
@@ -153,12 +150,12 @@ export default function CloneRepositoryModal({
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button color="default" variant="flat" onPress={onClose}>
+              <Button color="default" variant="flat" onClick={onClose}>
                 Cancel
               </Button>
               <Button
                 color="success"
-                onPress={handleCloneWithToast}
+                onClick={onClone}
                 isLoading={loading}
                 isDisabled={!cloneForm.repoUrl}
               >
@@ -170,4 +167,4 @@ export default function CloneRepositoryModal({
       </ModalContent>
     </Modal>
   );
-} 
+}

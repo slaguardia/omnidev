@@ -11,7 +11,9 @@ import type { GitCommitInfo } from '@/lib/git/types';
 /**
  * Get current commit hash
  */
-export async function getCurrentCommitHash(workspacePath: FilePath): Promise<AsyncResult<CommitHash>> {
+export async function getCurrentCommitHash(
+  workspacePath: FilePath
+): Promise<AsyncResult<CommitHash>> {
   try {
     const git = simpleGit(workspacePath);
     const log = await git.log(['-1', '--format=%H']);
@@ -20,7 +22,7 @@ export async function getCurrentCommitHash(workspacePath: FilePath): Promise<Asy
     if (!hash) {
       return {
         success: false,
-        error: new Error('No commits found in repository')
+        error: new Error('No commits found in repository'),
       };
     }
 
@@ -28,7 +30,7 @@ export async function getCurrentCommitHash(workspacePath: FilePath): Promise<Asy
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get commit hash: ${error}`)
+      error: new Error(`Failed to get commit hash: ${error}`),
     };
   }
 }
@@ -36,7 +38,10 @@ export async function getCurrentCommitHash(workspacePath: FilePath): Promise<Asy
 /**
  * Get commit information
  */
-export async function getCommitInfo(workspacePath: FilePath, commitHash?: CommitHash): Promise<AsyncResult<GitCommitInfo>> {
+export async function getCommitInfo(
+  workspacePath: FilePath,
+  commitHash?: CommitHash
+): Promise<AsyncResult<GitCommitInfo>> {
   try {
     const git = simpleGit(workspacePath);
     const log = await git.log(['-1', commitHash || 'HEAD']);
@@ -45,7 +50,7 @@ export async function getCommitInfo(workspacePath: FilePath, commitHash?: Commit
     if (!commit) {
       return {
         success: false,
-        error: new Error('Commit not found')
+        error: new Error('Commit not found'),
       };
     }
 
@@ -53,14 +58,14 @@ export async function getCommitInfo(workspacePath: FilePath, commitHash?: Commit
       hash: commit.hash as CommitHash,
       message: commit.message,
       author: `${commit.author_name} <${commit.author_email}>`,
-      date: new Date(commit.date)
+      date: new Date(commit.date),
     };
 
     return { success: true, data: info };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get commit info: ${error}`)
+      error: new Error(`Failed to get commit info: ${error}`),
     };
   }
 }
@@ -68,19 +73,21 @@ export async function getCommitInfo(workspacePath: FilePath, commitHash?: Commit
 /**
  * Check if there are uncommitted changes (git diff)
  */
-export async function hasUncommittedChanges(workspacePath: FilePath): Promise<AsyncResult<boolean>> {
+export async function hasUncommittedChanges(
+  workspacePath: FilePath
+): Promise<AsyncResult<boolean>> {
   try {
     const git = simpleGit(workspacePath);
     const status = await git.status();
-    
+
     // Check if there are any modified, added, deleted, or untracked files
     const hasChanges = !status.isClean();
-    
+
     return { success: true, data: hasChanges };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to check for changes: ${error}`)
+      error: new Error(`Failed to check for changes: ${error}`),
     };
   }
 }
@@ -92,12 +99,12 @@ export async function addAllFiles(workspacePath: FilePath): Promise<AsyncResult<
   try {
     const git = simpleGit(workspacePath);
     await git.add('.');
-    
+
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to add files: ${error}`)
+      error: new Error(`Failed to add files: ${error}`),
     };
   }
 }
@@ -105,23 +112,26 @@ export async function addAllFiles(workspacePath: FilePath): Promise<AsyncResult<
 /**
  * Commit changes with a message
  */
-export async function commitChanges(workspacePath: FilePath, message: string): Promise<AsyncResult<CommitHash>> {
+export async function commitChanges(
+  workspacePath: FilePath,
+  message: string
+): Promise<AsyncResult<CommitHash>> {
   try {
     const git = simpleGit(workspacePath);
     const commitResult = await git.commit(message);
-    
+
     if (!commitResult.commit) {
       return {
         success: false,
-        error: new Error('No commit hash returned')
+        error: new Error('No commit hash returned'),
       };
     }
-    
+
     return { success: true, data: commitResult.commit as CommitHash };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to commit changes: ${error}`)
+      error: new Error(`Failed to commit changes: ${error}`),
     };
   }
-} 
+}

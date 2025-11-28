@@ -1,14 +1,13 @@
-'use client'
+'use client';
 
 import { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
-import { Chip } from "@heroui/chip";
+import { Input } from '@heroui/input';
+import { Button } from '@heroui/button';
+import { Card, CardBody } from '@heroui/card';
+import { Chip } from '@heroui/chip';
 
-import { title } from "@/components/Primitives";
+import { title } from '@/components/Primitives';
 import { hasUser } from '@/lib/auth/user-store';
 
 export default function SigninPage() {
@@ -16,13 +15,13 @@ export default function SigninPage() {
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [error, setError] = useState('');
   const [userExists, setUserExists] = useState<boolean | null>(null);
+  const [authSuccess, setAuthSuccess] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const { data: session, status } = useSession();
-  const router = useRouter();
 
   // Check if user exists on component mount
   useEffect(() => {
@@ -40,19 +39,18 @@ export default function SigninPage() {
     checkUser();
   }, []);
 
-  // Redirect to dashboard if already authenticated
+  // Redirect to dashboard if already authenticated or auth was successful
   useEffect(() => {
-    if (status === 'authenticated' && session) {
+    if ((status === 'authenticated' && session) || authSuccess) {
       console.log('[SIGNIN] User authenticated, redirecting to dashboard');
-      router.push('/dashboard');
     }
-  }, [status, session, router]);
+  }, [status, session, authSuccess]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     setError(''); // Clear error when user starts typing
   };
@@ -84,27 +82,13 @@ export default function SigninPage() {
 
     console.log('[SIGNIN] Attempting authentication...');
     try {
-      const result = await signIn('credentials', {
+      await signIn('credentials', {
         username: formData.username,
         password: formData.password,
         callbackUrl: '/dashboard',
-        redirect: false, // Handle redirect manually to avoid flash
       });
 
-      if (result?.error) {
-        setError(result.error === "CredentialsSignin"
-          ? "Invalid username or password"
-          : result.error);
-        setIsLoading(false);
-      } else if (result?.ok) {
-        // Success - redirect manually
-        console.log('[SIGNIN] Authentication successful, redirecting...');
-        window.location.href = '/dashboard';
-        // Don't set loading to false here - let the redirect happen
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-        setIsLoading(false);
-      }
+      setAuthSuccess(true);
     } catch (err) {
       console.error('[SIGNIN] Authentication error:', err);
       setError('An unexpected error occurred. Please try again.');
@@ -112,14 +96,18 @@ export default function SigninPage() {
     }
   };
 
-  // Show loading state while checking user status or if session is loading
-  if (isCheckingUser || status === 'loading') {
+  // Show loading state while checking user status, if session is loading, or after successful auth
+  if (isCheckingUser || status === 'loading' || authSuccess) {
     return (
       <div className="w-full max-w-md mx-auto text-center">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="text-default-600">
-            {isCheckingUser ? 'Checking system status...' : 'Loading session...'}
+            {isCheckingUser
+              ? 'Checking system status...'
+              : authSuccess
+                ? 'Authentication successful! Redirecting...'
+                : 'Loading session...'}
           </p>
         </div>
       </div>
@@ -145,7 +133,7 @@ export default function SigninPage() {
       <h1 className={`${title()} text-center mb-16 text-2xl`}>
         {isSignup ? 'Create Account' : 'Sign In'}
       </h1>
-      
+
       <Card className="w-full mt-10">
         <CardBody className="p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -185,11 +173,7 @@ export default function SigninPage() {
             )}
 
             {error && (
-              <Chip
-                color="danger"
-                variant="flat"
-                className="w-full p-3 h-auto whitespace-normal"
-              >
+              <Chip color="danger" variant="flat" className="w-full p-3 h-auto whitespace-normal">
                 {error}
               </Chip>
             )}
@@ -215,7 +199,8 @@ export default function SigninPage() {
                 Warning
               </Chip>
               <p className="text-md text-default-600">
-                No account exists yet. Create the first and <strong>only</strong> account for this system.
+                No account exists yet. Create the first and <strong>only</strong> account for this
+                system.
               </p>
             </div>
           </CardBody>

@@ -11,18 +11,18 @@ This document explains how to set up simple API key authentication for your API 
 Add these variables to your `.env.local` file:
 
 ```bash
-# API Authentication Configuration
-# Generate secure API keys (32+ characters recommended)
 ADMIN_API_KEY=your-secure-admin-api-key-here
 VALID_API_KEYS=client-key-1,client-key-2,client-key-3
-
-# Rate limiting (requests per hour per client)
 API_RATE_LIMIT=100
-
-# IP Whitelist (optional - leave empty to allow all IPs)
-# Use * to allow all, or comma-separated list of IPs
 ALLOWED_IPS=192.168.1.100,10.0.0.50
 ```
+
+**Variable descriptions:**
+
+- `ADMIN_API_KEY` - Generate secure API keys (32+ characters recommended)
+- `VALID_API_KEYS` - Comma-separated list of client keys
+- `API_RATE_LIMIT` - Requests per hour per client
+- `ALLOWED_IPS` - IP whitelist (use `*` to allow all, or comma-separated list)
 
 ## How to Use
 
@@ -31,6 +31,7 @@ ALLOWED_IPS=192.168.1.100,10.0.0.50
 External clients must include an API key in their requests using either:
 
 **Option A: x-api-key header**
+
 ```bash
 curl -X POST http://localhost:3000/api/ask \
   -H "Content-Type: application/json" \
@@ -42,6 +43,7 @@ curl -X POST http://localhost:3000/api/ask \
 ```
 
 **Option B: Authorization Bearer token**
+
 ```bash
 curl -X POST http://localhost:3000/api/ask \
   -H "Content-Type: application/json" \
@@ -59,12 +61,12 @@ const response = await fetch('http://localhost:3000/api/ask', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': 'your-api-key-here'
+    'x-api-key': 'your-api-key-here',
   },
   body: JSON.stringify({
     workspaceId: 'workspace-123',
-    question: 'How does this code work?'
-  })
+    question: 'How does this code work?',
+  }),
 });
 
 const data = await response.json();
@@ -100,11 +102,11 @@ print(result)
 
 ## Error Responses
 
-| Status | Error | Description |
-|--------|--------|-------------|
-| 401 | Invalid API key | The provided API key is not valid |
-| 403 | Access denied from this IP address | Client IP is not whitelisted |
-| 429 | Rate limit exceeded | Client has exceeded their request quota |
+| Status | Error                              | Description                             |
+| ------ | ---------------------------------- | --------------------------------------- |
+| 401    | Invalid API key                    | The provided API key is not valid       |
+| 403    | Access denied from this IP address | Client IP is not whitelisted            |
+| 429    | Rate limit exceeded                | Client has exceeded their request quota |
 
 ## Production Recommendations
 
@@ -117,13 +119,20 @@ print(result)
 
 ## Generating Secure API Keys
 
+**Using Node.js crypto:**
+
 ```bash
-# Using Node.js crypto
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-# Using OpenSSL
+**Using OpenSSL:**
+
+```bash
 openssl rand -hex 32
+```
 
-# Using Python
+**Using Python:**
+
+```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"
-``` 
+```

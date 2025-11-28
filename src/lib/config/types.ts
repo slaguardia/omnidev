@@ -1,6 +1,6 @@
-import { WorkspaceConfig } from "@/lib/workspace/types";
-import { GitLabConfig } from "@/lib/gitlab/types";
-import { ClientSafeGitLabConfig } from "@/lib/gitlab/types";
+import { WorkspaceConfig } from '@/lib/workspace/types';
+import { GitLabConfig } from '@/lib/gitlab/types';
+import { ClientSafeGitLabConfig } from '@/lib/gitlab/types';
 
 /**
  * Configuration types

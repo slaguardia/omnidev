@@ -2,10 +2,7 @@
  * Merge request automation and creation
  */
 import { Gitlab } from '@gitbeaker/rest';
-import type { 
-  AsyncResult
-} from '@/lib/common/types';
-import type { GitLabMergeRequest } from '@/lib/gitlab/types';
+import type { GitLabMergeRequest, AsyncResult } from '@/lib/types/index';
 
 interface CreateMergeRequestParams {
   projectId: string | number;
@@ -47,14 +44,16 @@ export async function createMergeRequest(
     if (!baseUrl || !token) {
       return {
         success: false,
-        error: new Error('GitLab API not configured. Please check GitLab configuration in settings.')
+        error: new Error(
+          'GitLab API not configured. Please check GitLab configuration in settings.'
+        ),
       };
     }
 
     // Initialize GitBeaker client
     const gitlab = new Gitlab({
       host: baseUrl,
-      token: token
+      token: token,
     });
 
     // Create merge request using gitbeaker
@@ -68,7 +67,7 @@ export async function createMergeRequest(
         ...(params.assigneeId && { assigneeId: params.assigneeId }),
         ...(params.labels && params.labels.length > 0 && { labels: params.labels }),
         removeSourceBranch: params.removeSourceBranch ?? true,
-        ...(params.squash !== undefined && { squash: params.squash })
+        ...(params.squash !== undefined && { squash: params.squash }),
       }
     );
 
@@ -87,16 +86,15 @@ export async function createMergeRequest(
       author: {
         id: mergeRequest.author.id,
         name: mergeRequest.author.name,
-        username: mergeRequest.author.username
-      }
+        username: mergeRequest.author.username,
+      },
     };
 
     return { success: true, data: transformedData };
-
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to create merge request: ${error}`)
+      error: new Error(`Failed to create merge request: ${error}`),
     };
   }
 }

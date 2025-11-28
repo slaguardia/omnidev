@@ -1,55 +1,49 @@
-# Workflow Manager
+# GitLab Claude Manager
 
-A powerful TypeScript Next.js application that manages GitLab repositories with AI-powered code analysis through Claude Code integration. This tool provides intelligent workspace management, web-based configuration, and natural language interactions with codebases.
+A powerful TypeScript Node.js application that manages GitLab repositories with AI-powered code analysis through Claude Code integration. This tool provides intelligent caching, temporary workspace management, and natural language interactions with codebases.
 
 ## 🚀 Features
 
 - **Repository Management**: Clone and manage GitLab repositories in temporary workspaces
 - **AI-Powered Analysis**: Integrate with Claude Code for intelligent code review and suggestions
-- **Web Interface**: Modern Next.js dashboard for easy configuration and management
+
 - **Natural Language Queries**: Ask questions about your codebase in plain English
 - **Workspace Isolation**: Secure temporary workspace management
 - **TypeScript First**: Full type safety with comprehensive type definitions
-- **Docker Ready**: Fully containerized with optimized builds
+- **CLI Interface**: Intuitive command-line interface for all operations
 
 ## 📁 Project Structure
 
 ```
-workflow/
+gitlab-claude-manager/
 ├── package.json              # Project configuration and dependencies
 ├── tsconfig.json             # TypeScript configuration
-├── next.config.js            # Next.js configuration
-├── tailwind.config.ts        # Tailwind CSS configuration
-├── docker-compose.yml        # Docker orchestration
-├── Dockerfile               # Production Docker build
+├── jest.config.js            # Jest testing configuration
 ├── .gitignore               # Git ignore patterns
 ├── README.md                # This file
 ├── src/                     # Source code
-│   ├── app/                 # Next.js app directory
-│   │   ├── api/            # API routes
-│   │   ├── dashboard/      # Dashboard pages
-│   │   ├── docs/           # Documentation pages
-│   │   └── globals.css     # Global styles
-│   ├── components/         # React components
-│   │   ├── dashboard/      # Dashboard-specific components
-│   │   ├── NavBar.tsx      # Navigation component
-│   │   └── ThemeSwitch.tsx # Theme toggle
-│   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Core business logic
-│   │   ├── auth/           # Authentication
-│   │   ├── claudeCode/     # Claude Code integration
-│   │   ├── config/         # Configuration management
-│   │   ├── git/            # Git operations
-│   │   ├── gitlab/         # GitLab API client
-│   │   ├── managers/       # Workspace and repository managers
-│   │   └── workspace/      # Workspace utilities
-│   └── middleware.ts       # Next.js middleware
-├── docs/                   # Documentation
-│   ├── API_AUTHENTICATION.md
-│   ├── CREDENTIALS.md
-│   ├── DOCKER.md
-│   └── MERGE_REQUEST_AUTOMATION.md
-└── workspaces/            # Temporary workspace directory
+│   ├── index.ts            # Main CLI entry point
+│   ├── types/              # Type definitions
+│   │   └── index.ts        # Core type definitions
+│   ├── managers/           # Core business logic
+│   │   ├── RepositoryManager.ts  # Repository operations
+│   │   ├── WorkspaceManager.ts   # Workspace handling
+
+│   ├── utils/              # Utility functions
+│   │   ├── gitOperations.ts     # Git utilities
+│   │   ├── fileSystem.ts        # File system utilities
+│   │   └── security.ts          # Security validation
+│   ├── api/                # External API integrations
+│   │   ├── gitlabClient.ts      # GitLab API client
+│   │   └── claudeClient.ts      # Claude Code integration
+│   └── config/             # Configuration management
+│       └── settings.ts          # Environment configuration
+├── dist/                   # Compiled JavaScript output
+├── tests/                  # Test files
+│   ├── unit/              # Unit tests
+│   └── integration/       # Integration tests
+├── examples/              # Usage examples
+└── docs/                  # Documentation
 ```
 
 ## 🛠️ Installation
@@ -57,25 +51,28 @@ workflow/
 ### Prerequisites
 
 - Node.js 18.0.0 or higher
-- pnpm (recommended package manager)
+- pnpm (or npm/yarn as alternatives)
 - Git
-- Docker Desktop (for containerized deployment)
 - Claude Code CLI (optional, for AI features)
+- Docker (optional, for containerized deployment)
 
 ### Quick Start
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repository-url>
-   cd workflow
+   cd gitlab-claude-manager
    ```
 
 2. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
-3. **Start the development server:**
+3. **Start the application:**
+
    ```bash
    pnpm dev
    ```
@@ -96,6 +93,7 @@ That's it! No environment variables required to get started.
 All configuration is managed through the web interface:
 
 1. **Required Settings:**
+
    - **GitLab Token**: Your GitLab personal access token
    - **Claude API Key**: Your Claude/Anthropic API key
 
@@ -107,39 +105,55 @@ All configuration is managed through the web interface:
 
 ### Environment Variables (Optional)
 
-If you prefer environment variables, create a `.env` file:
+If you prefer environment variables, copy the example file and configure:
 
-```env
-# Optional - All settings can be configured through the UI
-GITLAB_URL=https://gitlab.com
-GITLAB_TOKEN=your_gitlab_token_here
-CLAUDE_API_KEY=your_claude_api_key_here
-CLAUDE_CODE_PATH=claude-code
-MAX_WORKSPACE_SIZE_MB=500
-TEMP_DIR_PREFIX=gitlab-claude-
-LOG_LEVEL=info
-ALLOWED_GITLAB_HOSTS=gitlab.com
-MAX_CONCURRENT_WORKSPACES=3
+```bash
+cp docs/.env.example .env
+# Edit .env with your values
 ```
 
-Environment variables will appear as defaults in the Settings UI and can be overridden there.
+**Required variables:**
+
+```env
+# NextAuth Configuration
+NEXTAUTH_SECRET=your-nextauth-secret-here  # Generate with: openssl rand -base64 32
+NEXTAUTH_URL=http://localhost:3000
+```
+
+**Optional variables** (can also be configured via UI):
+
+```env
+# API Authentication
+VALID_API_KEYS=client-key-1,client-key-2
+ADMIN_API_KEY=admin-secret-key-here
+API_RATE_LIMIT=100
+ALLOWED_IPS=192.168.1.100,10.0.0.50  # or * for all
+
+# Service Integration
+GITLAB_TOKEN=your_gitlab_token_here
+ANTHROPIC_API_KEY=your_claude_api_key_here
+
+# Advanced Configuration
+GITLAB_URL=https://gitlab.com
+MAX_WORKSPACE_SIZE_MB=500
+MAX_CONCURRENT_WORKSPACES=3
+LOG_LEVEL=info
+```
+
+📚 **For complete documentation, see [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**
 
 ## 🐳 Docker Deployment
 
 The application is fully dockerized with optimized builds for both development and production.
 
-### Prerequisites
-
-- Docker Desktop installed on your system
-- Git configured with proper line endings (important for Windows users)
-
 ### Quick Start with Docker
 
 1. **Production deployment:**
+
    ```bash
    # Build and run with Docker Compose
    docker-compose up --build -d
-   
+
    # Access the application at http://localhost:3000
    ```
 
@@ -148,15 +162,6 @@ The application is fully dockerized with optimized builds for both development a
    # Uncomment the workflow-dev service in docker-compose.yml
    docker-compose up workflow-dev --build
    ```
-
-### Line Endings Important Note
-
-**Windows users**: Docker containers expect Unix-style line endings (LF). Configure Git properly to avoid issues:
-
-```bash
-git config --global core.autocrlf false
-git config --global core.eol lf
-```
 
 ### Manual Docker Commands
 
@@ -187,18 +192,182 @@ docker run -p 3000:3000 \
 - ✅ **Health checks** - Built-in monitoring
 - ✅ **Development mode** - Hot reloading support
 
-For detailed Docker documentation and troubleshooting, see [DOCKER.md](docs/DOCKER.md).
+### Testing Docker Installation
+
+After building your Docker image, run these tests:
+
+#### 1. Verify Core Dependencies
+
+```bash
+# Test Node.js installation
+docker run --rm workflow-app node --version
+
+# Test npm/pnpm
+docker run --rm workflow-app npm --version
+docker run --rm workflow-app pnpm --version
+
+# Test Python (for native modules)
+docker run --rm workflow-app python3 --version
+
+# Test Git
+docker run --rm workflow-app git --version
+```
+
+#### 2. Test Claude Code Installation
+
+```bash
+# Verify Claude Code is installed
+docker run --rm workflow-app claude-code --version
+
+# Test Claude Code help
+docker run --rm workflow-app claude-code --help
+```
+
+#### 3. Test Application Health
+
+```bash
+# Start the container in background
+docker-compose up -d
+
+# Test application is responding
+curl http://localhost:3000
+
+# Test health endpoint
+curl http://localhost:3000/api/config/validate
+
+# Test settings API
+curl http://localhost:3000/api/config/status
+```
+
+#### 4. Test Workspace Operations
+
+```bash
+# Access container shell
+docker-compose exec workflow-app sh
+
+# Inside container, test workspace directory
+ls -la /app/workspaces
+
+# Test file permissions
+touch /app/workspaces/test-file
+ls -la /app/workspaces/test-file
+rm /app/workspaces/test-file
+```
+
+#### 5. Test with Sample Environment
+
+```bash
+# Create test environment file
+cat > .env.test << EOF
+GITLAB_URL=https://gitlab.com
+CLAUDE_CODE_PATH=claude-code
+LOG_LEVEL=debug
+MAX_WORKSPACE_SIZE_MB=100
+EOF
+
+# Run with test environment
+docker run --rm -p 3000:3000 \
+  --env-file .env.test \
+  workflow-app
+```
+
+#### 6. Test Volume Persistence
+
+```bash
+# Start container
+docker-compose up -d
+
+# Create test data
+docker-compose exec workflow-app sh -c "echo 'test data' > /app/workspaces/persistence-test.txt"
+
+# Stop and restart container
+docker-compose down
+docker-compose up -d
+
+# Verify data persists
+docker-compose exec workflow-app cat /app/workspaces/persistence-test.txt
+
+# Should output: test data
+```
+
+#### 7. Performance Testing
+
+```bash
+# Monitor resource usage
+docker stats workflow-app
+
+# Test memory limits (if configured)
+docker-compose exec workflow-app sh -c "cat /sys/fs/cgroup/memory/memory.limit_in_bytes"
+
+# Test build performance
+time docker build -t workflow-app-test .
+```
+
+### Docker Troubleshooting
+
+#### Common Issues & Solutions
+
+1. **Claude Code installation fails:**
+
+   ```bash
+   # Check Ubuntu version
+   docker run --rm workflow-app cat /etc/os-release
+
+   # Manually test Claude Code installation
+   docker run --rm -it workflow-app bash
+   npm install -g @anthropic-ai/claude-code@latest
+   ```
+
+2. **Permission issues:**
+
+   ```bash
+   # Check user context
+   docker-compose exec workflow-app whoami
+   docker-compose exec workflow-app id
+
+   # Fix workspace permissions
+   docker-compose exec workflow-app chown -R nextjs:nodejs /app/workspaces
+   ```
+
+3. **Port conflicts:**
+
+   ```bash
+   # Check what's using port 3000
+   lsof -i :3000
+
+   # Use different port
+   docker run -p 3001:3000 workflow-app
+   ```
+
+4. **Build failures:**
+
+   ```bash
+   # Clean build with no cache
+   docker build --no-cache -t workflow-app .
+
+   # Check build logs
+   docker build -t workflow-app . 2>&1 | tee build.log
+   ```
+
+### Docker Logs & Monitoring
+
+```bash
+# View application logs
+docker-compose logs -f workflow-app
+
+# View last 100 lines
+docker-compose logs --tail=100 workflow-app
+
+# Monitor container health
+docker inspect --format='{{.State.Health.Status}}' workflow-app
+
+# Check container resources
+docker-compose exec workflow-app sh -c "free -h && df -h"
+```
+
+For detailed Docker documentation, see [DOCKER.md](docs/DOCKER.md).
 
 ## 🎯 Usage
-
-### Web Interface
-
-The primary interface is the web dashboard accessible at `http://localhost:3000`:
-
-1. **Dashboard**: Overview of workspaces and operations
-2. **Settings**: Configure GitLab and Claude integration
-3. **Workspaces**: Manage active workspace sessions
-4. **Operations**: Monitor running tasks and history
 
 ### Development Mode
 
@@ -206,38 +375,93 @@ The primary interface is the web dashboard accessible at `http://localhost:3000`
 # Start in development mode
 pnpm dev
 
-# Build for production
-pnpm build
-
-# Start production server
-pnpm start
+# Or run specific commands
+pnpm dev -- clone https://gitlab.com/user/repo.git
+pnpm dev -- analyze workspace-id
+pnpm dev -- list
 ```
 
-### API Endpoints
+### Production Mode
 
-The application provides REST API endpoints for programmatic access:
+```bash
+# Build and run
+pnpm build
+pnpm start
 
-- `GET /api/config/status` - Check configuration status
-- `POST /api/ask` - Submit natural language queries
-- `GET /api/auth/session` - Get current session info
+# Or use the CLI directly
+node dist/index.js clone https://gitlab.com/user/repo.git
+node dist/index.js analyze workspace-id
+```
+
+### CLI Commands
+
+#### Clone Repository
+
+```bash
+# Clone a repository
+pnpm dev -- clone https://gitlab.com/user/repo.git
+
+# Clone specific branch
+pnpm dev -- clone https://gitlab.com/user/repo.git --branch feature-branch
+
+# Shallow clone
+pnpm dev -- clone https://gitlab.com/user/repo.git --depth 1
+```
+
+#### Analyze Workspace
+
+```bash
+# Analyze entire workspace
+pnpm dev -- analyze workspace-id
+
+# Analyze specific directory
+pnpm dev -- analyze workspace-id --directory src/
+
+# Analyze with language hint
+pnpm dev -- analyze workspace-id --language TypeScript
+```
+
+#### List Workspaces
+
+```bash
+# List active workspaces
+pnpm dev -- list
+
+# List all workspaces
+pnpm dev -- list --all
+```
+
+#### Workspace Cleanup
+
+```bash
+# Clean up workspaces
+pnpm dev -- cleanup
+
+# Clean specific workspace
+pnpm dev -- cleanup workspace-id
+
+# Force cleanup
+pnpm dev -- cleanup --all --force
+```
+
+#### Natural Language Queries
+
+```bash
+# Ask questions about your codebase
+pnpm dev -- ask workspace-id "What are the main components in this project?"
+pnpm dev -- ask workspace-id "How can I improve the performance of this code?"
+pnpm dev -- ask workspace-id "Are there any security vulnerabilities?"
+```
 
 ## 🏗️ Architecture
 
 ### Core Components
 
-1. **WorkspaceManager**: Manages temporary workspace lifecycle
-2. **RepositoryManager**: Handles GitLab repository operations
+1. **RepositoryManager**: Handles GitLab repository operations
+2. **WorkspaceManager**: Manages temporary workspace lifecycle
+
 3. **ClaudeClient**: Integrates with Claude Code CLI and API
 4. **GitLabClient**: Interfaces with GitLab API
-5. **AuthSystem**: Handles authentication and session management
-
-### Technology Stack
-
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend**: Next.js API routes, Node.js
-- **Database**: File-based configuration storage
-- **Container**: Docker with Ubuntu base image
-- **Authentication**: NextAuth.js integration
 
 ### Type System
 
@@ -258,6 +482,22 @@ The system integrates with Claude Code CLI for:
 - Automated git workflows
 - Context-aware responses
 
+## 🧪 Testing
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run specific test file
+pnpm test -- --testNamePattern="RepositoryManager"
+```
+
 ## 🔒 Security
 
 - **Sandbox Isolation**: Each workspace runs in isolation
@@ -265,12 +505,11 @@ The system integrates with Claude Code CLI for:
 - **Size Limits**: Configurable workspace size limits
 - **Access Control**: Token-based GitLab access
 - **Path Traversal Protection**: Secure file system operations
-- **Authentication**: Secure session management
 
 ## 📈 Performance
 
 - **Workspace Isolation**: Secure temporary workspace management
-- **React Server Components**: Optimized rendering
+- **Lazy Loading**: Load components only when needed
 - **Streaming Operations**: Handle large repositories efficiently
 - **Concurrent Processing**: Parallel workspace operations
 - **Memory Management**: Automatic cleanup of expired workspaces
@@ -290,7 +529,6 @@ The system integrates with Claude Code CLI for:
 - Use conventional commits
 - Update documentation
 - Ensure type safety
-- Use pnpm for package management
 
 ## 📚 API Documentation
 
@@ -328,19 +566,16 @@ interface ClaudeCodeResponse {
 The project uses a Result type for consistent error handling:
 
 ```typescript
-type Result<T, E = Error> = 
-  | { success: true; data: T }
-  | { success: false; error: E };
+type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E };
 ```
 
 ## 🔄 Roadmap
 
-- [x] **Phase 1**: Core repository management
-- [x] **Phase 2**: Web interface and dashboard
-- [x] **Phase 3**: Docker containerization
-- [ ] **Phase 4**: Advanced Claude Code integration
-- [ ] **Phase 5**: Enhanced git workflow automation
-- [ ] **Phase 6**: Multi-provider support (GitHub, Bitbucket)
+- [ ] **Phase 1**: Core repository management
+- [ ] **Phase 2**: Claude Code integration
+- [ ] **Phase 3**: Advanced git workflow automation
+- [ ] **Phase 4**: Web interface
+- [ ] **Phase 5**: Multi-provider support (GitHub, Bitbucket)
 
 ## 📄 License
 
@@ -350,18 +585,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Claude Code](https://claude.ai) for AI-powered code analysis
 - [GitLab](https://gitlab.com) for repository hosting
-- [Next.js](https://nextjs.org) for the React framework
 - [TypeScript](https://typescriptlang.org) for type safety
-- [Tailwind CSS](https://tailwindcss.com) for styling
-- [Docker](https://docker.com) for containerization
+- [Commander.js](https://github.com/tj/commander.js) for CLI interface
+- [Simple Git](https://github.com/steveukx/git-js) for Git operations
 
 ## 📞 Support
 
 - Create an issue for bug reports
 - Start a discussion for feature requests
-- Check the [documentation](docs/) for detailed guides
-- Review the dashboard UI for configuration help
+- Check the documentation for common questions
+- Review the examples for usage patterns
 
 ---
 
-**Note**: This application provides a modern web interface for managing GitLab repositories with AI assistance. The core functionality is implemented and ready for use. Advanced features and integrations are continuously being added.
+**Note**: This project is currently in development. Core functionality is being implemented progressively. The CLI interface is ready, and the TypeScript foundation is established. Implementation of repository management, caching, and Claude Code integration is in progress.

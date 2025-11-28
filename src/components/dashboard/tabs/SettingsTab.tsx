@@ -1,49 +1,56 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { addToast } from "@heroui/toast";
-import { Settings } from "lucide-react";
+import { Button } from '@heroui/button';
+import { Input } from '@heroui/input';
+import { Card, CardBody, CardHeader } from '@heroui/card';
+import { Settings } from 'lucide-react';
+import { Select, SelectItem } from '@heroui/select';
+import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Divider } from '@heroui/divider';
 import { Snippet } from '@heroui/snippet';
-import { generateAndSaveApiKey } from '@/lib/config/api-key-store';
-import { useEnvironmentConfig } from '@/hooks';
 
-export default function SettingsTab() {
-  const [apiKey, setApiKey] = useState('');
-  const { 
-    envConfig, 
-    setEnvConfig, 
-    pendingSensitiveData, 
-    updateSensitiveData, 
-    loading, 
-    saveEnvironmentConfig, 
-    resetToDefaults 
-  } = useEnvironmentConfig();
-
-  // Handler with toast notifications
-  const handleSaveEnvConfigWithToast = async () => {
-    const result = await saveEnvironmentConfig();
-    if (result.success) {
-      addToast({ title: "Success", description: result.message, color: "success" });
-    } else {
-      addToast({ title: "Error", description: result.message, color: "danger" });
-    }
+interface SettingsTabProps {
+  envConfig: ClientSafeAppConfig;
+  setEnvConfig: React.Dispatch<React.SetStateAction<ClientSafeAppConfig>>;
+  pendingSensitiveData: {
+    gitlabToken?: string;
+    claudeApiKey?: string;
   };
+  updateSensitiveData: (type: 'gitlabToken' | 'claudeApiKey', value: string) => void;
+  loading: boolean;
+  onSaveConfig: () => void;
+  onResetToDefaults: () => void;
+}
+
+export default function SettingsTab({
+  envConfig,
+  setEnvConfig,
+  pendingSensitiveData,
+  updateSensitiveData,
+  loading,
+  onSaveConfig,
+  onResetToDefaults,
+}: SettingsTabProps) {
+  const [apiKey, setApiKey] = useState('');
 
   async function generateApiKey() {
-    try {
-      const apiKey = await generateAndSaveApiKey();
-      setApiKey(apiKey);
-    } catch (error) {
-      console.error('Failed to generate key:', error);
+    const res = await fetch('/api/generate-key', {
+      method: 'POST',
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error(err.error || 'Failed to generate key');
+      return;
     }
+
+    const data = await res.json();
+    setApiKey(data.apiKey);
   }
 
   return (
-    <div className="space-y-6 w-full overflow-hidden">
+    <div className="space-y-6">
       <Card className="glass-card">
         <CardHeader>
           <h3 className="text-xl font-semibold flex items-center gap-2">
@@ -61,32 +68,47 @@ export default function SettingsTab() {
                 <Input
                   label="GitLab URL"
                   value={envConfig.gitlab.url}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
-                    ...prev, 
-                    gitlab: { ...prev.gitlab, url: e.target.value }
-                  }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEnvConfig((prev) => ({
+                      ...prev,
+                      gitlab: { ...prev.gitlab, url: e.target.value },
+                    }))
+                  }
                   variant="bordered"
                 />
                 <Input
                   label="GitLab Token"
                   type="password"
                   value={pendingSensitiveData.gitlabToken || ''}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSensitiveData('gitlabToken', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    updateSensitiveData('gitlabToken', e.target.value)
+                  }
                   variant="bordered"
-                  placeholder={envConfig.gitlab.tokenSet ? '••••••••••••••••' : 'Enter your GitLab token'}
-                  description={envConfig.gitlab.tokenSet ? 'Token is configured (enter new token to update)' : 'Your GitLab personal access token'}
+                  placeholder={
+                    envConfig.gitlab.tokenSet ? '••••••••••••••••' : 'Enter your GitLab token'
+                  }
+                  description={
+                    envConfig.gitlab.tokenSet
+                      ? 'Token is configured (enter new token to update)'
+                      : 'Your GitLab personal access token'
+                  }
                 />
               </div>
               <Input
                 label="Allowed GitLab Hosts"
                 value={envConfig.gitlab.allowedHosts.join(', ')}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
-                  ...prev, 
-                  gitlab: { 
-                    ...prev.gitlab, 
-                    allowedHosts: e.target.value.split(',').map(h => h.trim()).filter(h => h)
-                  }
-                }))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEnvConfig((prev) => ({
+                    ...prev,
+                    gitlab: {
+                      ...prev.gitlab,
+                      allowedHosts: e.target.value
+                        .split(',')
+                        .map((h) => h.trim())
+                        .filter((h) => h),
+                    },
+                  }))
+                }
                 variant="bordered"
                 className="mt-4"
                 description="Comma-separated list of allowed hosts"
@@ -102,18 +124,28 @@ export default function SettingsTab() {
                   label="Claude API Key"
                   type="password"
                   value={pendingSensitiveData.claudeApiKey || ''}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSensitiveData('claudeApiKey', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    updateSensitiveData('claudeApiKey', e.target.value)
+                  }
                   variant="bordered"
-                  placeholder={envConfig.claude.apiKeySet ? '••••••••••••••••' : 'Enter your Claude API key'}
-                  description={envConfig.claude.apiKeySet ? 'API key is configured (enter new key to update)' : 'Your Claude API key for AI operations'}
+                  placeholder={
+                    envConfig.claude.apiKeySet ? '••••••••••••••••' : 'Enter your Claude API key'
+                  }
+                  description={
+                    envConfig.claude.apiKeySet
+                      ? 'API key is configured (enter new key to update)'
+                      : 'Your Claude API key for AI operations'
+                  }
                 />
                 <Input
                   label="Claude Code Path"
                   value={envConfig.claude.codeCliPath}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEnvConfig(prev => ({ 
-                    ...prev, 
-                    claude: { ...prev.claude, codeCliPath: e.target.value }
-                  }))}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEnvConfig((prev) => ({
+                      ...prev,
+                      claude: { ...prev.claude, codeCliPath: e.target.value },
+                    }))
+                  }
                   variant="bordered"
                   description="Path to claude-code CLI"
                 />
@@ -125,12 +157,48 @@ export default function SettingsTab() {
               <h4 className="text-lg font-semibold text-success-500">Application Settings</h4>
               <Divider className="mb-4" />
               <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Temp Directory Prefix"
+                    value={envConfig.workspace.tempDirPrefix}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEnvConfig((prev) => ({
+                        ...prev,
+                        workspace: { ...prev.workspace, tempDirPrefix: e.target.value },
+                      }))
+                    }
+                    variant="bordered"
+                  />
+
+                  <Select
+                    label="Log Level"
+                    placeholder="Select log level"
+                    selectedKeys={[envConfig.logging.level]}
+                    onSelectionChange={(keys: React.Key | Set<React.Key>) => {
+                      const keyArray = Array.from(keys as Set<React.Key>);
+                      setEnvConfig((prev) => ({
+                        ...prev,
+                        logging: {
+                          ...prev.logging,
+                          level: keyArray[0] as 'debug' | 'info' | 'warn' | 'error',
+                        },
+                      }));
+                    }}
+                    variant="bordered"
+                  >
+                    <SelectItem key="error">Error</SelectItem>
+                    <SelectItem key="warn">Warning</SelectItem>
+                    <SelectItem key="info">Info</SelectItem>
+                    <SelectItem key="debug">Debug</SelectItem>
+                  </Select>
+                </div>
+
                 {/* API Key Generation */}
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <Button
                       color="success"
-                      onPress={generateApiKey}
+                      onClick={generateApiKey}
                       isLoading={loading}
                       className="w-full sm:w-auto"
                       variant="flat"
@@ -141,13 +209,15 @@ export default function SettingsTab() {
                       Generate a new API key for external access to this application.
                     </p>
                   </div>
-                  
+
                   {apiKey && (
                     <div className="p-4 bg-success-50 border border-success-200 rounded-lg space-y-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-success-600 font-semibold">✓ API Key Generated and Saved Successfully!</span>
+                        <span className="text-success-600 font-semibold">
+                          ✓ API Key Generated Successfully
+                        </span>
                       </div>
-                      
+
                       <div className="space-y-3">
                         <Snippet
                           hideSymbol
@@ -156,11 +226,14 @@ export default function SettingsTab() {
                           color="default"
                           onCopy={() => navigator.clipboard.writeText(apiKey)}
                         >
-                          {'••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                          {
+                            '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'
+                          }
                         </Snippet>
-                        
+
                         <p className="text-sm text-success-700">
-                          <strong>Important:</strong> Copy this key now — you won&apos;t be able to see it again for security reasons.
+                          <strong>Important:</strong> Copy this key now — you won&apos;t be able to
+                          see it again for security reasons.
                         </p>
                       </div>
                     </div>
@@ -171,18 +244,10 @@ export default function SettingsTab() {
 
             {/* Save Configuration */}
             <div className="flex justify-end gap-4 pt-4">
-              <Button
-                color="danger"
-                variant="flat"
-                onPress={resetToDefaults}
-              >
+              <Button color="danger" variant="flat" onClick={onResetToDefaults}>
                 Reset to Defaults
               </Button>
-              <Button
-                color="primary"
-                onPress={handleSaveEnvConfigWithToast}
-                isLoading={loading}
-              >
+              <Button color="primary" onClick={onSaveConfig} isLoading={loading}>
                 Save Configuration
               </Button>
             </div>
@@ -191,4 +256,4 @@ export default function SettingsTab() {
       </Card>
     </div>
   );
-} 
+}
