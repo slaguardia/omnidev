@@ -5,14 +5,14 @@ export const getProjectDisplayName = (repoUrl: string): string => {
     // https://gitlab.com/user/project.git -> user/project
     // https://github.com/user/project.git -> user/project
     // git@gitlab.com:user/project.git -> user/project
-    
+
     let cleanUrl = repoUrl;
-    
+
     // Remove .git suffix if present
     if (cleanUrl.endsWith('.git')) {
       cleanUrl = cleanUrl.slice(0, -4);
     }
-    
+
     // Handle SSH format (git@host:path)
     if (cleanUrl.includes('git@')) {
       const parts = cleanUrl.split(':');
@@ -30,7 +30,7 @@ export const getProjectDisplayName = (repoUrl: string): string => {
         }
       }
     }
-    
+
     // Return the cleaned URL or fallback to original
     return cleanUrl && cleanUrl.length > 0 ? cleanUrl : repoUrl;
   } catch (error) {
@@ -38,4 +38,4 @@ export const getProjectDisplayName = (repoUrl: string): string => {
     console.error('[DASHBOARD] Error getting project display name:', error);
     return repoUrl;
   }
-}; 
+};

@@ -12,11 +12,14 @@ The system can create merge requests after Claude Code makes changes to your wor
 
 Add these to your `.env` file:
 
+Required for merge request creation:
+
 ```bash
-# Required for merge request creation
 GITLAB_TOKEN=your_gitlab_personal_access_token
-GITLAB_URL=https://gitlab.com  # or your GitLab instance URL
+GITLAB_URL=https://gitlab.com
 ```
+
+Note: Use your GitLab instance URL if self-hosted
 
 ### GitLab Token Setup
 
@@ -40,6 +43,7 @@ After Claude Code completes any changes to your workspace:
 ### Current Branch Detection
 
 The system automatically detects:
+
 - **Source Branch**: Current branch from `git branch --show-current`
 - **Target Branch**: Defaults to `main` (configurable)
 - **Project ID**: Extracted from the repository URL
@@ -47,10 +51,12 @@ The system automatically detects:
 ### Manual Descriptions Required
 
 **IMPORTANT**: Auto-generated summaries are deprecated. You must provide:
+
 - **Title**: A clear, descriptive title for your merge request
 - **Description**: A detailed description of the changes made
 
 The system will include context about:
+
 - Modified files list
 - Original question/request (if available)
 - Basic merge request metadata
@@ -68,42 +74,49 @@ const result = await createMergeRequest({
   description: 'Your detailed description of changes',
   sourceBranch: 'feature-branch',
   targetBranch: 'main',
-  labels: ['enhancement', 'claude-code']
+  labels: ['enhancement', 'claude-code'],
 });
 ```
 
 ### Configuration Options
 
-| Option | Type | Description | Default |
-|--------|------|-------------|---------|
-| `projectId` | string | GitLab project ID | Required |
-| `title` | string | **Manual MR title** | Required |
-| `description` | string | **Manual MR description** | Required |
-| `sourceBranch` | string | Source branch name | Required |
-| `targetBranch` | string | Target branch for MR | `main` |
-| `removeSourceBranch` | boolean | Delete source branch after merge | `true` |
-| `squash` | boolean | Squash commits when merging | `false` |
-| `assigneeId` | number | GitLab user ID to assign | none |
-| `labels` | string[] | Labels to add to MR | `[]` |
+| Option               | Type     | Description                      | Default  |
+| -------------------- | -------- | -------------------------------- | -------- |
+| `projectId`          | string   | GitLab project ID                | Required |
+| `title`              | string   | **Manual MR title**              | Required |
+| `description`        | string   | **Manual MR description**        | Required |
+| `sourceBranch`       | string   | Source branch name               | Required |
+| `targetBranch`       | string   | Target branch for MR             | `main`   |
+| `removeSourceBranch` | boolean  | Delete source branch after merge | `true`   |
+| `squash`             | boolean  | Squash commits when merging      | `false`  |
+| `assigneeId`         | number   | GitLab user ID to assign         | none     |
+| `labels`             | string[] | Labels to add to MR              | `[]`     |
 
 ## Error Handling
 
 The system gracefully handles errors:
 
-```typescript
-// If GitLab token is missing
+**If GitLab token is missing:**
+
+```json
 {
   "autoMRDisabled": true,
   "warning": "GitLab token not configured - merge request creation skipped"
 }
+```
 
-// If title/description is missing (auto mode deprecated)
+**If title/description is missing (auto mode deprecated):**
+
+```json
 {
   "success": false,
   "error": "Auto mode is deprecated. Please provide title and description manually."
 }
+```
 
-// If MR creation fails but Claude Code succeeds
+**If MR creation fails but Claude Code succeeds:**
+
+```json
 {
   "success": true,
   "response": "Claude response...",
@@ -118,16 +131,23 @@ The system gracefully handles errors:
 
 If you were using auto mode (deprecated), update your code:
 
-```typescript
-// OLD (deprecated)
-const result = await createMergeRequest(options, true); // auto mode
+**OLD (deprecated):**
 
-// NEW (required)
-const result = await createMergeRequest({
-  ...options,
-  title: "Your manual title",
-  description: "Your manual description"
-}, false); // manual mode
+```typescript
+const result = await createMergeRequest(options, true);
+```
+
+**NEW (required):**
+
+```typescript
+const result = await createMergeRequest(
+  {
+    ...options,
+    title: 'Your manual title',
+    description: 'Your manual description',
+  },
+  false
+);
 ```
 
 ## Best Practices
@@ -144,14 +164,17 @@ const result = await createMergeRequest({
 ### Common Issues
 
 1. **"GitLab token not configured"**
+
    - Ensure `GITLAB_TOKEN` is set in environment
    - Verify token has `api` and `write_repository` scopes
 
 2. **"Auto mode is deprecated"**
+
    - Update your code to provide manual title and description
    - Remove reliance on auto-generated summaries
 
 3. **"Failed to extract project ID"**
+
    - Check repository URL format
    - Ensure workspace is properly initialized
 
@@ -163,4 +186,4 @@ const result = await createMergeRequest({
 
 - **Auto-generated summaries**: AI-powered summary generation is no longer supported
 - **Auto mode**: The `auto` parameter in `createMergeRequest` is deprecated
-- **Claude API integration**: Merge request creation no longer uses external AI services 
+- **Claude API integration**: Merge request creation no longer uses external AI services

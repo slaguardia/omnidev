@@ -1,4 +1,11 @@
-import type { GitUrl, FilePath, WorkspaceId } from '@/lib/common/types';
+/**
+ * GitLab-related types and interfaces
+ */
+
+import type { GitUrl, FilePath, WorkspaceId } from '@/lib/types/index';
+
+// Re-export config types from main types module
+export type { GitLabConfig, ClientSafeGitLabConfig } from '@/lib/types/index';
 
 export interface MergeRequestContext {
   workspaceId: WorkspaceId;
@@ -9,38 +16,4 @@ export interface MergeRequestContext {
   modifiedFiles?: string[];
   originalQuestion?: string;
   claudeResponse?: string;
-} 
-
-/**
- * GitLab API types
- */
-export interface GitLabMergeRequest {
-  id: number;
-  iid: number;
-  title: string;
-  description: string;
-  state: 'opened' | 'closed' | 'merged';
-  sourceBranch: string;
-  targetBranch: string;
-  webUrl: string;
-  createdAt: Date;
-  updatedAt: Date;
-  author: {
-    id: number;
-    name: string;
-    username: string;
-  };
-}
-
-
-export interface GitLabConfig {
-  url: string;
-  token: string;
-  allowedHosts: string[];
-}
-
-export interface ClientSafeGitLabConfig {
-  url: string;
-  tokenSet: boolean; // Instead of the actual token
-  allowedHosts: string[];
 }

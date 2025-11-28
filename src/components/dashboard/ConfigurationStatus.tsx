@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
-import { Settings, AlertTriangle, CheckCircle } from "lucide-react";
+import { Card, CardBody } from '@heroui/card';
+import { Button } from '@heroui/button';
+import { Settings, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface ConfigurationStatusProps {
   onNavigateToSettings: () => void;
@@ -30,7 +30,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
       setConfigStatus({
         valid: false,
         errors: ['Failed to check configuration'],
-        message: 'Unable to verify configuration status'
+        message: 'Unable to verify configuration status',
       });
     } finally {
       setLoading(false);
@@ -81,9 +81,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
           <AlertTriangle className="w-5 h-5 text-warning-500 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h3 className="font-medium text-warning-700">Configuration Required</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {configStatus.message}
-            </p>
+            <p className="text-sm text-gray-600 mt-1">{configStatus.message}</p>
             <ul className="text-sm text-gray-600 mt-2 space-y-1">
               {configStatus.errors.map((error, index) => (
                 <li key={index} className="flex items-center gap-1">
@@ -97,7 +95,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
               variant="flat"
               size="sm"
               startContent={<Settings className="w-4 h-4" />}
-              onPress={onNavigateToSettings}
+              onClick={onNavigateToSettings}
               className="mt-3"
             >
               Open Settings
@@ -107,4 +105,4 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
       </CardBody>
     </Card>
   );
-} 
+}

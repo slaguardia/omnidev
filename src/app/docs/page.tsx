@@ -1,9 +1,5 @@
-import { title } from "@/components/Primitives";
+import { redirect } from 'next/navigation';
 
 export default function DocsPage() {
-  return (
-    <div>
-      <h1 className={title()}>Docs</h1>
-    </div>
-  );
+  redirect('/docs/quickstart');
 }

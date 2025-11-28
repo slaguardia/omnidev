@@ -9,11 +9,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 
 export default [
   {
-    ignores: [
-      'emails/',
-      'prompt-engineering/',
-      'supabase/',
-    ],
+    ignores: ['emails/', 'prompt-engineering/', 'supabase/'],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
@@ -60,28 +56,28 @@ export default [
     },
   },
   {
-    "rules": {
-      "validate-filename/naming-rules": [
-        "error",
+    rules: {
+      'validate-filename/naming-rules': [
+        'error',
         {
           rules: [
             {
               case: 'pascal', // camel or pascal or snake or kebab or flat
-              target: "**/components/**", // target "components" folder
+              target: '**/components/**', // target "components" folder
               excludes: ['hooks'], // "hooks" folder is excluded.
             },
             {
               case: 'kebab', // camel or pascal or snake or kebab or flat
-              target: "**/lib/**", // target "lib" folder
+              target: '**/lib/**', // target "lib" folder
               excludes: ['hooks'], // "hooks" folder is excluded.
             },
             {
               case: 'camel',
-              target: "**/hooks/**", // target "hooks" folder
+              target: '**/hooks/**', // target "hooks" folder
               patterns: '^use', // file names begin with "use".
-            }
-          ] 
-        }
+            },
+          ],
+        },
       ],
     },
   },

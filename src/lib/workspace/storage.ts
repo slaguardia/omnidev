@@ -3,11 +3,7 @@
 import { writeFile, readFile, access, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { getWorkspaceBaseDir } from '@/lib/config/server-actions';
-import type {
-  WorkspaceId,
-  FilePath,
-  AsyncResult
-} from '@/lib/common/types';
+import type { WorkspaceId, FilePath, AsyncResult } from '@/lib/common/types';
 import type { Workspace } from './types';
 
 interface WorkspaceIndex {
@@ -20,7 +16,7 @@ interface WorkspaceIndex {
 let workspaceIndex: WorkspaceIndex = {
   workspaces: {},
   lastUpdated: new Date().toISOString(),
-  version: '1.0.0'
+  version: '1.0.0',
 };
 
 let workspaceIndexPath: FilePath | null = null;
@@ -42,19 +38,19 @@ async function getWorkspaceIndexPath(): Promise<FilePath> {
 export async function initializeWorkspaceStorage(): Promise<AsyncResult<void>> {
   try {
     const indexPath = await getWorkspaceIndexPath();
-    
+
     // Ensure the directory exists
     const indexDir = dirname(indexPath);
     await mkdir(indexDir, { recursive: true });
-    
+
     // Load or create the workspace index
     await loadWorkspaceIndex();
-    
+
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to initialize workspace storage: ${error}`)
+      error: new Error(`Failed to initialize workspace storage: ${error}`),
     };
   }
 }
@@ -66,13 +62,13 @@ export async function saveWorkspace(workspace: Workspace): Promise<AsyncResult<v
   try {
     workspaceIndex.workspaces[workspace.id] = workspace;
     workspaceIndex.lastUpdated = new Date().toISOString();
-    
+
     await saveWorkspaceIndex();
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to save workspace: ${error}`)
+      error: new Error(`Failed to save workspace: ${error}`),
     };
   }
 }
@@ -83,12 +79,12 @@ export async function saveWorkspace(workspace: Workspace): Promise<AsyncResult<v
 export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResult<Workspace>> {
   try {
     await loadWorkspaceIndex();
-    
+
     const workspace = workspaceIndex.workspaces[workspaceId];
     if (!workspace) {
       return {
         success: false,
-        error: new Error(`Workspace ${workspaceId} not found`)
+        error: new Error(`Workspace ${workspaceId} not found`),
       };
     }
 
@@ -100,7 +96,7 @@ export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResu
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to load workspace: ${error}`)
+      error: new Error(`Failed to load workspace: ${error}`),
     };
   }
 }
@@ -111,15 +107,16 @@ export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResu
 export async function getAllWorkspaces(): Promise<AsyncResult<Workspace[]>> {
   try {
     await loadWorkspaceIndex();
-    
-    const workspaces = Object.values(workspaceIndex.workspaces)
-      .sort((a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime());
-    
+
+    const workspaces = Object.values(workspaceIndex.workspaces).sort(
+      (a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime()
+    );
+
     return { success: true, data: workspaces };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to get all workspaces: ${error}`)
+      error: new Error(`Failed to get all workspaces: ${error}`),
     };
   }
 }
@@ -131,13 +128,13 @@ export async function deleteWorkspace(workspaceId: WorkspaceId): Promise<AsyncRe
   try {
     delete workspaceIndex.workspaces[workspaceId];
     workspaceIndex.lastUpdated = new Date().toISOString();
-    
+
     await saveWorkspaceIndex();
     return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to delete workspace: ${error}`)
+      error: new Error(`Failed to delete workspace: ${error}`),
     };
   }
 }
@@ -150,7 +147,7 @@ export async function updateWorkspace(workspace: Workspace): Promise<AsyncResult
     if (!workspaceIndex.workspaces[workspace.id]) {
       return {
         success: false,
-        error: new Error(`Workspace ${workspace.id} not found`)
+        error: new Error(`Workspace ${workspace.id} not found`),
       };
     }
 
@@ -158,7 +155,7 @@ export async function updateWorkspace(workspace: Workspace): Promise<AsyncResult
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to update workspace: ${error}`)
+      error: new Error(`Failed to update workspace: ${error}`),
     };
   }
 }
@@ -181,17 +178,17 @@ export async function workspaceExists(workspaceId: WorkspaceId): Promise<boolean
 async function loadWorkspaceIndex(): Promise<void> {
   try {
     const indexPath = await getWorkspaceIndexPath();
-    
+
     try {
       await access(indexPath);
       const indexContent = await readFile(indexPath, 'utf-8');
-      
+
       if (indexContent.trim()) {
         const indexData = JSON.parse(indexContent);
-        
+
         // Clear existing index
         workspaceIndex.workspaces = {};
-        
+
         // Handle both old object format and new array format
         if (Array.isArray(indexData)) {
           // New array format
@@ -199,7 +196,7 @@ async function loadWorkspaceIndex(): Promise<void> {
             workspaceIndex.workspaces[workspace.id] = {
               ...workspace,
               createdAt: new Date(workspace.createdAt),
-              lastAccessed: new Date(workspace.lastAccessed)
+              lastAccessed: new Date(workspace.lastAccessed),
             };
           }
         } else if (indexData.workspaces && typeof indexData.workspaces === 'object') {
@@ -209,7 +206,7 @@ async function loadWorkspaceIndex(): Promise<void> {
             workspaceIndex.workspaces[workspaceId as WorkspaceId] = {
               ...workspaceData,
               createdAt: new Date(workspaceData.createdAt),
-              lastAccessed: new Date(workspaceData.lastAccessed)
+              lastAccessed: new Date(workspaceData.lastAccessed),
             };
           }
         }
@@ -231,10 +228,10 @@ async function saveWorkspaceIndex(): Promise<void> {
   try {
     const indexPath = await getWorkspaceIndexPath();
     const workspaces = Object.values(workspaceIndex.workspaces);
-    
+
     const indexContent = JSON.stringify(workspaces, null, 2);
     await writeFile(indexPath, indexContent, 'utf-8');
   } catch (error) {
     throw new Error(`Failed to save workspace index: ${error}`);
   }
-} 
+}

@@ -8,22 +8,39 @@ export type {
   GitCommitInfo,
   GitBranchInfo,
   GitStatus,
-  GitConfig
+  GitConfig,
 } from '@/lib/git/types';
 
-import { getCurrentBranch, getBranches, getDefaultBranch, getLocalBranches, getAllRemoteBranches, deleteBranch, switchBranch, cleanBranches } from '@/lib/git/branches';
-import { getCurrentCommitHash, getCommitInfo, hasUncommittedChanges, addAllFiles, commitChanges } from '@/lib/git/commits';
+import {
+  getCurrentBranch,
+  getBranches,
+  getDefaultBranch,
+  getLocalBranches,
+  getAllRemoteBranches,
+  deleteBranch,
+  switchBranch,
+  cleanBranches,
+} from '@/lib/git/branches';
+import {
+  getCurrentCommitHash,
+  getCommitInfo,
+  hasUncommittedChanges,
+  addAllFiles,
+  commitChanges,
+} from '@/lib/git/commits';
 import { pullChanges, pushChanges } from '@/lib/git/remotes';
 import { cleanWorkspace, resetWorkspace } from '@/lib/git/workspace';
-import { setWorkspaceGitConfig, getWorkspaceGitConfig, unsetWorkspaceGitConfig } from '@/lib/git/config';
+import {
+  setWorkspaceGitConfig,
+  getWorkspaceGitConfig,
+  unsetWorkspaceGitConfig,
+} from '@/lib/git/config';
 
 /**
  * Main Git operations class that provides access to all git operations
  * This maintains backward compatibility with the original monolithic class
  */
 export class GitOperations {
-
-
   // Branch operations
   async getCurrentBranch(...args: Parameters<typeof getCurrentBranch>) {
     return getCurrentBranch(...args);
@@ -108,4 +125,4 @@ export class GitOperations {
   async unsetWorkspaceGitConfig(...args: Parameters<typeof unsetWorkspaceGitConfig>) {
     return unsetWorkspaceGitConfig(...args);
   }
-} 
+}

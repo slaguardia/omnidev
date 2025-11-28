@@ -1,4 +1,11 @@
-import type { CommitHash } from '@/lib/common/types';
+/**
+ * Types and interfaces for Git operations
+ */
+
+import type { CommitHash } from '@/lib/types/index';
+
+// Re-export GitCredentials from main types module
+export type { GitCredentials } from '@/lib/types/index';
 
 export interface GitCloneOptions {
   targetBranch?: string;
@@ -36,10 +43,4 @@ export interface GitConfig {
   userEmail?: string;
   userName?: string;
   signingKey?: string;
-} 
-
-export interface GitCredentials {
-  username: string;
-  password: string; // This could be a personal access token
-  provider?: 'gitlab' | 'github' | 'bitbucket' | 'other';
 }

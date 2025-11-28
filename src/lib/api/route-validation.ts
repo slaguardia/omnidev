@@ -18,7 +18,7 @@ export function validateAndParseAskRouteParams(
     questionLength: question?.length || 0,
     contextLength: context?.length || 0,
     sourceBranch,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   // Validate required fields
@@ -29,7 +29,7 @@ export function validateAndParseAskRouteParams(
       error: NextResponse.json(
         { error: 'Workspace ID and question are required' },
         { status: 400 }
-      )
+      ),
     };
   }
 
@@ -43,7 +43,7 @@ export function validateAndParseAskRouteParams(
 
   return {
     success: true,
-    data: parsedData
+    data: parsedData,
   };
 }
 
@@ -55,7 +55,16 @@ export function validateAndParseEditRouteParams(
   body: EditRouteParams,
   logPrefix: string
 ): { success: boolean; data?: EditRouteParams; error?: NextResponse } {
-  const { workspaceId, question, context, sourceBranch, createMR, taskId, taskName, newBranchName } = body;
+  const {
+    workspaceId,
+    question,
+    context,
+    sourceBranch,
+    createMR,
+    taskId,
+    taskName,
+    newBranchName,
+  } = body;
 
   // Log request payload
   console.log(`[${logPrefix}] Request payload:`, {
@@ -67,7 +76,7 @@ export function validateAndParseEditRouteParams(
     taskId,
     taskName,
     newBranchName,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   // Validate required fields
@@ -76,14 +85,14 @@ export function validateAndParseEditRouteParams(
       workspaceId: !!workspaceId,
       question: !!question,
       sourceBranch: !!sourceBranch,
-      createMR: createMR
+      createMR: createMR,
     });
     return {
       success: false,
       error: NextResponse.json(
         { error: 'Workspace ID, question, source branch, and create MR are required' },
         { status: 400 }
-      )
+      ),
     };
   }
 
@@ -96,11 +105,11 @@ export function validateAndParseEditRouteParams(
     createMR: createMR,
     taskId: taskId || '',
     taskName: taskName || '',
-    newBranchName: newBranchName || ''
+    newBranchName: newBranchName || '',
   };
 
   return {
     success: true,
-    data: parsedData
+    data: parsedData,
   };
-} 
+}

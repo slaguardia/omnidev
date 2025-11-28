@@ -2,137 +2,136 @@
 
 // ClaudeTab component for managing CLAUDE.md configuration
 import React, { useState, useEffect } from 'react';
-import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Textarea } from "@heroui/input";
-import { FileText, Save, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { Button } from '@heroui/button';
+import { Card, CardBody, CardHeader } from '@heroui/card';
+import { Textarea } from '@heroui/input';
+import { FileText, Save, RotateCcw, Eye, EyeOff } from 'lucide-react';
 import { Divider } from '@heroui/divider';
 import { Switch } from '@heroui/switch';
-import { addToast } from "@heroui/toast";
+import { addToast } from '@heroui/toast';
 import ReactMarkdown from 'react-markdown';
 import { Link } from '@heroui/link';
 import RenderExampleModal, { EXAMPLE_CLAUDE_CONTENT } from './RenderExampleModal';
 import { getClaudeMDContent } from '@/lib/claudeCode/claudemd';
 
 export default function ClaudeMDTab() {
-    const [loading, setLoading] = useState(false);
-    const [content, setContent] = useState('');
-    const [originalContent, setOriginalContent] = useState('');
-    const [isPreview, setIsPreview] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [hasChanges, setHasChanges] = useState(false);
-    const [fileExists, setFileExists] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [isExampleModalOpen, setIsExampleModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [content, setContent] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [isPreview, setIsPreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [fileExists, setFileExists] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isExampleModalOpen, setIsExampleModalOpen] = useState(false);
 
-    // Load existing CLAUDE.md content on component mount
-    useEffect(() => {
-        const loadContent = async () => {
-            try {
-                setLoading(true);
-                const { content, fileExists } = await getClaudeMDContent();
-                setContent(content || '');
-                setOriginalContent(content || '');
-                setFileExists(fileExists);
-            } catch (error) {
-                console.error('Error loading CLAUDE.md content:', error);
-                addToast({
-                    title: "Error",
-                    description: "Failed to load CLAUDE.md content",
-                    color: "danger"
-                });
-            } finally {
-                setLoading(false);
-            }
-        };
-        
-        loadContent();
-    }, []);
-
-    // Track changes
-    useEffect(() => {
-        setHasChanges(content !== originalContent);
-    }, [content, originalContent]);
-
-
-    const saveClaudeContent = async (content: string) => {
-        setIsSaving(true);
-        try {
-        const response = await fetch('/api/claude-md', {
-            method: 'POST',
-            headers: {
-            'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ content }),
-        });
-
-        if (response.ok) {
-            setOriginalContent(content);
-            setFileExists(true);
-            addToast({
-            title: "Success",
-            description: "CLAUDE.md configuration saved successfully",
-            color: "success"
-            });
-        } else {
-            const error = await response.json();
-            addToast({
-            title: "Error",
-            description: error.message || "Failed to save CLAUDE.md configuration",
-            color: "danger"
-            });
-        }
-        } catch (error) {
-        console.error('Error saving CLAUDE.md:', error);
+  // Load existing CLAUDE.md content on component mount
+  useEffect(() => {
+    const loadContent = async () => {
+      try {
+        setLoading(true);
+        const { content, fileExists } = await getClaudeMDContent();
+        setContent(content || '');
+        setOriginalContent(content || '');
+        setFileExists(fileExists);
+      } catch (error) {
+        console.error('Error loading CLAUDE.md content:', error);
         addToast({
-            title: "Error",
-            description: "Failed to save CLAUDE.md configuration",
-            color: "danger"
+          title: 'Error',
+          description: 'Failed to load CLAUDE.md content',
+          color: 'danger',
         });
-        } finally {
-        setIsSaving(false);
-        }
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const resetToOriginal = () => {
-        setContent(originalContent);
-    };
+    loadContent();
+  }, []);
 
-    const removeClaudeFile = async () => {
-        setIsDeleting(true);
-        try {
-        const response = await fetch('/api/claude-md', {
-            method: 'DELETE',
-        });
+  // Track changes
+  useEffect(() => {
+    setHasChanges(content !== originalContent);
+  }, [content, originalContent]);
 
-        if (response.ok) {
-            setContent('');
-            setOriginalContent('');
-            setFileExists(false);
-            addToast({
-            title: "Success",
-            description: "CLAUDE.md file removed successfully",
-            color: "success"
-            });
-        } else {
-            const error = await response.json();
-            addToast({
-            title: "Error",
-            description: error.message || "Failed to remove CLAUDE.md file",
-            color: "danger"
-            });
-        }
-        } catch (error) {
-        console.error('Error removing CLAUDE.md:', error);
+  const saveClaudeContent = async (content: string) => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/claude-md', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (response.ok) {
+        setOriginalContent(content);
+        setFileExists(true);
         addToast({
-            title: "Error",
-            description: "Failed to remove CLAUDE.md file",
-            color: "danger"
+          title: 'Success',
+          description: 'CLAUDE.md configuration saved successfully',
+          color: 'success',
         });
-        } finally {
-        setIsDeleting(false);
-        }
-    };
+      } else {
+        const error = await response.json();
+        addToast({
+          title: 'Error',
+          description: error.message || 'Failed to save CLAUDE.md configuration',
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving CLAUDE.md:', error);
+      addToast({
+        title: 'Error',
+        description: 'Failed to save CLAUDE.md configuration',
+        color: 'danger',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const resetToOriginal = () => {
+    setContent(originalContent);
+  };
+
+  const removeClaudeFile = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch('/api/claude-md', {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setContent('');
+        setOriginalContent('');
+        setFileExists(false);
+        addToast({
+          title: 'Success',
+          description: 'CLAUDE.md file removed successfully',
+          color: 'success',
+        });
+      } else {
+        const error = await response.json();
+        addToast({
+          title: 'Error',
+          description: error.message || 'Failed to remove CLAUDE.md file',
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      console.error('Error removing CLAUDE.md:', error);
+      addToast({
+        title: 'Error',
+        description: 'Failed to remove CLAUDE.md file',
+        color: 'danger',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const renderPreview = () => {
     if (!content.trim()) {
@@ -161,7 +160,6 @@ export default function ClaudeMDTab() {
               CLAUDE.md Configuration
             </h3>
             <div className="flex items-center gap-8">
-
               <Switch
                 isSelected={isPreview}
                 onValueChange={setIsPreview}
@@ -178,8 +176,9 @@ export default function ClaudeMDTab() {
             <div className="space-y-3">
               <div className="max-w-full">
                 <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
-                  Configure the CLAUDE.md file that provides instructions to Claude AI when working within your project workspaces.
-                  This file helps guide Claude&#39;s behavior and capabilities within your development environment.
+                  Configure the CLAUDE.md file that provides instructions to Claude AI when working
+                  within your project workspaces. This file helps guide Claude&#39;s behavior and
+                  capabilities within your development environment.
                 </p>
                 <div className="mt-2">
                   <Link
@@ -188,7 +187,7 @@ export default function ClaudeMDTab() {
                     color="primary"
                     onPress={() => setIsExampleModalOpen(true)}
                     className="text-sm"
-                    >
+                  >
                     View Example
                   </Link>
                 </div>
@@ -199,7 +198,7 @@ export default function ClaudeMDTab() {
                 )}
               </div>
             </div>
-            
+
             <Divider />
 
             {isPreview ? (
@@ -222,14 +221,14 @@ export default function ClaudeMDTab() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   color="primary"
-                  onPress={ async () => await saveClaudeContent(content)}
+                  onPress={async () => await saveClaudeContent(content)}
                   isLoading={isSaving}
                   isDisabled={!hasChanges || loading || !content.trim()}
                   startContent={<Save className="w-4 h-4" />}
                 >
                   Save Configuration
                 </Button>
-                
+
                 {hasChanges && (
                   <Button
                     color="default"
@@ -241,7 +240,7 @@ export default function ClaudeMDTab() {
                     Reset Changes
                   </Button>
                 )}
-                
+
                 {fileExists && (
                   <Button
                     color="danger"
@@ -255,19 +254,17 @@ export default function ClaudeMDTab() {
                   </Button>
                 )}
               </div>
-              
+
               {hasChanges && (
                 <div className="text-center">
-                  <span className="text-sm text-warning-500 font-medium">
-                    Unsaved changes
-                  </span>
+                  <span className="text-sm text-warning-500 font-medium">Unsaved changes</span>
                 </div>
               )}
             </div>
           </div>
         </CardBody>
       </Card>
-      
+
       <RenderExampleModal
         saveClaudeContent={async () => await saveClaudeContent(EXAMPLE_CLAUDE_CONTENT)}
         isExampleModalOpen={isExampleModalOpen}
@@ -276,4 +273,4 @@ export default function ClaudeMDTab() {
       />
     </div>
   );
-} 
+}

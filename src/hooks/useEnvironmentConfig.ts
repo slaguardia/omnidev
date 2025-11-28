@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClientSafeAppConfig } from '@/lib/config/types';
+import { ClientSafeAppConfig } from '@/lib/types/index';
 import { getClientSafeConfig, updateConfigFromClient } from '@/lib/config/server-actions';
 import { getDefaultClientSafeConfig } from '@/lib/config/client-settings';
 
@@ -36,10 +36,10 @@ export const useEnvironmentConfig = () => {
       }
       return result;
     } catch (error) {
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Failed to save configuration', 
-        error 
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to save configuration',
+        error,
       };
     } finally {
       setLoading(false);
@@ -47,9 +47,9 @@ export const useEnvironmentConfig = () => {
   };
 
   const updateSensitiveData = (type: 'gitlabToken' | 'claudeApiKey', value: string) => {
-    setPendingSensitiveData(prev => ({
+    setPendingSensitiveData((prev) => ({
       ...prev,
-      [type]: value
+      [type]: value,
     }));
   };
 
@@ -71,6 +71,6 @@ export const useEnvironmentConfig = () => {
     loading,
     loadEnvironmentConfig,
     saveEnvironmentConfig,
-    resetToDefaults
+    resetToDefaults,
   };
-}; 
+};

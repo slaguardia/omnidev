@@ -10,10 +10,13 @@ import type { FilePath, AsyncResult } from '@/lib/common/types';
 /**
  * Clean workspace (remove untracked files and directories)
  */
-export async function cleanWorkspace(workspacePath: FilePath, force = false): Promise<AsyncResult<void>> {
+export async function cleanWorkspace(
+  workspacePath: FilePath,
+  force = false
+): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     if (force) {
       await git.clean(CleanOptions.FORCE + CleanOptions.RECURSIVE);
     } else {
@@ -24,7 +27,7 @@ export async function cleanWorkspace(workspacePath: FilePath, force = false): Pr
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to clean workspace: ${error}`)
+      error: new Error(`Failed to clean workspace: ${error}`),
     };
   }
 }
@@ -32,10 +35,13 @@ export async function cleanWorkspace(workspacePath: FilePath, force = false): Pr
 /**
  * Reset workspace to last commit
  */
-export async function resetWorkspace(workspacePath: FilePath, hard = false): Promise<AsyncResult<void>> {
+export async function resetWorkspace(
+  workspacePath: FilePath,
+  hard = false
+): Promise<AsyncResult<void>> {
   try {
     const git = simpleGit(workspacePath);
-    
+
     if (hard) {
       await git.reset(['--hard', 'HEAD']);
     } else {
@@ -46,7 +52,7 @@ export async function resetWorkspace(workspacePath: FilePath, hard = false): Pro
   } catch (error) {
     return {
       success: false,
-      error: new Error(`Failed to reset workspace: ${error}`)
+      error: new Error(`Failed to reset workspace: ${error}`),
     };
   }
-} 
+}

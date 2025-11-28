@@ -6,11 +6,11 @@
 export * from '@/lib/gitlab/types';
 
 // API utilities
-export { 
+export {
   extractProjectIdFromUrl,
   getProject,
   getProjectBranches,
-  getProjectMergeRequests
+  getProjectMergeRequests,
 } from '@/lib/gitlab/api';
 
 // Merge request operations
@@ -20,4 +20,4 @@ export { createMergeRequest } from '@/lib/gitlab/merge-requests';
 export { loadGitLabConfig, getGitLabConfig } from '@/lib/gitlab/config';
 
 // Utilities
-export { formatMergeRequestDescription, getGitContextForMR } from '@/lib/gitlab/utils'; 
+export { formatMergeRequestDescription, getGitContextForMR } from '@/lib/gitlab/utils';

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     // Debug logging
     console.log('[EDIT API] Request body:', body);
-    
+
     // Validate and parse route parameters
     const validationResult = validateAndParseEditRouteParams(body, logPrefix);
     if (!validationResult.success) {
@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
     return handleEditClaudeCodeRequest(request, logPrefix, validationResult.data!);
   } catch (error) {
     console.error('[EDIT API] Failed to parse request body:', error);
-    return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
-} 
+}

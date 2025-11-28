@@ -3,9 +3,7 @@
 import { GitOperations } from '@/lib/git';
 import { getWorkspace, updateWorkspace } from './repository';
 import { initializeWorkspaceStorage } from './storage';
-import type {
-  WorkspaceId
-} from '@/lib/common/types';
+import type { WorkspaceId } from '@/lib/common/types';
 
 export interface GitConfig {
   userEmail?: string;
@@ -44,8 +42,8 @@ export async function setWorkspaceGitConfig(
       ...workspace.metadata,
       gitConfig: {
         ...workspace.metadata?.gitConfig,
-        ...gitConfig
-      }
+        ...gitConfig,
+      },
     };
 
     const updateResult = await updateWorkspace(workspaceId, { metadata: updatedMetadata });
@@ -54,18 +52,17 @@ export async function setWorkspaceGitConfig(
     }
 
     return { success: true, message: 'Git configuration updated successfully' };
-
   } catch (error) {
-    throw new Error(`Failed to set workspace git config: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to set workspace git config: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
 /**
  * Get git configuration for a workspace
  */
-export async function getWorkspaceGitConfig(
-  workspaceId: WorkspaceId
-): Promise<GitConfig> {
+export async function getWorkspaceGitConfig(workspaceId: WorkspaceId): Promise<GitConfig> {
   try {
     // Initialize workspace storage first
     const initResult = await initializeWorkspaceStorage();
@@ -89,9 +86,9 @@ export async function getWorkspaceGitConfig(
     if (JSON.stringify(workspace.metadata?.gitConfig) !== JSON.stringify(getConfigResult.data)) {
       const updatedMetadata = {
         ...workspace.metadata,
-        gitConfig: getConfigResult.data
+        gitConfig: getConfigResult.data,
       };
-      
+
       const updateResult = await updateWorkspace(workspaceId, { metadata: updatedMetadata });
       if (!updateResult.success) {
         console.error('Failed to update workspace metadata with git config:', updateResult.error);
@@ -99,9 +96,10 @@ export async function getWorkspaceGitConfig(
     }
 
     return getConfigResult.data;
-
   } catch (error) {
-    throw new Error(`Failed to get workspace git config: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to get workspace git config: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -149,7 +147,7 @@ export async function unsetWorkspaceGitConfig(
 
     const updatedMetadata = {
       ...workspace.metadata,
-      gitConfig: currentGitConfig
+      gitConfig: currentGitConfig,
     };
 
     const updateResult = await updateWorkspace(workspaceId, { metadata: updatedMetadata });
@@ -158,8 +156,9 @@ export async function unsetWorkspaceGitConfig(
     }
 
     return { success: true, message: 'Git configuration removed successfully' };
-
   } catch (error) {
-    throw new Error(`Failed to unset workspace git config: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to unset workspace git config: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
-} 
+}

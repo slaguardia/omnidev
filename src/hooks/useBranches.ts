@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { initializeWorkspaceStorage, loadWorkspace } from '@/lib/workspace/storage';
-import { loadAllWorkspacesFromStorage } from '@/lib/workspace/repository';
+import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
 import { getAllRemoteBranches } from '@/lib/git/branches';
-import type { WorkspaceId } from '@/lib/common/types';
+import { loadAllWorkspacesFromStorage } from '@/lib/managers/repository-manager';
+import type { WorkspaceId } from '@/lib/types/index';
 
 export const useBranches = () => {
   const [branches, setBranches] = useState<string[]>([]);
@@ -11,9 +11,9 @@ export const useBranches = () => {
   const fetchBranches = useCallback(async (workspaceId: string) => {
     try {
       setLoading(true);
-      
+
       // Initialize managers
-      await initializeWorkspaceStorage();
+      await initializeWorkspaceManager();
       await loadAllWorkspacesFromStorage();
 
       // Get workspace
@@ -27,7 +27,7 @@ export const useBranches = () => {
       // Fetch all branches (local and remote) using standalone function
       console.log('Getting branches for workspace:', workspace.data.path);
       const branchesResult = await getAllRemoteBranches(workspace.data.path);
-      
+
       if (!branchesResult.success) {
         console.error(`Failed to get branches: ${branchesResult.error.message}`);
         setBranches([]);
@@ -36,7 +36,12 @@ export const useBranches = () => {
 
       // Branches are already deduplicated and cleaned by getAllRemoteBranches
       const uniqueBranches = branchesResult.data;
-      console.log('Fetched branches for workspace:', workspace.data.id, 'branches:', uniqueBranches);
+      console.log(
+        'Fetched branches for workspace:',
+        workspace.data.id,
+        'branches:',
+        uniqueBranches
+      );
 
       // Ensure workspace target branch is at the top if it exists
       const targetBranch = workspace.data.targetBranch;
@@ -46,7 +51,6 @@ export const useBranches = () => {
       } else {
         setBranches(uniqueBranches.sort());
       }
-
     } catch (error) {
       console.error('Error fetching branches:', error);
       setBranches([]);
@@ -58,6 +62,6 @@ export const useBranches = () => {
   return {
     branches,
     loading,
-    fetchBranches
+    fetchBranches,
   };
-}; 
+};

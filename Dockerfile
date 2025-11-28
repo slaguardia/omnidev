@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     gnupg \
+    wget \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y \
     nodejs \
@@ -15,6 +16,22 @@ RUN apt-get update && apt-get install -y \
     git \
     openssl \
     && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# SANDBOX SETUP: Isolate git from Claude Code
+# =============================================================================
+# Only block git access - Claude Code needs rm, curl, wget for operations
+# Move git executable to secure location accessible only by the app
+RUN mkdir -p /opt/internal/bin \
+    && mv /usr/bin/git /opt/internal/bin/git \
+    && chmod 755 /opt/internal/bin/git
+
+# Create blocking wrapper script for git only
+RUN echo '#!/bin/bash' > /usr/bin/git && \
+    echo 'echo "[BLOCKED] git access denied - all git operations must go through the app API"' >> /usr/bin/git && \
+    echo 'echo "Claude Code cannot access git for security reasons."' >> /usr/bin/git && \
+    echo 'exit 1' >> /usr/bin/git && \
+    chmod 755 /usr/bin/git
 
 # =============================================================================
 # STAGE 1: Dependencies Installation
@@ -83,15 +100,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Create workspaces directory with proper permissions
 RUN mkdir -p workspaces && chown nextjs:nodejs workspaces
 
-# Create data directory with proper permissions
-RUN mkdir -p data && chown nextjs:nodejs data
-
 # Create secrets directory at root level with proper permissions
 RUN mkdir -p /secrets && chown nextjs:nodejs /secrets
 
-# Copy the entrypoint script and set proper permissions (after users are created)
+# Copy the entrypoint script and set proper permissions
 COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod 755 /entrypoint.sh && chown nextjs:nodejs /entrypoint.sh
+
+# Copy the Claude Code wrapper script
+COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
+RUN chmod 755 /usr/local/bin/claude-code-wrapper && chown nextjs:nodejs /usr/local/bin/claude-code-wrapper
+
+# Copy scripts directory for sandbox verification and other utilities
+COPY --chown=nextjs:nodejs scripts/ ./scripts/
+RUN chmod 755 ./scripts/*.sh
 
 # Switch to non-root user for security
 USER nextjs

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Workspace } from '@/lib/dashboard/types';
 import { getWorkspaces, cleanupWorkspace, cleanupAllWorkspaces } from '@/lib/workspace';
-import type { WorkspaceId } from '@/lib/common/types';
+import type { WorkspaceId } from '@/lib/types/index';
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -10,18 +10,18 @@ export const useWorkspaces = () => {
   const loadWorkspaces = async () => {
     console.log('[USE WORKSPACES] Starting loadWorkspaces');
     setLoading(true);
-    
+
     try {
       console.log('[USE WORKSPACES] Calling getWorkspaces...');
       const workspacesData = await getWorkspaces();
       console.log('[USE WORKSPACES] Received workspaces data:', workspacesData);
-      
+
       // Map from lib Workspace type to dashboard Workspace type
-      const mappedWorkspaces = workspacesData.map(ws => ({
+      const mappedWorkspaces = workspacesData.map((ws) => ({
         ...ws,
-        branch: ws.targetBranch // Map targetBranch to branch
+        branch: ws.targetBranch, // Map targetBranch to branch
       }));
-      
+
       console.log('[USE WORKSPACES] Mapped workspaces:', mappedWorkspaces);
       setWorkspaces(mappedWorkspaces);
       console.log(`[USE WORKSPACES] Set ${mappedWorkspaces.length} workspaces in state`);
@@ -34,10 +34,10 @@ export const useWorkspaces = () => {
 
   const handleCleanupWorkspace = async (workspaceId?: string, all = false) => {
     console.log('[USE WORKSPACES] Starting handleCleanupWorkspace', { workspaceId, all });
-    
+
     try {
       setLoading(true);
-      
+
       if (workspaceId) {
         // Clean specific workspace
         console.log('[USE WORKSPACES] Cleaning specific workspace:', workspaceId);
@@ -55,10 +55,10 @@ export const useWorkspaces = () => {
       }
     } catch (error) {
       console.error('[USE WORKSPACES] Cleanup failed:', error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Cleanup failed', 
-        error 
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Cleanup failed',
+        error,
       };
     } finally {
       setLoading(false);
@@ -74,6 +74,6 @@ export const useWorkspaces = () => {
     workspaces,
     loading,
     loadWorkspaces,
-    handleCleanupWorkspace
+    handleCleanupWorkspace,
   };
-}; 
+};

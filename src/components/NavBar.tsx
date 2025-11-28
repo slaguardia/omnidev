@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import {
   Navbar as HeroUINavbar,
@@ -8,27 +8,30 @@ import {
   NavbarBrand,
   NavbarItem,
   NavbarMenuItem,
-} from "@heroui/navbar";
-import { Kbd } from "@heroui/kbd";
-import { Link } from "@heroui/link";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { link as linkStyles } from "@heroui/theme";
-import NextLink from "next/link";
-import clsx from "clsx";
-import { useSession, signOut } from "next-auth/react";
+} from '@heroui/navbar';
+import { Kbd } from '@heroui/kbd';
+import { Link } from '@heroui/link';
+import { Input } from '@heroui/input';
+import { Button } from '@heroui/button';
+import { link as linkStyles } from '@heroui/theme';
+import NextLink from 'next/link';
+import { usePathname } from 'next/navigation';
+import clsx from 'clsx';
+import { useSession, signOut } from 'next-auth/react';
 
-import { siteConfig } from "@/lib/common/site";
-import { ThemeSwitch } from "@/components/ThemeSwitch";
-import {
-  TwitterIcon,
-  GithubIcon,
-  DiscordIcon,
-  SearchIcon,
-} from "@/components/Icons";
+import { siteConfig } from '@/lib/config/site';
+import { ThemeSwitch } from '@/components/ThemeSwitch';
+import { SearchIcon } from '@/components/Icons';
 
 export const Navbar = () => {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+
+  // Check if a nav item is active
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/signin' });
@@ -38,11 +41,11 @@ export const Navbar = () => {
     <Input
       aria-label="Search"
       classNames={{
-        inputWrapper: "bg-default-100",
-        input: "text-sm",
+        inputWrapper: 'bg-default-100',
+        input: 'text-sm',
       }}
       endContent={
-        <Kbd className="hidden lg:inline-block" keys={["command"]}>
+        <Kbd className="hidden lg:inline-block" keys={['command']}>
           K
         </Kbd>
       }
@@ -56,23 +59,32 @@ export const Navbar = () => {
   );
 
   return (
-    <HeroUINavbar maxWidth="xl" position="sticky">
+    <HeroUINavbar
+      maxWidth="xl"
+      position="sticky"
+      isBordered={false}
+      classNames={{ base: '!border-b-0 shadow-none' }}
+    >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
           <NextLink className="flex justify-start items-center gap-2" href="/">
             <div className="text-2xl">🕷️</div>
-            <p className="font-bold text-inherit bg-gradient-to-r from-red-600 to-blue-800 bg-clip-text text-transparent">CodeSpider</p>
+            <p className="font-bold text-inherit bg-gradient-to-r from-red-600 to-blue-800 bg-clip-text text-transparent">
+              CodeSpider
+            </p>
           </NextLink>
         </NavbarBrand>
         <ul className="hidden lg:flex gap-4 justify-start ml-2">
           {siteConfig.navItems.map((item) => (
-            <NavbarItem key={item.href}>
+            <NavbarItem key={item.href} isActive={isActive(item.href)}>
               <NextLink
                 className={clsx(
-                  linkStyles({ color: "foreground" }),
-                  "data-[active=true]:text-primary data-[active=true]:font-medium",
+                  linkStyles({ color: 'foreground' }),
+                  'transition-colors',
+                  isActive(item.href)
+                    ? 'text-primary font-medium'
+                    : 'text-foreground hover:text-primary'
                 )}
-                color="foreground"
                 href={item.href}
               >
                 {item.label}
@@ -82,12 +94,9 @@ export const Navbar = () => {
         </ul>
       </NavbarContent>
 
-      <NavbarContent
-        className="hidden sm:flex basis-1/5 sm:basis-full"
-        justify="end"
-      >
+      <NavbarContent className="hidden sm:flex basis-1/5 sm:basis-full" justify="end">
         <NavbarItem className="hidden sm:flex gap-2">
-          <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
+          {/* <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
             <TwitterIcon className="text-default-500" />
           </Link>
           <Link isExternal aria-label="Discord" href={siteConfig.links.discord}>
@@ -95,46 +104,35 @@ export const Navbar = () => {
           </Link>
           <Link isExternal aria-label="Github" href={siteConfig.links.github}>
             <GithubIcon className="text-default-500" />
-          </Link>
+          </Link> */}
           <ThemeSwitch />
         </NavbarItem>
         <NavbarItem className="hidden lg:flex">{searchInput}</NavbarItem>
-        
+
         {/* Authentication Section */}
-        {status !== 'loading' && (
-          session ? (
+        {status !== 'loading' &&
+          (session ? (
             <NavbarItem className="hidden sm:flex items-center gap-6 ml-auto">
               <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
                 {session.user?.name}
               </span>
-              <Button
-                size="sm"
-                variant="flat"
-                color="danger"
-                onPress={handleSignOut}
-              >
+              <Button size="sm" variant="flat" color="danger" onPress={handleSignOut}>
                 Sign Out
               </Button>
             </NavbarItem>
           ) : (
             <NavbarItem className="hidden sm:flex ml-auto">
-              <Button
-                as={NextLink}
-                href="/signin"
-                size="sm"
-                variant="flat"
-              >
+              <Button as={NextLink} href="/signin" size="sm" variant="flat">
                 Sign In
               </Button>
             </NavbarItem>
-          )
-        )}
+          ))}
       </NavbarContent>
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <Link isExternal aria-label="Github" href={siteConfig.links.github}>
+        {/* <Link isExternal aria-label="Github" href={siteConfig.links.github}>
           <GithubIcon className="text-default-500" />
-        </Link>
+        </Link> */}
         <ThemeSwitch />
         <NavbarMenuToggle />
       </NavbarContent>
@@ -147,10 +145,10 @@ export const Navbar = () => {
               <Link
                 color={
                   index === 2
-                    ? "primary"
+                    ? 'primary'
                     : index === siteConfig.navMenuItems.length - 1
-                      ? "danger"
-                      : "foreground"
+                      ? 'danger'
+                      : 'foreground'
                 }
                 href="#"
                 size="lg"

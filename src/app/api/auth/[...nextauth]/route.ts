@@ -1,57 +1,38 @@
-import NextAuth from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import type { NextAuthOptions } from "next-auth";
-import type { JWT } from "next-auth/jwt";
-import type { Session, User } from "next-auth";
-import { getUser, saveUser, verifyUser } from "@/lib/auth/user-store";
-
-// Extend NextAuth types to include id in user
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      name: string;
-      email: string | null;
-    };
-  }
-
-  interface User {
-    id: string;
-    name: string;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    name: string;
-  }
-}
+import NextAuth, { NextAuthOptions, Session, User } from 'next-auth';
+import { JWT } from 'next-auth/jwt';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { getUser, saveUser, verifyUser } from '@/lib/auth/user-store';
 
 // Check if we have the required secret
 if (!process.env.NEXTAUTH_SECRET) {
   console.error('[AUTH] NEXTAUTH_SECRET is not set. Authentication will not work properly.');
-  console.error('[AUTH] Make sure the Docker entrypoint script is running and NEXTAUTH_SECRET_FILE is configured.');
+  console.error(
+    '[AUTH] Make sure the Docker entrypoint script is running and NEXTAUTH_SECRET_FILE is configured.'
+  );
 } else {
-  console.log('[AUTH] NEXTAUTH_SECRET is properly configured (length:', process.env.NEXTAUTH_SECRET.length, 'characters)');
+  console.log(
+    '[AUTH] NEXTAUTH_SECRET is properly configured (length:',
+    process.env.NEXTAUTH_SECRET.length,
+    'characters)'
+  );
 }
 
 // This API route is used for authentication
 const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" as const },
+  session: { strategy: 'jwt' as const },
   providers: [
     CredentialsProvider({
-      name: "Credentials",
+      name: 'Credentials',
       credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" },
+        username: { label: 'Username', type: 'text' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         const { username, password } = credentials || {};
         if (!username || !password) return null;
-        
+
         console.log('[AUTH] Attempting to authorize user:', username);
-        
+
         const existingUser = await getUser();
 
         if (!existingUser) {
@@ -79,7 +60,7 @@ const authOptions: NextAuthOptions = {
     }),
   ],
   pages: {
-    signIn: "/signin",
+    signIn: '/signin',
   },
   callbacks: {
     async session({ session, token }: { session: Session; token: JWT }) {
@@ -88,11 +69,13 @@ const authOptions: NextAuthOptions = {
         console.log('[AUTH] Session callback - no token available');
         return session;
       }
-      
+
       if (session.user) {
-        session.user.id = token.id;
-        session.user.name = token.name;
-        session.user.email = null; // Clear email since we're using username
+        (session.user as { id?: string; name?: string | null; email?: string | null }).id =
+          token.id as string;
+        (session.user as { id?: string; name?: string | null; email?: string | null }).name =
+          token.name as string;
+        (session.user as { id?: string; name?: string | null; email?: string | null }).email = null; // Clear email since we're using username
         console.log('[AUTH] Session callback - session updated for user:', token.name);
       }
       return session;
@@ -102,40 +85,17 @@ const authOptions: NextAuthOptions = {
       if (user) {
         console.log('[AUTH] JWT callback - setting user data for:', user.name);
         token.id = user.id;
-        token.name = user.name;
+        token.name = user.name || null;
       }
       return token;
     },
-    async redirect({url, baseUrl}: {url: string, baseUrl: string}) {
-      console.log('[AUTH] Redirect callback - url:', url);
-      console.log('[AUTH] Redirect callback - baseUrl:', baseUrl);
-      
-      // Validate and sanitize the URL
-      try {
-        // If url is relative, make it absolute with baseUrl
-        if (url.startsWith('/')) {
-          const redirectUrl = new URL(url, baseUrl);
-          console.log('[AUTH] Redirect callback - constructed absolute URL:', redirectUrl.toString());
-          return redirectUrl.toString();
-        }
-        
-        // If url is absolute, validate it's a valid URL
-        const parsedUrl = new URL(url);
-        
-        // Only allow redirects to the same origin for security
-        const parsedBaseUrl = new URL(baseUrl);
-        if (parsedUrl.origin !== parsedBaseUrl.origin) {
-          console.log('[AUTH] Redirect callback - external URL blocked, redirecting to dashboard');
-          return `${baseUrl}/dashboard`;
-        }
-        
-        console.log('[AUTH] Redirect callback - validated URL:', parsedUrl.toString());
-        return parsedUrl.toString();
-      } catch (error) {
-        console.error('[AUTH] Redirect callback - invalid URL, redirecting to dashboard:', error);
-        return `${baseUrl}/dashboard`;
-      }
-    }
+    async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
+      console.log('url', url);
+      console.log('baseUrl', baseUrl);
+
+      // Let NextAuth handle redirects with default behavior
+      return url;
+    },
   },
   debug: process.env.NODE_ENV === 'development',
 };
@@ -147,4 +107,4 @@ if (process.env.NEXTAUTH_SECRET) {
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST }; 
+export { handler as GET, handler as POST };

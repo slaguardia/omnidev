@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { GitConfigForm, Workspace } from '@/lib/dashboard/types';
 import { setWorkspaceGitConfig, getWorkspaceGitConfig } from '@/lib/workspace';
-import type { WorkspaceId } from '@/lib/common/types';
+import type { WorkspaceId } from '@/lib/types/index';
 
 const initialGitConfigForm: GitConfigForm = {
   workspaceId: '',
   userEmail: '',
   userName: '',
-  signingKey: ''
+  signingKey: '',
 };
 
 export const useGitConfiguration = () => {
   const [gitConfigForm, setGitConfigForm] = useState<GitConfigForm>(initialGitConfigForm);
-  const [selectedWorkspaceForGitConfig, setSelectedWorkspaceForGitConfig] = useState<Workspace | null>(null);
+  const [selectedWorkspaceForGitConfig, setSelectedWorkspaceForGitConfig] =
+    useState<Workspace | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSetGitConfig = async (workspaceId: string) => {
@@ -24,7 +25,7 @@ export const useGitConfiguration = () => {
     try {
       const config: { userEmail?: string; userName?: string; signingKey?: string } = {};
       if (gitConfigForm.userEmail) config.userEmail = gitConfigForm.userEmail;
-      if (gitConfigForm.userName) config.userName = gitConfigForm.userName;  
+      if (gitConfigForm.userName) config.userName = gitConfigForm.userName;
       if (gitConfigForm.signingKey) config.signingKey = gitConfigForm.signingKey;
 
       await setWorkspaceGitConfig(workspaceId as WorkspaceId, config);
@@ -43,12 +44,12 @@ export const useGitConfiguration = () => {
     setLoading(true);
     try {
       const data = await getWorkspaceGitConfig(workspaceId as WorkspaceId);
-      
+
       setGitConfigForm({
         workspaceId,
         userEmail: data.userEmail || '',
         userName: data.userName || '',
-        signingKey: data.signingKey || ''
+        signingKey: data.signingKey || '',
       });
       setSelectedWorkspaceForGitConfig(workspace);
       return { success: true };
@@ -72,6 +73,6 @@ export const useGitConfiguration = () => {
     loading,
     handleSetGitConfig,
     handleGetGitConfig,
-    closeGitConfigModal
+    closeGitConfigModal,
   };
-}; 
+};
