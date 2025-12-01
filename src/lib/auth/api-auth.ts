@@ -1,10 +1,36 @@
 'use server';
 
+import { resolve } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+
 export interface AuthResult {
   success: boolean;
   error?: string;
   userId?: string;
   clientName?: string;
+}
+
+interface StoredApiKey {
+  key: string;
+  userId: string;
+  createdAt: string;
+}
+
+/**
+ * Load API keys from the stored api-keys.json file
+ */
+function loadStoredApiKeys(): StoredApiKey[] {
+  try {
+    const apiKeysPath = resolve(process.cwd(), 'workspaces', 'api-keys.json');
+    if (!existsSync(apiKeysPath)) {
+      return [];
+    }
+    const data = readFileSync(apiKeysPath, 'utf-8');
+    return JSON.parse(data) as StoredApiKey[];
+  } catch (error) {
+    console.error('Failed to load stored API keys:', error);
+    return [];
+  }
 }
 
 /**
@@ -22,38 +48,56 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
     };
   }
 
-  // Get API keys from environment variables
-  const validApiKeys = process.env.VALID_API_KEYS?.split(',') || [];
+  // Load API keys from stored file (dashboard-generated keys)
+  const storedApiKeys = loadStoredApiKeys();
+
+  // Also check environment variables for backwards compatibility
+  const envApiKeys = process.env.VALID_API_KEYS?.split(',').filter((k) => k.trim()) || [];
   const adminApiKey = process.env.ADMIN_API_KEY;
 
-  if (!validApiKeys.length && !adminApiKey) {
+  // Check if provided key matches a stored key (from dashboard)
+  const matchedStoredKey = storedApiKeys.find((k) => k.key === apiKey);
+  if (matchedStoredKey) {
+    return {
+      success: true,
+      userId: matchedStoredKey.userId,
+      clientName: matchedStoredKey.userId,
+    };
+  }
+
+  // Check if provided key matches admin key from env
+  if (adminApiKey && apiKey === adminApiKey) {
+    return {
+      success: true,
+      userId: 'admin',
+      clientName: 'Admin',
+    };
+  }
+
+  // Check if provided key matches env variable keys
+  if (envApiKeys.includes(apiKey)) {
+    const keyIndex = envApiKeys.indexOf(apiKey);
+    return {
+      success: true,
+      userId: `client-${keyIndex}`,
+      clientName: `Client ${keyIndex + 1}`,
+    };
+  }
+
+  // No valid keys configured at all
+  if (!storedApiKeys.length && !envApiKeys.length && !adminApiKey) {
     console.error(
-      'No API keys configured. Set VALID_API_KEYS or ADMIN_API_KEY environment variable.'
+      'No API keys configured. Generate one in the dashboard or set environment variables.'
     );
     return {
       success: false,
-      error: 'Authentication service not configured',
+      error: 'Authentication service not configured. Please generate an API key in the dashboard.',
     };
   }
-
-  // Check if provided key is valid
-  const isValidKey = validApiKeys.includes(apiKey) || apiKey === adminApiKey;
-
-  if (!isValidKey) {
-    return {
-      success: false,
-      error: 'Invalid API key',
-    };
-  }
-
-  // Determine user context based on key
-  const isAdmin = apiKey === adminApiKey;
-  const keyIndex = validApiKeys.indexOf(apiKey);
 
   return {
-    success: true,
-    userId: isAdmin ? 'admin' : `client-${keyIndex}`,
-    clientName: isAdmin ? 'Admin' : `Client ${keyIndex + 1}`,
+    success: false,
+    error: 'Invalid API key',
   };
 }
 

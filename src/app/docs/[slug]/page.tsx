@@ -54,15 +54,23 @@ export default async function DocPage({ params }: DocPageProps) {
   const headings = extractHeadings(doc.content);
   const { prev, next } = getAdjacentDocs(slug);
 
+  const hasToc = headings.length > 0;
+
   return (
-    <div className="relative w-full">
-      <div className="max-w-[1600px] mx-auto px-8 py-8">
-        <div className="flex gap-12">
-          {/* Main Content */}
-          <article className="flex-1 min-w-0 max-w-4xl">
+    <div
+      className={`flex h-full flex-col gap-8 ${
+        hasToc
+          ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_320px]'
+          : ''
+      }`}
+    >
+      {/* Main Content */}
+      <article className={`h-full min-w-0 ${hasToc ? '' : 'xl:col-span-2'}`}>
+        <div className="px-6 py-4">
+          <div className="mx-auto max-w-4xl pb-20">
             {/* Header */}
-            <header className="mb-8 pb-8 border-b border-divider">
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight mb-4">{doc.title}</h1>
+            <header className="mb-10 border-b border-divider pb-8">
+              <h1 className="mb-4 text-4xl font-bold tracking-tight lg:text-5xl">{doc.title}</h1>
               {doc.description && <p className="text-lg text-default-600">{doc.description}</p>}
             </header>
 
@@ -72,7 +80,7 @@ export default async function DocPage({ params }: DocPageProps) {
             </div>
 
             {/* Navigation Footer */}
-            <nav className="mt-12 pt-8 border-t border-divider">
+            <nav className="mt-12 border-t border-divider pt-8">
               <div className="flex items-center justify-between gap-4">
                 {prev ? (
                   <Button as={Link} href={`/docs/${prev.slug}`} variant="flat" className="px-6">
@@ -97,22 +105,23 @@ export default async function DocPage({ params }: DocPageProps) {
                 )}
               </div>
             </nav>
-          </article>
-
-          {/* Right Sidebar - Table of Contents (Floating Box) */}
-          {headings.length > 0 && (
-            <aside className="hidden xl:block w-64 flex-shrink-0">
-              <div className="sticky top-24">
-                <div className="rounded-lg border border-divider bg-content1 p-6 shadow-sm">
-                  <div className="max-h-[60vh] overflow-y-auto scrollbar-hide">
-                    <TableOfContents headings={headings} />
-                  </div>
-                </div>
-              </div>
-            </aside>
-          )}
+          </div>
         </div>
-      </div>
+      </article>
+
+      {/* Right Sidebar - Table of Contents */}
+      {hasToc && (
+        <aside className="relative hidden xl:block">
+          <div className="sticky top-16">
+            <div
+              className="scrollbar-hide pr-1"
+              style={{ maxHeight: 'calc(100vh - 4rem)', overflowY: 'auto' }}
+            >
+              <TableOfContents headings={headings} />
+            </div>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

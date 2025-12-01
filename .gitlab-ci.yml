@@ -3,7 +3,6 @@ image: node:20
 # Define pipeline stages
 stages:
   - test
-  - build
   - docker
   - docker-test
 
@@ -66,23 +65,6 @@ lint:
   cache:
     policy: pull
 
-build:
-  stage: build
-  variables:
-    NODE_ENV: production
-    # GitLab CI variables GITLAB_TOKEN and CLAUDE_API_KEY will be automatically available
-  script:
-    - pnpm build
-  artifacts:
-    paths:
-      - .next/
-    expire_in: 1 week
-  cache:
-    policy: pull-push
-  needs:
-    - test
-    - lint
-
 # Docker Build Stage - Build and optionally push Docker image
 docker-build:
   stage: docker
@@ -104,7 +86,8 @@ docker-build:
     # - docker push $IMAGE_TAG
     # - docker push $IMAGE_TAG_LATEST
   needs:
-    - build
+    - test
+    - lint
   rules:
     # Only run on main/master branch or merge requests
     - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
@@ -134,10 +117,6 @@ docker-sandbox-verify:
     - |
       docker run -d \
         --name $CONTAINER_NAME \
-        -e SANDBOX_ENABLED=true \
-        -e DOCKER_ENV=true \
-        -e INTERNAL_GIT_PATH=/opt/internal/bin/git \
-        -e CLAUDE_CODE_WRAPPER=/usr/local/bin/claude-code-wrapper \
         -e NEXTAUTH_SECRET=test-secret-for-ci \
         -e NEXTAUTH_URL=http://localhost:3000 \
         $IMAGE_TAG
@@ -169,10 +148,11 @@ docker-sandbox-verify:
     - docker stop $CONTAINER_NAME || true
     - docker rm $CONTAINER_NAME || true
   needs:
-    - build
+    - test
+    - lint
   rules:
-    # Run on main/master branch and merge requests
+    # Run automatically on main/master, manual on merge requests
     - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
       when: on_success
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: on_success
+      when: manual

@@ -10,12 +10,26 @@ import { Chip } from '@heroui/chip';
 import { title } from '@/components/Primitives';
 import { hasUser } from '@/lib/auth/user-store';
 
+interface TwoFactorState {
+  required: boolean;
+  pendingToken: string;
+  hasRecoveryCodes: boolean;
+  useRecoveryCode: boolean;
+}
+
 export default function SigninPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [error, setError] = useState('');
   const [userExists, setUserExists] = useState<boolean | null>(null);
   const [authSuccess, setAuthSuccess] = useState(false);
+  const [twoFactor, setTwoFactor] = useState<TwoFactorState>({
+    required: false,
+    pendingToken: '',
+    hasRecoveryCodes: false,
+    useRecoveryCode: false,
+  });
+  const [totpCode, setTotpCode] = useState('');
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -80,8 +94,41 @@ export default function SigninPage() {
       return;
     }
 
-    console.log('[SIGNIN] Attempting authentication...');
+    console.log('[SIGNIN] Checking credentials...');
     try {
+      // First, check credentials and 2FA status
+      const checkResponse = await fetch('/api/auth/check-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password,
+        }),
+      });
+
+      const checkResult = await checkResponse.json();
+
+      if (!checkResponse.ok) {
+        setError(checkResult.error || 'Invalid credentials');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if 2FA is required
+      if (checkResult.requires2FA) {
+        console.log('[SIGNIN] 2FA required, showing verification step');
+        setTwoFactor({
+          required: true,
+          pendingToken: checkResult.pendingToken,
+          hasRecoveryCodes: checkResult.hasRecoveryCodes,
+          useRecoveryCode: false,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // No 2FA required, proceed with sign in
+      console.log('[SIGNIN] Proceeding with authentication...');
       await signIn('credentials', {
         username: formData.username,
         password: formData.password,
@@ -94,6 +141,75 @@ export default function SigninPage() {
       setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
+  };
+
+  const handleTotpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    if (!totpCode) {
+      setError(
+        twoFactor.useRecoveryCode ? 'Recovery code is required' : 'Verification code is required'
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Validate TOTP
+      const validateResponse = await fetch('/api/auth/2fa/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pendingToken: twoFactor.pendingToken,
+          token: totpCode,
+          isRecoveryCode: twoFactor.useRecoveryCode,
+        }),
+      });
+
+      const validateResult = await validateResponse.json();
+
+      if (!validateResponse.ok) {
+        setError(validateResult.error || 'Invalid verification code');
+        setIsLoading(false);
+        return;
+      }
+
+      // 2FA verified, proceed with sign in
+      console.log('[SIGNIN] 2FA verified, completing authentication...');
+      await signIn('credentials', {
+        username: formData.username,
+        password: formData.password,
+        callbackUrl: '/dashboard',
+      });
+
+      setAuthSuccess(true);
+    } catch (err) {
+      console.error('[SIGNIN] 2FA verification error:', err);
+      setError('An unexpected error occurred. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToPassword = () => {
+    setTwoFactor({
+      required: false,
+      pendingToken: '',
+      hasRecoveryCodes: false,
+      useRecoveryCode: false,
+    });
+    setTotpCode('');
+    setError('');
+  };
+
+  const toggleRecoveryCode = () => {
+    setTwoFactor((prev) => ({
+      ...prev,
+      useRecoveryCode: !prev.useRecoveryCode,
+    }));
+    setTotpCode('');
+    setError('');
   };
 
   // Show loading state while checking user status, if session is loading, or after successful auth
@@ -127,6 +243,89 @@ export default function SigninPage() {
   }
 
   const isSignup = !userExists;
+
+  // Show 2FA verification form
+  if (twoFactor.required) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <h1 className={`${title()} text-center mb-16 text-2xl`}>Two-Factor Authentication</h1>
+
+        <Card className="w-full mt-10">
+          <CardBody className="p-6">
+            <form onSubmit={handleTotpSubmit} className="flex flex-col gap-4">
+              <p className="text-default-600 text-center mb-2">
+                {twoFactor.useRecoveryCode
+                  ? 'Enter one of your recovery codes'
+                  : 'Enter the 6-digit code from your authenticator app'}
+              </p>
+
+              <Input
+                name="totpCode"
+                type="text"
+                label={twoFactor.useRecoveryCode ? 'Recovery Code' : 'Verification Code'}
+                placeholder={twoFactor.useRecoveryCode ? 'XXXX-XXXX' : '000000'}
+                value={totpCode}
+                onChange={(e) => {
+                  setTotpCode(e.target.value);
+                  setError('');
+                }}
+                isRequired
+                variant="bordered"
+                autoComplete="one-time-code"
+                autoFocus
+                classNames={{
+                  input: twoFactor.useRecoveryCode ? '' : 'text-center text-xl tracking-widest',
+                }}
+              />
+
+              {error && (
+                <Chip color="danger" variant="flat" className="w-full p-3 h-auto whitespace-normal">
+                  {error}
+                </Chip>
+              )}
+
+              <Button
+                type="submit"
+                color="primary"
+                size="lg"
+                isLoading={isLoading}
+                className="w-full mt-2"
+              >
+                Verify
+              </Button>
+
+              <div className="flex flex-col gap-2 mt-2">
+                {twoFactor.hasRecoveryCodes && (
+                  <Button
+                    type="button"
+                    variant="light"
+                    size="sm"
+                    onClick={toggleRecoveryCode}
+                    className="w-full"
+                  >
+                    {twoFactor.useRecoveryCode
+                      ? 'Use authenticator app instead'
+                      : 'Use a recovery code'}
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="light"
+                  color="default"
+                  size="sm"
+                  onClick={handleBackToPassword}
+                  className="w-full"
+                >
+                  Back to sign in
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">

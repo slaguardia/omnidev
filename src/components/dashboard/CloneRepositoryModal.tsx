@@ -6,7 +6,7 @@ import { Input } from '@heroui/input';
 import { Switch } from '@heroui/switch';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
 import { Tooltip } from '@heroui/tooltip';
-import { GitBranch, Info } from 'lucide-react';
+import { GitBranch, Info, AlertCircle } from 'lucide-react';
 import { CloneForm } from '@/lib/dashboard/types';
 
 interface CloneRepositoryModalProps {
@@ -16,6 +16,7 @@ interface CloneRepositoryModalProps {
   cloneForm: CloneForm;
   setCloneForm: React.Dispatch<React.SetStateAction<CloneForm>>;
   loading: boolean;
+  hasCredentials?: boolean;
 }
 
 export default function CloneRepositoryModal({
@@ -25,6 +26,7 @@ export default function CloneRepositoryModal({
   cloneForm,
   setCloneForm,
   loading,
+  hasCredentials = false,
 }: CloneRepositoryModalProps) {
   return (
     <Modal
@@ -104,47 +106,21 @@ export default function CloneRepositoryModal({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Switch
-                    isSelected={cloneForm.showCredentials}
-                    onValueChange={(checked: boolean) =>
-                      setCloneForm((prev) => ({ ...prev, showCredentials: checked }))
-                    }
-                  />
-                  <span className="text-sm">Private Repository (requires authentication)</span>
-                </div>
-
-                {cloneForm.showCredentials && (
-                  <div className="space-y-3 p-4 bg-default-50 rounded-lg border border-default-200">
-                    <div className="text-sm text-default-600 mb-2">
-                      <strong>Tip:</strong> For GitLab, use your username and personal access token
-                      (not password)
-                    </div>
-                    <Input
-                      label="Username"
-                      placeholder="your-username"
-                      value={cloneForm.credentials.username}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setCloneForm((prev) => ({
-                          ...prev,
-                          credentials: { ...prev.credentials, username: e.target.value },
-                        }))
-                      }
-                      variant="bordered"
-                    />
-                    <Input
-                      label="Password / Personal Access Token"
-                      type="password"
-                      placeholder="glpat-xxxxxxxxxxxxxxxxxxxx"
-                      value={cloneForm.credentials.password}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setCloneForm((prev) => ({
-                          ...prev,
-                          credentials: { ...prev.credentials, password: e.target.value },
-                        }))
-                      }
-                      variant="bordered"
-                    />
+                {hasCredentials ? (
+                  <div className="p-3 bg-success-50 dark:bg-success-500/10 border border-success-200 dark:border-success-500/30 rounded-lg">
+                    <p className="text-sm text-success-700 dark:text-success-400">
+                      Credentials configured in Git Source Config will be used for private
+                      repositories.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-warning-50 dark:bg-warning-500/10 border border-warning-200 dark:border-warning-500/30 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-warning-600 dark:text-warning-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-warning-700 dark:text-warning-400">
+                      No credentials configured. Only public repositories can be cloned. Configure
+                      your GitLab username and token in <strong>Git Source Config</strong> for
+                      private repos.
+                    </p>
                   </div>
                 )}
               </div>

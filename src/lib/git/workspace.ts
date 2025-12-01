@@ -4,8 +4,9 @@
  * Git workspace operations - cleaning, resetting workspace
  */
 
-import { simpleGit, CleanOptions } from 'simple-git';
+import { CleanOptions } from 'simple-git';
 import type { FilePath, AsyncResult } from '@/lib/common/types';
+import { createSandboxedGit } from '@/lib/git/sandbox';
 
 /**
  * Clean workspace (remove untracked files and directories)
@@ -15,7 +16,7 @@ export async function cleanWorkspace(
   force = false
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     if (force) {
       await git.clean(CleanOptions.FORCE + CleanOptions.RECURSIVE);
@@ -40,7 +41,7 @@ export async function resetWorkspace(
   hard = false
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     if (hard) {
       await git.reset(['--hard', 'HEAD']);

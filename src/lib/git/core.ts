@@ -53,7 +53,15 @@ export async function cloneRepository(
     // Prepare authenticated URL if credentials are provided
     let authenticatedUrl = repoUrl;
     if (options.credentials && options.credentials.username && options.credentials.password) {
+      console.log('[GIT] Credentials provided, creating authenticated URL');
+      console.log('[GIT] Username:', options.credentials.username);
+      console.log('[GIT] Password length:', options.credentials.password.length);
       authenticatedUrl = await createAuthenticatedUrl(repoUrl, options.credentials);
+      // Log URL with password masked
+      const maskedUrl = authenticatedUrl.replace(/:[^@]+@/, ':****@');
+      console.log('[GIT] Authenticated URL (masked):', maskedUrl);
+    } else {
+      console.log('[GIT] No credentials provided, using original URL');
     }
 
     await git.clone(authenticatedUrl, targetPath, cloneOptions);
@@ -199,14 +207,11 @@ async function createAuthenticatedUrl(
   try {
     const url = new URL(repoUrl);
 
-    // URL encode the credentials to handle special characters
-    const encodedUsername = encodeURIComponent(credentials.username);
-    const encodedPassword = encodeURIComponent(credentials.password);
+    // URL object handles encoding automatically - don't double-encode
+    url.username = credentials.username;
+    url.password = credentials.password;
 
-    // Create authenticated URL format: https://username:password@host/path
-    url.username = encodedUsername;
-    url.password = encodedPassword;
-
+    console.log('[GIT] Created authenticated URL for user:', credentials.username);
     return url.toString() as GitUrl;
   } catch (error) {
     // If URL parsing fails, return original URL

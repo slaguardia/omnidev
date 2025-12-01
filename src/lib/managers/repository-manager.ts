@@ -10,9 +10,10 @@ import { mkdir, rm, access } from 'node:fs/promises';
 import { cloneRepository as gitCloneRepository, validateGitUrl } from '@/lib/git/core';
 import { getCurrentBranch } from '@/lib/git/branches';
 import { getCurrentCommitHash } from '@/lib/git/commits';
+import { setWorkspaceGitConfig as setGitConfig } from '@/lib/git/config';
 import { type GitCloneOptions } from '@/lib/git/types';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
-import { getWorkspaceBaseDir } from '@/lib/config/server-actions';
+import { getWorkspaceBaseDir, getConfig } from '@/lib/config/server-actions';
 import type {
   Workspace,
   WorkspaceId,
@@ -110,6 +111,24 @@ export async function cloneRepository(
       return cloneResult;
     }
     console.log('[REPOSITORY MANAGER] Git clone successful');
+
+    // Auto-apply git config from centralized settings
+    console.log('[REPOSITORY MANAGER] Applying git config from central settings...');
+    const config = await getConfig();
+    if (config.gitlab.commitName || config.gitlab.commitEmail) {
+      const gitConfigResult = await setGitConfig(workspacePath, {
+        userName: config.gitlab.commitName,
+        userEmail: config.gitlab.commitEmail,
+      });
+      if (gitConfigResult.success) {
+        console.log('[REPOSITORY MANAGER] Git config applied successfully');
+      } else {
+        console.warn('[REPOSITORY MANAGER] Failed to apply git config:', gitConfigResult.error);
+        // Don't fail the clone, just log the warning
+      }
+    } else {
+      console.log('[REPOSITORY MANAGER] No commit identity configured, skipping git config');
+    }
 
     // Get actual current branch (in case Git auto-selected default branch)
     console.log('[REPOSITORY MANAGER] Getting current branch...');

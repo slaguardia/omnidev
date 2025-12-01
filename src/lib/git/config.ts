@@ -4,9 +4,9 @@
  * Git configuration operations - managing git config settings
  */
 
-import { simpleGit } from 'simple-git';
 import type { FilePath, AsyncResult } from '@/lib/common/types';
 import type { GitConfig } from '@/lib/git/types';
+import { createSandboxedGit } from '@/lib/git/sandbox';
 
 /**
  * Set local git configuration for the workspace
@@ -16,7 +16,7 @@ export async function setWorkspaceGitConfig(
   config: GitConfig
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Set user.email if provided
     if (config.userEmail) {
@@ -49,7 +49,7 @@ export async function getWorkspaceGitConfig(
   workspacePath: FilePath
 ): Promise<AsyncResult<GitConfig>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const config: GitConfig = {};
 
     // Get user.email
@@ -99,7 +99,7 @@ export async function unsetWorkspaceGitConfig(
   keys: ('userEmail' | 'userName' | 'signingKey')[]
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     for (const key of keys) {
       try {

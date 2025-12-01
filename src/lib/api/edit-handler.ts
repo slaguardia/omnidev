@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  askClaudeCode,
-  checkClaudeCodeAvailability,
-  handlePostClaudeCodeExecution,
-  initializeGitWorkflow,
-  GitBranchWorkflowResult,
-} from '@/lib/claudeCode';
+import { checkClaudeCodeAvailability, initializeGitWorkflow } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { validateAndLoadWorkspace } from './workspace-validation';
 import { EditRouteParams } from './types';
+import { saveExecutionToHistory } from '@/lib/dashboard/execution-history';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
+import { executeOrQueue, type ClaudeCodeJobPayload, type ClaudeCodeJobResult } from '@/lib/queue';
 
 /**
  * API handler for edit operations
@@ -86,7 +83,6 @@ export async function handleEditClaudeCodeRequest(
     // STEP 5: GIT WORKFLOW INITIALIZATION
     // ============================================================================
 
-    let gitBranchWorkflowResult: GitBranchWorkflowResult | undefined;
     if (createMR && workspaceId) {
       console.log(`[CLAUDE CODE] 🔄 Initializing git workflow for edit request...`);
       const gitInitStart = Date.now();
@@ -108,15 +104,14 @@ export async function handleEditClaudeCodeRequest(
         // Don't fail the request, just warn - Claude Code might still work
       } else {
         console.log(`[CLAUDE CODE] ✅ Git workflow initialized successfully in ${gitInitTime}ms`);
-        gitBranchWorkflowResult = result.data;
       }
     }
 
     // ============================================================================
-    // STEP 5: CLAUDE CODE EXECUTION
+    // STEP 5: CLAUDE CODE EXECUTION VIA JOB QUEUE
     // ============================================================================
 
-    // Execute Claude Code
+    // Execute Claude Code via job queue (execute-or-queue pattern)
     console.log(`[${logPrefix}] 🚀 Using Claude Code with execution parameters:`, {
       createMR: createMR,
       questionLength: question.length,
@@ -136,116 +131,83 @@ export async function handleEditClaudeCodeRequest(
         return NextResponse.json({ error: 'Workspace not found' }, { status: 500 });
       }
 
-      const claudeResult = await askClaudeCode({
-        editRequest: true,
-        question: question,
-        workingDirectory: workspace.path,
-        context: context ?? '',
+      // Build job payload
+      const jobPayload: ClaudeCodeJobPayload = {
         workspaceId: workspace.id,
-      });
+        workspacePath: workspace.path,
+        question: question,
+        context: context ?? '',
+        sourceBranch: sourceBranch,
+        repoUrl: workspace.repoUrl,
+      };
 
-      const claudeExecutionTime = Date.now() - claudeStart;
-      console.log(
-        `[${logPrefix}] ✅ Claude Code execution completed in ${claudeExecutionTime}ms (${(claudeExecutionTime / 1000).toFixed(2)}s)`
-      );
+      // Execute or queue the job
+      const execution = await executeOrQueue('claude-code', jobPayload);
 
-      if (!claudeResult.success) {
-        console.error(`[${logPrefix}] Claude Code execution failed:`, claudeResult.error?.message);
-        return NextResponse.json(
-          { error: 'Claude Code execution failed', details: claudeResult.error?.message },
-          { status: 500 }
+      if (execution.immediate) {
+        // Job ran immediately - return result
+        const claudeExecutionTime = Date.now() - claudeStart;
+        const totalTime = Date.now() - startTime;
+        const result = execution.result as ClaudeCodeJobResult;
+
+        console.log(
+          `[${logPrefix}] ✅ Claude Code execution completed immediately in ${claudeExecutionTime}ms`
         );
-      }
 
-      console.log(`[${logPrefix}] Claude Code result summary:`, {
-        success: true,
-        outputLength: claudeResult.data?.output?.length || 0,
-        hasGitInitResult: !!gitBranchWorkflowResult,
-        executionTime: claudeExecutionTime,
-      });
-
-      // Log a preview of the output (first 200 chars)
-      if (claudeResult.data?.output) {
-        const preview =
-          claudeResult.data.output.length > 200
-            ? claudeResult.data.output.substring(0, 200) + '...'
-            : claudeResult.data.output;
-        console.log(`[${logPrefix}] Claude Code output preview:`, preview);
-      }
-
-      // ============================================================================
-      // STEP 6: POST-EXECUTION GIT OPERATIONS
-      // ============================================================================
-
-      // Handle post-Claude Code execution git operations
-      if (gitBranchWorkflowResult) {
-        console.log(`[${logPrefix}] 🔄 Processing post-execution git operations...`);
-        const postExecutionStart = Date.now();
-
-        try {
-          const postExecutionResult = await handlePostClaudeCodeExecution(
-            workspace.path,
-            gitBranchWorkflowResult,
-            workspace.repoUrl
-          );
-
-          const postExecutionTime = Date.now() - postExecutionStart;
-          console.log(`[${logPrefix}] Post-execution completed in ${postExecutionTime}ms`);
-
-          if (postExecutionResult.success) {
-            console.log(`[${logPrefix}] ✅ Post-execution success:`, {
-              hasChanges: postExecutionResult.data?.hasChanges,
-              mergeRequestUrl: postExecutionResult.data?.mergeRequestUrl,
-              pushedBranch: postExecutionResult.data?.pushedBranch,
-            });
-
-            if (postExecutionResult.data?.mergeRequestUrl) {
-              console.log(
-                `[${logPrefix}] 🎉 Merge request created: ${postExecutionResult.data.mergeRequestUrl}`
-              );
-            } else if (postExecutionResult.data?.pushedBranch) {
-              console.log(
-                `[${logPrefix}] 📤 Changes pushed to branch: ${postExecutionResult.data.pushedBranch}`
-              );
-            } else if (!postExecutionResult.data?.hasChanges) {
-              console.log(`[${logPrefix}] ℹ️ No changes were made by Claude Code`);
-            }
-          } else {
-            console.error(
-              `[${logPrefix}] ❌ Post-execution processing failed:`,
-              postExecutionResult.error?.message
-            );
-            // Don't fail the entire request - just log the error
-          }
-        } catch (postError) {
-          console.error(`[${logPrefix}] ❌ Post-execution processing threw error:`, postError);
+        // Save to execution history (including full JSON stream)
+        const workspaceName = getProjectDisplayName(workspace.repoUrl);
+        const historyEntry: Parameters<typeof saveExecutionToHistory>[0] = {
+          workspaceId: workspace.id,
+          workspaceName,
+          question,
+          response: result.output || '',
+          status: 'success',
+          executionTimeMs: totalTime,
+        };
+        if (result.jsonLogs) {
+          historyEntry.jsonLogs = result.jsonLogs;
         }
+        if (result.rawOutput) {
+          historyEntry.rawOutput = result.rawOutput;
+        }
+        await saveExecutionToHistory(historyEntry);
+        console.log(
+          `[${logPrefix}] 📝 Saved execution to history with ${result.jsonLogs?.length || 0} JSON logs`
+        );
+
+        return NextResponse.json({
+          success: true,
+          response: result.output,
+          queued: false,
+          method: 'claude-code',
+          workspace: {
+            id: workspace.id,
+            path: workspace.path,
+            repoUrl: workspace.repoUrl,
+            targetBranch: workspace.targetBranch,
+          },
+          timing: {
+            total: totalTime,
+            claudeExecution: result.executionTimeMs,
+          },
+        });
+      } else {
+        // Job was queued - return job ID for polling
+        console.log(`[${logPrefix}] 📋 Job queued with ID: ${execution.jobId}`);
+
+        return NextResponse.json({
+          success: true,
+          queued: true,
+          jobId: execution.jobId,
+          message: 'Job queued - poll /api/jobs/:jobId for results',
+          workspace: {
+            id: workspace.id,
+            path: workspace.path,
+            repoUrl: workspace.repoUrl,
+            targetBranch: workspace.targetBranch,
+          },
+        });
       }
-
-      // ============================================================================
-      // STEP 7: SUCCESS RESPONSE
-      // ============================================================================
-
-      const totalTime = Date.now() - startTime;
-      console.log(
-        `[${logPrefix}] 🎯 Request completed successfully in ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s) using Claude Code`
-      );
-
-      return NextResponse.json({
-        success: true,
-        response: claudeResult.data?.output,
-        method: 'claude-code',
-        workspace: {
-          id: workspace.id,
-          path: workspace.path,
-          repoUrl: workspace.repoUrl,
-          targetBranch: workspace.targetBranch,
-        },
-        timing: {
-          total: totalTime,
-          claudeExecution: claudeExecutionTime,
-        },
-      });
     } catch (claudeError) {
       // ============================================================================
       // CLAUDE CODE EXECUTION ERROR HANDLING
@@ -255,20 +217,37 @@ export async function handleEditClaudeCodeRequest(
       // This is separate from the outer catch block which handles general request errors
 
       const claudeExecutionTime = Date.now() - claudeStart;
+      const totalTime = Date.now() - startTime;
+      const errorMessage = claudeError instanceof Error ? claudeError.message : String(claudeError);
       console.error(
         `[${logPrefix}] ❌ Claude Code execution threw error after ${claudeExecutionTime}ms:`,
         claudeError
       );
       console.error(`[${logPrefix}] Error details:`, {
         name: claudeError instanceof Error ? claudeError.name : 'Unknown',
-        message: claudeError instanceof Error ? claudeError.message : String(claudeError),
+        message: errorMessage,
         stack: claudeError instanceof Error ? claudeError.stack : undefined,
       });
+
+      // Save error to execution history
+      if (workspace) {
+        const workspaceName = getProjectDisplayName(workspace.repoUrl);
+        await saveExecutionToHistory({
+          workspaceId: workspace.id,
+          workspaceName,
+          question,
+          response: '',
+          status: 'error',
+          errorMessage: `Claude Code execution failed: ${errorMessage}`,
+          executionTimeMs: totalTime,
+        });
+        console.log(`[${logPrefix}] 📝 Saved error execution to history`);
+      }
 
       return NextResponse.json(
         {
           error: 'Claude Code execution failed',
-          details: claudeError instanceof Error ? claudeError.message : String(claudeError),
+          details: errorMessage,
         },
         { status: 500 }
       );

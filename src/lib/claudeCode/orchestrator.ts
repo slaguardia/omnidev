@@ -92,14 +92,9 @@ export async function askClaudeCode(
       }
     }
 
-    // Build command with enhanced monitoring flags
-    // Use sandboxed wrapper if available (in Docker environment)
-    const isSandboxed = process.env.SANDBOX_ENABLED === 'true';
+    // Build command with sandboxed wrapper
+    // Claude Code always runs through the sandbox wrapper to prevent git operations
     const wrapperPath = process.env.CLAUDE_CODE_WRAPPER || '/usr/local/bin/claude-code-wrapper';
-
-    const baseCommand = isSandboxed
-      ? `${wrapperPath} ${options.workingDirectory} --verbose`
-      : 'claude --verbose';
 
     const skipPermissionsFlag = needsPermissions ? ' --dangerously-skip-permissions' : '';
     const outputFormatFlag = ' --output-format stream-json';
@@ -117,15 +112,14 @@ export async function askClaudeCode(
     }
 
     // Use -p flag to pass the question directly with JSON streaming
-    const command = isSandboxed
-      ? `${wrapperPath} ${options.workingDirectory}${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`
-      : `${baseCommand}${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`;
+    // Note: --verbose is required when using --output-format stream-json with -p
+    const command = `${wrapperPath} ${options.workingDirectory} --verbose${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`;
 
     // Activity-based timeout instead of fixed duration
     const maxInactivityTime = 300000; // 5 minutes of inactivity before timeout
     const activityCheckInterval = 30000; // Check activity every 30 seconds
 
-    console.log(`[CLAUDE CODE] 🔒 Sandbox mode: ${isSandboxed ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`[CLAUDE CODE] 🔒 Sandbox mode: ENABLED (always)`);
 
     console.log(`[CLAUDE CODE] 🚀 Executing: ${command}`);
     console.log(
@@ -148,12 +142,13 @@ export async function askClaudeCode(
       let jsonLogCount = 0;
       let lastActivityTime = Date.now();
       let hasReceivedOutput = false;
+      const jsonLogs: Array<{ type: string; [key: string]: unknown }> = [];
 
       console.log(`[CLAUDE CODE] 🎬 Spawning Claude process...`);
       const spawnStart = Date.now();
 
       const claudeProcess = spawn(command, {
-        cwd: isSandboxed ? process.cwd() : options.workingDirectory, // Wrapper handles cwd
+        cwd: process.cwd(), // Wrapper handles cd to workspace directory
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
         env: {
@@ -200,6 +195,9 @@ export async function askClaudeCode(
           jsonLogCount++;
           resetActivityTimer();
 
+          // Store all JSON logs for history
+          jsonLogs.push(log);
+
           // Check for final result message
           if (log.type === 'result') {
             console.log(
@@ -236,10 +234,13 @@ export async function askClaudeCode(
             console.log(`[CLAUDE CODE] 📊 JSON log ${jsonLogCount}: ${log.type || 'activity'}`);
           }
         } catch {
-          // Not valid JSON, treat as actual output (fallback for non-JSON output)
-          actualOutput += jsonStr + '\n';
+          // JSON parsing failed - log for debugging but don't add to output
+          console.log(`[CLAUDE CODE] ⚠️ Failed to parse JSON: ${jsonStr.substring(0, 100)}...`);
         }
       }
+
+      // Buffer for incomplete lines across chunks
+      let lineBuffer = '';
 
       // Capture stdout with JSON parsing
       claudeProcess.stdout?.on('data', (data) => {
@@ -252,20 +253,29 @@ export async function askClaudeCode(
           `[CLAUDE CODE] 📥 stdout chunk ${stdoutChunks} (${chunk.length} chars, total: ${rawStdout.length})`
         );
 
-        // Split chunk into lines and process each as potential JSON
-        const lines = chunk.split('\n');
-        lines.forEach((line: string, index: number) => {
+        // Add chunk to buffer and process complete lines
+        lineBuffer += chunk;
+        const lines = lineBuffer.split('\n');
+
+        // Keep the last incomplete line in the buffer
+        lineBuffer = lines.pop() || '';
+
+        // Process complete lines
+        lines.forEach((line: string) => {
           const trimmedLine = line.trim();
-          if (trimmedLine) {
-            // Try to parse as JSON log first
-            if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
-              handleJsonLog(trimmedLine);
-            } else {
-              // Not JSON, treat as actual response content
-              actualOutput += line;
-              if (index < lines.length - 1) actualOutput += '\n';
-            }
+          if (!trimmedLine) return;
+
+          // Skip wrapper log lines - they're just debug output
+          if (trimmedLine.startsWith('[CLAUDE-WRAPPER]')) {
+            console.log(`[CLAUDE CODE] 🔧 Wrapper: ${trimmedLine}`);
+            return;
           }
+
+          // Try to parse as JSON log
+          if (trimmedLine.startsWith('{')) {
+            handleJsonLog(trimmedLine);
+          }
+          // Non-JSON, non-wrapper lines are ignored (Claude uses JSON streaming)
         });
 
         // Log first few chunks more verbosely for debugging
@@ -293,6 +303,14 @@ export async function askClaudeCode(
 
       claudeProcess.on('close', (code) => {
         const executionTime = Date.now() - startTime;
+
+        // Process any remaining content in the line buffer
+        if (lineBuffer.trim()) {
+          const trimmedLine = lineBuffer.trim();
+          if (trimmedLine.startsWith('{')) {
+            handleJsonLog(trimmedLine);
+          }
+        }
 
         console.log(
           `[CLAUDE CODE] 🏁 Process closed after ${executionTime}ms (${(executionTime / 1000).toFixed(2)}s)`
@@ -328,11 +346,14 @@ export async function askClaudeCode(
           // Process completed successfully - trust the exit code
           const result: ClaudeCodeResult = {
             output: output || 'Claude Code executed successfully but produced no output',
+            jsonLogs: jsonLogs,
+            rawOutput: rawStdout,
           };
           if (gitInitResult) {
             result.gitInitResult = gitInitResult;
             console.log(`[CLAUDE CODE] ✅ Including git init result in response`);
           }
+          console.log(`[CLAUDE CODE] ✅ Including ${jsonLogs.length} JSON logs in response`);
 
           console.log(
             `[CLAUDE CODE] 🎯 Execution completed successfully in ${executionTime}ms with ${jsonLogCount} JSON logs`

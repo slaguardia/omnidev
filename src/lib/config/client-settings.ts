@@ -12,11 +12,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   gitlab: {
     url: 'https://gitlab.com',
     token: '',
+    username: '',
+    commitName: '',
+    commitEmail: '',
     allowedHosts: ['gitlab.com'],
   },
   claude: {
     apiKey: '',
-    codeCliPath: '/usr/bin/claude',
     maxTokens: 4000,
     defaultTemperature: 0.3,
   },
@@ -28,7 +30,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   security: {
     allowedGitLabHosts: ['gitlab.com'],
     maxWorkspaceSize: 500 * 1024 * 1024, // 500MB in bytes
-    enableSandboxing: true,
     apiKey: '',
   },
   logging: {
@@ -52,12 +53,14 @@ export function getDefaultClientSafeConfig(): ClientSafeAppConfig {
   return {
     gitlab: {
       url: DEFAULT_CONFIG.gitlab.url,
+      username: DEFAULT_CONFIG.gitlab.username,
+      commitName: DEFAULT_CONFIG.gitlab.commitName,
+      commitEmail: DEFAULT_CONFIG.gitlab.commitEmail,
       tokenSet: false,
       allowedHosts: DEFAULT_CONFIG.gitlab.allowedHosts,
     },
     claude: {
       apiKeySet: false,
-      codeCliPath: DEFAULT_CONFIG.claude.codeCliPath,
       maxTokens: DEFAULT_CONFIG.claude.maxTokens,
       defaultTemperature: DEFAULT_CONFIG.claude.defaultTemperature,
     },
@@ -143,7 +146,6 @@ export function getConfigurationStatus(config: AppConfig) {
     },
     claude: {
       configured: !!config.claude.apiKey,
-      codeCliPath: config.claude.codeCliPath,
     },
     workspace: {
       baseDir: '/app/workspaces', // Static for client

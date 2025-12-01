@@ -21,11 +21,6 @@ export interface CloneForm {
   branch: string;
   depth: string;
   singleBranch: boolean;
-  showCredentials: boolean;
-  credentials: {
-    username: string;
-    password: string;
-  };
 }
 
 export interface ClaudeForm {
@@ -33,13 +28,6 @@ export interface ClaudeForm {
   question: string;
   context: string;
   sourceBranch: string;
-}
-
-export interface GitConfigForm {
-  workspaceId: string;
-  userEmail: string;
-  userName: string;
-  signingKey: string;
 }
 
 export interface AskForm {
@@ -54,4 +42,39 @@ export interface EditForm extends AskForm {
   taskId?: string;
   taskName?: string;
   newBranchName?: string;
+}
+
+export interface ChangePasswordForm {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+/**
+ * Individual JSON log entry from Claude Code stream
+ */
+export interface ClaudeCodeJsonLogEntry {
+  type: string;
+  subtype?: string;
+  timestamp?: string;
+  message?: unknown;
+  result?: string;
+  duration_ms?: number;
+  [key: string]: unknown;
+}
+
+export interface ExecutionHistoryEntry {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  question: string;
+  response: string;
+  status: 'success' | 'error';
+  errorMessage?: string;
+  executedAt: string;
+  executionTimeMs?: number;
+  /** Raw JSON stream logs from Claude Code execution */
+  jsonLogs?: ClaudeCodeJsonLogEntry[];
+  /** Raw stdout output (includes all output before parsing) */
+  rawOutput?: string;
 }

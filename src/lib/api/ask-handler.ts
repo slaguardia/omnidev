@@ -41,6 +41,12 @@ export async function handleAskClaudeCodeRequest(
       return workspaceValidation.response!;
     }
 
+    //TODO: Check if source branch is empty and if so use the default branch
+    // if (!sourceBranch) {
+    //   const defaultSourceBranch = workspaceValidation.workspace?.targetBranch;
+    //   console.log(`[${logPrefix}] No source branch provided, using default branch: ${defaultSourceBranch}`);
+    // }
+
     const workspace = workspaceValidation.workspace;
 
     // ============================================================================
@@ -75,6 +81,8 @@ export async function handleAskClaudeCodeRequest(
       );
     }
 
+    //TODO: If the source branch was defined and was not the default branch, we will need to check that the target branch exists and then pull it
+
     // ============================================================================
     // STEP 5: CLAUDE CODE EXECUTION
     // ============================================================================
@@ -85,7 +93,7 @@ export async function handleAskClaudeCodeRequest(
       questionLength: question.length,
       workingDirectory: workspace?.path,
       contextLength: context?.length || 0,
-      sourceBranch: sourceBranch ?? 'default',
+      sourceBranch: sourceBranch,
       workspaceId: workspace?.id,
       mode: 'ask',
     });

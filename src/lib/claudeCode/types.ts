@@ -31,9 +31,26 @@ export interface GitWorkflowOptions {
   createMR?: boolean;
 }
 
+/**
+ * Individual JSON log entry from Claude Code stream
+ */
+export interface ClaudeCodeJsonLog {
+  type: string;
+  subtype?: string;
+  timestamp?: string;
+  message?: unknown;
+  result?: string;
+  duration_ms?: number;
+  [key: string]: unknown;
+}
+
 export interface ClaudeCodeResult {
   output: string;
   gitInitResult?: GitInitResult;
+  /** Raw JSON stream logs from Claude Code execution */
+  jsonLogs?: ClaudeCodeJsonLog[];
+  /** Raw stdout output (includes all output before parsing) */
+  rawOutput?: string;
 }
 
 export interface PostExecutionResult {

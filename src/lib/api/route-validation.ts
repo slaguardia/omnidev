@@ -1,44 +1,60 @@
 import { NextResponse } from 'next/server';
 import { AskRouteParams, EditRouteParams } from '@/lib/api/types';
+import { z } from 'zod';
+import type { WorkspaceId } from '@/lib/common/types';
 
 //TODO: Implement zod validation for the request body
 
+// Zod schemas for route params
+const AskRouteParamsSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  question: z.string().min(1, 'Question is required'),
+  context: z.string().nullable().optional(),
+  sourceBranch: z.string().min(1, 'Source branch is required'),
+});
+
+const EditRouteParamsSchema = AskRouteParamsSchema.extend({
+  createMR: z.boolean(),
+  taskId: z.string().optional(),
+  taskName: z.string().optional(),
+  newBranchName: z.string().optional(),
+});
+
 /**
- * Validates and parses ask route parameters with defaults
+ * Validates and parses ask route parameters with defaults using Zod
  */
 export function validateAndParseAskRouteParams(
-  body: AskRouteParams,
+  body: unknown,
   logPrefix: string
 ): { success: boolean; data?: AskRouteParams; error?: NextResponse } {
-  const { workspaceId, question, context, sourceBranch } = body;
-
   // Log request payload
+  const { workspaceId, question, context, sourceBranch } = (body as Record<string, unknown>) || {};
   console.log(`[${logPrefix}] Request payload:`, {
     workspaceId,
-    questionLength: question?.length || 0,
-    contextLength: context?.length || 0,
+    questionLength: typeof question === 'string' ? question.length : 0,
+    contextLength: typeof context === 'string' ? context.length : 0,
     sourceBranch,
     timestamp: new Date().toISOString(),
   });
 
-  // Validate required fields
-  if (!workspaceId || !question || !sourceBranch) {
-    console.log(`[${logPrefix}] Invalid request - missing required fields`);
+  const result = AskRouteParamsSchema.safeParse(body);
+  if (!result.success) {
+    console.log(`[${logPrefix}] Invalid request - Zod errors`, result.error.flatten());
     return {
       success: false,
       error: NextResponse.json(
-        { error: 'Workspace ID and question are required' },
+        { error: 'Invalid request', details: result.error.flatten() },
         { status: 400 }
       ),
     };
   }
 
-  // Prepare parsed data with defaults
+  // Cast workspaceId to WorkspaceId and ensure context is string|null
+  const data = result.data;
   const parsedData: AskRouteParams = {
-    workspaceId: workspaceId,
-    question: question,
-    context: context || null,
-    sourceBranch: sourceBranch,
+    ...data,
+    workspaceId: data.workspaceId as WorkspaceId,
+    context: data.context !== undefined ? data.context : null,
   };
 
   return {
@@ -48,13 +64,13 @@ export function validateAndParseAskRouteParams(
 }
 
 /**
- * Validates and parses edit route parameters with defaults
- * TODO: make this better with Zod
+ * Validates and parses edit route parameters with defaults using Zod
  */
 export function validateAndParseEditRouteParams(
-  body: EditRouteParams,
+  body: unknown,
   logPrefix: string
 ): { success: boolean; data?: EditRouteParams; error?: NextResponse } {
+  // Log request payload
   const {
     workspaceId,
     question,
@@ -64,13 +80,11 @@ export function validateAndParseEditRouteParams(
     taskId,
     taskName,
     newBranchName,
-  } = body;
-
-  // Log request payload
+  } = (body as Record<string, unknown>) || {};
   console.log(`[${logPrefix}] Request payload:`, {
     workspaceId,
-    questionLength: question?.length || 0,
-    contextLength: context?.length || 0,
+    questionLength: typeof question === 'string' ? question.length : 0,
+    contextLength: typeof context === 'string' ? context.length : 0,
     sourceBranch,
     createMR,
     taskId,
@@ -79,33 +93,27 @@ export function validateAndParseEditRouteParams(
     timestamp: new Date().toISOString(),
   });
 
-  // Validate required fields
-  if (!workspaceId || !question || !sourceBranch || createMR === undefined) {
-    console.log(`[${logPrefix}] Invalid request - missing required fields`, {
-      workspaceId: !!workspaceId,
-      question: !!question,
-      sourceBranch: !!sourceBranch,
-      createMR: createMR,
-    });
+  const result = EditRouteParamsSchema.safeParse(body);
+  if (!result.success) {
+    console.log(`[${logPrefix}] Invalid request - Zod errors`, result.error.flatten());
     return {
       success: false,
       error: NextResponse.json(
-        { error: 'Workspace ID, question, source branch, and create MR are required' },
+        { error: 'Invalid request', details: result.error.flatten() },
         { status: 400 }
       ),
     };
   }
 
-  // Prepare parsed data with defaults
+  // Fill in empty string for optional fields if undefined, and cast workspaceId, ensure context is string|null
+  const data = result.data;
   const parsedData: EditRouteParams = {
-    workspaceId: workspaceId,
-    question: question,
-    context: context || null,
-    sourceBranch: sourceBranch,
-    createMR: createMR,
-    taskId: taskId || '',
-    taskName: taskName || '',
-    newBranchName: newBranchName || '',
+    ...data,
+    workspaceId: data.workspaceId as WorkspaceId,
+    context: data.context !== undefined ? data.context : null,
+    taskId: data.taskId ?? '',
+    taskName: data.taskName ?? '',
+    newBranchName: data.newBranchName ?? '',
   };
 
   return {

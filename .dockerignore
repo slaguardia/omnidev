@@ -67,10 +67,9 @@ __tests__/
 **/*.spec.ts
 **/*.spec.tsx
 
-# Documentation
+# Documentation (keep docs/ for runtime doc pages)
 README.md
-docs/
-*.md
+CLAUDE.md
 
 # CI/CD
 .github/

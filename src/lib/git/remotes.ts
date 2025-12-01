@@ -4,15 +4,15 @@
  * Git remote operations - pulling, pushing changes
  */
 
-import { simpleGit } from 'simple-git';
 import type { FilePath, AsyncResult } from '@/lib/common/types';
+import { createSandboxedGit } from '@/lib/git/sandbox';
 
 /**
  * Pull latest changes from remote
  */
 export async function pullChanges(workspacePath: FilePath): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Fetch all remotes and prune deleted remote branches
     await git.fetch(['--all', '--prune']);
@@ -37,7 +37,7 @@ export async function pushChanges(
   branch?: string
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     if (branch) {
       // Push specific branch
