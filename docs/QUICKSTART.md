@@ -228,6 +228,50 @@ This will show you the current status and available commands.
 
 Happy coding! 🚀
 
+## 🔌 Adding MCP Servers to Claude Code
+
+To add MCP (Model Context Protocol) servers to Claude Code running in the container:
+
+**1. Exec into the container:**
+
+```bash
+docker exec -it workflow-app /bin/bash
+```
+
+**2. Navigate to Claude config:**
+
+```bash
+cd ~/.claude
+```
+
+**3. Edit the MCP configuration:**
+
+```bash
+nano settings.local.json
+```
+
+Add your MCP server(s) using this pattern:
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "command-to-run",
+      "args": ["arg1", "arg2"]
+    }
+  }
+}
+```
+
+**4. Exit and restart (if needed):**
+
+```bash
+exit
+docker restart workflow-app
+```
+
+> **Note**: See [CREDENTIALS.md](./CREDENTIALS.md#claude-code-mcp-server-issues) for important considerations about MCP server usage in headless environments.
+
 ## 🔧 VirtualBox Testing Environment
 
 For testing the GitLab Claude Manager in an isolated environment, you can set up a VirtualBox Ubuntu Linux VM. This is particularly useful for testing Git operations, workspace management, and ensuring cross-platform compatibility.

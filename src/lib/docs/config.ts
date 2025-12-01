@@ -62,9 +62,26 @@ export const docsConfig: DocSection[] = [
         file: 'CREDENTIALS.md',
       },
       {
+        title: 'Password Reset',
+        slug: 'password-reset',
+        description: 'How to reset your password if locked out',
+        file: 'PASSWORD_RESET.md',
+      },
+    ],
+  },
+  {
+    title: 'API',
+    pages: [
+      {
+        title: 'API Operations',
+        slug: 'api-operations',
+        description: 'API routes, request queue, and response handling',
+        file: 'API_OPERATIONS.md',
+      },
+      {
         title: 'API Authentication',
         slug: 'api-authentication',
-        description: 'Authentication and authorization for the API',
+        description: 'Authentication methods and security configuration',
         file: 'API_AUTHENTICATION.md',
       },
     ],
@@ -77,6 +94,23 @@ export const docsConfig: DocSection[] = [
         slug: 'merge-request-automation',
         description: 'Automate GitLab merge requests with Claude Code',
         file: 'MERGE_REQUEST_AUTOMATION.md',
+      },
+    ],
+  },
+  {
+    title: 'Integrations',
+    pages: [
+      {
+        title: 'n8n Workflows',
+        slug: 'n8n-workflows',
+        description: 'Automate task processing with n8n integration',
+        file: 'N8N_WORKFLOWS.md',
+      },
+      {
+        title: 'Prompt Templates',
+        slug: 'prompt-templates',
+        description: 'Reusable prompt templates for planning and development',
+        file: 'PROMPT_TEMPLATES.md',
       },
     ],
   },

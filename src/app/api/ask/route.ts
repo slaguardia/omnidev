@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
-import {
-  askClaudeCode,
-  checkClaudeCodeAvailability,
-  handlePostClaudeCodeExecution,
-} from '@/lib/claudeCode';
+import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { access } from 'node:fs/promises';
 import type { WorkspaceId } from '@/lib/types/index';
+import { saveExecutionToHistory } from '@/lib/dashboard/execution-history';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
+import { executeOrQueue, type ClaudeCodeJobPayload, type ClaudeCodeJobResult } from '@/lib/queue';
 
 // This api route needs either next-auth or api key authentication
 export async function POST(request: NextRequest) {
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Claude Code
+    // Use Claude Code via job queue (execute-or-queue pattern)
     console.log(`[ASK API] 🚀 Using Claude Code for enhanced repository analysis`);
     console.log(`[ASK API] Claude Code execution parameters:`, {
       questionLength: question.length,
@@ -132,134 +131,114 @@ export async function POST(request: NextRequest) {
     const claudeStart = Date.now();
 
     try {
-      const claudeResult = await askClaudeCode({
+      // Build job payload
+      const jobPayload: ClaudeCodeJobPayload = {
+        workspaceId: workspace.id as WorkspaceId,
+        workspacePath: workspace.path,
         question,
-        workingDirectory: workspace.path,
         context,
         sourceBranch,
-        workspaceId: workspace.id as WorkspaceId,
-      });
+        repoUrl: workspace.repoUrl,
+      };
 
-      const claudeExecutionTime = Date.now() - claudeStart;
-      console.log(
-        `[ASK API] ✅ Claude Code execution completed in ${claudeExecutionTime}ms (${(claudeExecutionTime / 1000).toFixed(2)}s)`
-      );
+      // Execute or queue the job
+      const execution = await executeOrQueue('claude-code', jobPayload);
 
-      if (!claudeResult.success) {
-        console.error(`[ASK API] Claude Code execution failed:`, claudeResult.error?.message);
-        return NextResponse.json(
-          { error: 'Claude Code execution failed', details: claudeResult.error?.message },
-          { status: 500 }
+      if (execution.immediate) {
+        // Job ran immediately - return result
+        const claudeExecutionTime = Date.now() - claudeStart;
+        const totalTime = Date.now() - startTime;
+        const result = execution.result as ClaudeCodeJobResult;
+
+        console.log(
+          `[ASK API] ✅ Claude Code execution completed immediately in ${claudeExecutionTime}ms`
         );
-      }
 
-      console.log(`[ASK API] Claude Code result summary:`, {
-        success: true,
-        outputLength: claudeResult.data?.output?.length || 0,
-        hasGitInitResult: !!claudeResult.data?.gitInitResult,
-        executionTime: claudeExecutionTime,
-      });
+        // Save to execution history (including full JSON stream)
+        const workspaceName = getProjectDisplayName(workspace.repoUrl);
+        const historyEntry: Parameters<typeof saveExecutionToHistory>[0] = {
+          workspaceId: workspace.id,
+          workspaceName,
+          question,
+          response: result.output || '',
+          status: 'success',
+          executionTimeMs: totalTime,
+        };
+        if (result.jsonLogs) {
+          historyEntry.jsonLogs = result.jsonLogs;
+        }
+        if (result.rawOutput) {
+          historyEntry.rawOutput = result.rawOutput;
+        }
+        await saveExecutionToHistory(historyEntry);
+        console.log(
+          `[ASK API] 📝 Saved execution to history with ${result.jsonLogs?.length || 0} JSON logs`
+        );
 
-      // Log a preview of the output (first 200 chars)
-      if (claudeResult.data?.output) {
-        const preview =
-          claudeResult.data.output.length > 200
-            ? claudeResult.data.output.substring(0, 200) + '...'
-            : claudeResult.data.output;
-        console.log(`[ASK API] Claude Code output preview:`, preview);
-      }
-
-      // Log the gitInitResult details
-      if (claudeResult.data?.gitInitResult) {
-        console.log(`[ASK API] Git operations detected:`, {
-          hasGitInitResult: true,
-          gitResultType: typeof claudeResult.data.gitInitResult,
+        return NextResponse.json({
+          success: true,
+          response: result.output,
+          queued: false,
+          method: 'claude-code',
+          workspace: {
+            id: workspace.id,
+            path: workspace.path,
+            repoUrl: workspace.repoUrl,
+            targetBranch: workspace.targetBranch,
+          },
+          timing: {
+            total: totalTime,
+            claudeExecution: result.executionTimeMs,
+          },
         });
       } else {
-        console.log(`[ASK API] No git operations detected`);
+        // Job was queued - return job ID for polling
+        console.log(`[ASK API] 📋 Job queued with ID: ${execution.jobId}`);
+
+        return NextResponse.json({
+          success: true,
+          queued: true,
+          jobId: execution.jobId,
+          message: 'Job queued - poll /api/jobs/:jobId for results',
+          workspace: {
+            id: workspace.id,
+            path: workspace.path,
+            repoUrl: workspace.repoUrl,
+            targetBranch: workspace.targetBranch,
+          },
+        });
       }
-
-      // Handle post-Claude Code execution git operations
-      if (claudeResult.data?.gitInitResult) {
-        console.log(`[ASK API] 🔄 Processing post-execution git operations...`);
-        const postExecutionStart = Date.now();
-
-        try {
-          const postExecutionResult = await handlePostClaudeCodeExecution(
-            workspace.path,
-            claudeResult.data.gitInitResult,
-            workspace.repoUrl
-          );
-
-          const postExecutionTime = Date.now() - postExecutionStart;
-          console.log(`[ASK API] Post-execution completed in ${postExecutionTime}ms`);
-
-          if (postExecutionResult.success) {
-            console.log(`[ASK API] ✅ Post-execution success:`, {
-              hasChanges: postExecutionResult.data?.hasChanges,
-              mergeRequestUrl: postExecutionResult.data?.mergeRequestUrl,
-              pushedBranch: postExecutionResult.data?.pushedBranch,
-            });
-
-            if (postExecutionResult.data?.mergeRequestUrl) {
-              console.log(
-                `[ASK API] 🎉 Merge request created: ${postExecutionResult.data.mergeRequestUrl}`
-              );
-            } else if (postExecutionResult.data?.pushedBranch) {
-              console.log(
-                `[ASK API] 📤 Changes pushed to branch: ${postExecutionResult.data.pushedBranch}`
-              );
-            } else if (!postExecutionResult.data?.hasChanges) {
-              console.log(`[ASK API] ℹ️ No changes were made by Claude Code`);
-            }
-          } else {
-            console.error(
-              `[ASK API] ❌ Post-execution processing failed:`,
-              postExecutionResult.error?.message
-            );
-            // Don't fail the entire request - just log the error
-          }
-        } catch (postError) {
-          console.error(`[ASK API] ❌ Post-execution processing threw error:`, postError);
-        }
-      }
-
-      const totalTime = Date.now() - startTime;
-      console.log(
-        `[ASK API] 🎯 Request completed successfully in ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s) using Claude Code`
-      );
-
-      return NextResponse.json({
-        success: true,
-        response: claudeResult.data?.output,
-        method: 'claude-code',
-        workspace: {
-          id: workspace.id,
-          path: workspace.path,
-          repoUrl: workspace.repoUrl,
-          targetBranch: workspace.targetBranch,
-        },
-        timing: {
-          total: totalTime,
-          claudeExecution: claudeExecutionTime,
-        },
-      });
     } catch (claudeError) {
       const claudeExecutionTime = Date.now() - claudeStart;
+      const totalTime = Date.now() - startTime;
+      const errorMessage = claudeError instanceof Error ? claudeError.message : String(claudeError);
       console.error(
         `[ASK API] ❌ Claude Code execution threw error after ${claudeExecutionTime}ms:`,
         claudeError
       );
       console.error(`[ASK API] Error details:`, {
         name: claudeError instanceof Error ? claudeError.name : 'Unknown',
-        message: claudeError instanceof Error ? claudeError.message : String(claudeError),
+        message: errorMessage,
         stack: claudeError instanceof Error ? claudeError.stack : undefined,
       });
+
+      // Save error to execution history
+      const workspaceName = getProjectDisplayName(workspace.repoUrl);
+      await saveExecutionToHistory({
+        workspaceId: workspace.id,
+        workspaceName,
+        question,
+        response: '',
+        status: 'error',
+        errorMessage: `Claude Code execution failed: ${errorMessage}`,
+        executionTimeMs: totalTime,
+      });
+      console.log(`[ASK API] 📝 Saved error execution to history`);
 
       return NextResponse.json(
         {
           error: 'Claude Code execution failed',
-          details: claudeError instanceof Error ? claudeError.message : String(claudeError),
+          details: errorMessage,
         },
         { status: 500 }
       );

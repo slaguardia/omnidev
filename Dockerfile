@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     wget \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get update \
     && apt-get install -y \
     nodejs \
     python3 \
@@ -96,6 +97,9 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy docs directory for documentation pages (read at runtime)
+COPY --chown=nextjs:nodejs docs/ ./docs/
 
 # Create workspaces directory with proper permissions
 RUN mkdir -p workspaces && chown nextjs:nodejs workspaces

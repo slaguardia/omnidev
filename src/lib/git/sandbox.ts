@@ -81,12 +81,3 @@ export async function verifyGitBinary(): Promise<boolean> {
 export function getInternalExecutable(executable: keyof typeof INTERNAL_EXECUTABLES): string {
   return INTERNAL_EXECUTABLES[executable];
 }
-
-/**
- * Check if we're running in a sandboxed environment
- *
- * @returns boolean - true if running in Docker with sandbox enabled
- */
-export function isSandboxEnabled(): boolean {
-  return process.env.SANDBOX_ENABLED === 'true' || process.env.DOCKER_ENV === 'true';
-}

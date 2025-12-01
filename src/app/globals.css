@@ -22,8 +22,10 @@
   }
 }
 
-html {
-  overflow-y: scroll;
+html,
+body {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable;
 }
 
 body {

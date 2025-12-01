@@ -4,9 +4,9 @@
  * Git commit operations - committing, getting commit info, staging files
  */
 
-import { simpleGit } from 'simple-git';
 import type { FilePath, AsyncResult, CommitHash } from '@/lib/common/types';
 import type { GitCommitInfo } from '@/lib/git/types';
+import { createSandboxedGit } from '@/lib/git/sandbox';
 
 /**
  * Get current commit hash
@@ -15,7 +15,7 @@ export async function getCurrentCommitHash(
   workspacePath: FilePath
 ): Promise<AsyncResult<CommitHash>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const log = await git.log(['-1', '--format=%H']);
     const hash = log.latest?.hash;
 
@@ -43,7 +43,7 @@ export async function getCommitInfo(
   commitHash?: CommitHash
 ): Promise<AsyncResult<GitCommitInfo>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const log = await git.log(['-1', commitHash || 'HEAD']);
     const commit = log.latest;
 
@@ -77,7 +77,7 @@ export async function hasUncommittedChanges(
   workspacePath: FilePath
 ): Promise<AsyncResult<boolean>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const status = await git.status();
 
     // Check if there are any modified, added, deleted, or untracked files
@@ -97,7 +97,7 @@ export async function hasUncommittedChanges(
  */
 export async function addAllFiles(workspacePath: FilePath): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     await git.add('.');
 
     return { success: true, data: undefined };
@@ -117,7 +117,7 @@ export async function commitChanges(
   message: string
 ): Promise<AsyncResult<CommitHash>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const commitResult = await git.commit(message);
 
     if (!commitResult.commit) {

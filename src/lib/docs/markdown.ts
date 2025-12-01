@@ -51,11 +51,15 @@ export interface Heading {
 }
 
 export function extractHeadings(markdown: string, maxLevel: number = 2): Heading[] {
+  // Remove fenced code blocks before extracting headings
+  // This prevents capturing headings from within code snippets
+  const withoutCodeBlocks = markdown.replace(/```[\s\S]*?```/g, '');
+
   const headingRegex = /^(#{1,6})\s+(.+)$/gm;
   const headings: Heading[] = [];
   let match;
 
-  while ((match = headingRegex.exec(markdown)) !== null) {
+  while ((match = headingRegex.exec(withoutCodeBlocks)) !== null) {
     if (!match[1] || !match[2]) continue;
 
     const level = match[1].length;

@@ -7,8 +7,10 @@
 
 import { resolve } from 'node:path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import type { AppConfig, ClientSafeAppConfig } from '@/lib/types/index';
+import type { AppConfig, ClientSafeAppConfig, FilePath } from '@/lib/types/index';
 import { DEFAULT_CONFIG, validateConfig, validateClientSafeConfig } from './client-settings';
+import { getAllWorkspaces } from '@/lib/managers/workspace-manager';
+import { setWorkspaceGitConfig } from '@/lib/git/config';
 
 /**
  * Configuration file path in workspaces directory
@@ -63,12 +65,14 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
   return {
     gitlab: {
       url: config.gitlab.url,
+      username: config.gitlab.username || '',
+      commitName: config.gitlab.commitName || '',
+      commitEmail: config.gitlab.commitEmail || '',
       tokenSet: !!config.gitlab.token,
       allowedHosts: config.gitlab.allowedHosts,
     },
     claude: {
       apiKeySet: !!config.claude.apiKey,
-      codeCliPath: config.claude.codeCliPath,
       maxTokens: config.claude.maxTokens,
       defaultTemperature: config.claude.defaultTemperature,
     },
@@ -121,6 +125,47 @@ export async function saveConfig(
 }
 
 /**
+ * Update git config for all existing workspaces
+ */
+async function updateAllWorkspacesGitConfig(
+  commitName: string,
+  commitEmail: string
+): Promise<void> {
+  if (!commitName && !commitEmail) {
+    return;
+  }
+
+  try {
+    const workspacesResult = await getAllWorkspaces();
+    if (!workspacesResult.success) {
+      console.warn('Failed to get workspaces for git config update:', workspacesResult.error);
+      return;
+    }
+
+    const workspaces = workspacesResult.data;
+    console.log(`Updating git config for ${workspaces.length} workspaces...`);
+
+    for (const workspace of workspaces) {
+      try {
+        const result = await setWorkspaceGitConfig(workspace.path as FilePath, {
+          userName: commitName,
+          userEmail: commitEmail,
+        });
+        if (result.success) {
+          console.log(`Git config updated for workspace: ${workspace.id}`);
+        } else {
+          console.warn(`Failed to update git config for workspace ${workspace.id}:`, result.error);
+        }
+      } catch (error) {
+        console.warn(`Error updating git config for workspace ${workspace.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.warn('Error updating workspaces git config:', error);
+  }
+}
+
+/**
  * Server action: Update configuration with selective sensitive data updates
  */
 export async function updateConfigFromClient(
@@ -144,10 +189,18 @@ export async function updateConfigFromClient(
     // Load current configuration
     const currentConfig = loadConfigFromFile();
 
+    // Check if commit identity changed
+    const commitIdentityChanged =
+      currentConfig.gitlab.commitName !== clientConfig.gitlab.commitName ||
+      currentConfig.gitlab.commitEmail !== clientConfig.gitlab.commitEmail;
+
     // Create updated configuration, preserving existing sensitive data unless explicitly provided
     const updatedConfig: AppConfig = {
       gitlab: {
         url: clientConfig.gitlab.url,
+        username: clientConfig.gitlab.username,
+        commitName: clientConfig.gitlab.commitName,
+        commitEmail: clientConfig.gitlab.commitEmail,
         token:
           sensitiveData?.gitlabToken !== undefined
             ? sensitiveData.gitlabToken
@@ -159,7 +212,6 @@ export async function updateConfigFromClient(
           sensitiveData?.claudeApiKey !== undefined
             ? sensitiveData.claudeApiKey
             : currentConfig.claude.apiKey,
-        codeCliPath: clientConfig.claude.codeCliPath,
         maxTokens: clientConfig.claude.maxTokens,
         defaultTemperature: clientConfig.claude.defaultTemperature,
       },
@@ -169,7 +221,18 @@ export async function updateConfigFromClient(
     };
 
     // Save the updated configuration
-    return await saveConfig(updatedConfig);
+    const saveResult = await saveConfig(updatedConfig);
+
+    // If save was successful and commit identity changed, update all workspaces
+    if (saveResult.success && commitIdentityChanged) {
+      console.log('Commit identity changed, updating all workspaces...');
+      await updateAllWorkspacesGitConfig(
+        clientConfig.gitlab.commitName,
+        clientConfig.gitlab.commitEmail
+      );
+    }
+
+    return saveResult;
   } catch (error) {
     console.error('Failed to update configuration:', error);
     return {

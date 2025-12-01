@@ -54,19 +54,11 @@ Works perfectly - uses `/opt/internal/bin/git`
 | Claude Code wrapper   | `/usr/local/bin/claude-code-wrapper` | App (to run Claude)      |
 | Standard tools        | `/usr/bin/*`, `/bin/*`               | Everyone                 |
 
-## Environment Variables
-
-| Variable              | Value                                | Description            |
-| --------------------- | ------------------------------------ | ---------------------- |
-| `SANDBOX_ENABLED`     | `true`                               | Enable sandbox mode    |
-| `INTERNAL_GIT_PATH`   | `/opt/internal/bin/git`              | Where real git is      |
-| `CLAUDE_CODE_WRAPPER` | `/usr/local/bin/claude-code-wrapper` | Path to wrapper script |
-
 ## Running Claude Code (Sandboxed)
 
 ### From Your App
 
-The execution module automatically uses the wrapper when `SANDBOX_ENABLED=true`:
+The execution module automatically uses the wrapper (defaults defined in code):
 
 ```typescript
 const result = await askClaudeCode('Analyze this code', {
@@ -195,13 +187,13 @@ console.log('Git accessible:', isOk);
 
 ### Problem: Claude Code still runs git
 
-**Solution**: Verify sandbox is enabled:
+**Solution**: Verify git is blocked:
 
 ```bash
-docker exec workflow-app env | grep SANDBOX_ENABLED
+docker exec workflow-app git --version
 ```
 
-Should output: `SANDBOX_ENABLED=true`
+Should output: `[BLOCKED] git access denied`
 
 ### Problem: Claude Code can't download files
 
@@ -239,12 +231,10 @@ Should work normally, NOT be blocked
 
 ## Security Checklist
 
-- [ ] `SANDBOX_ENABLED=true` in docker-compose.yml
 - [ ] `/usr/bin/git` is a blocking script
 - [ ] `/opt/internal/bin/git` exists and works
 - [ ] Wrapper script at `/usr/local/bin/claude-code-wrapper`
 - [ ] Application uses `createSandboxedGit()` for all git ops
-- [ ] Claude Code execution uses wrapper when sandboxed
 - [ ] Verification script passes all tests
 
 ## Quick Commands

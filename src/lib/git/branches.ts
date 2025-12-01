@@ -4,16 +4,16 @@
  * Git branch operations - creating, switching, deleting, listing branches
  */
 
-import { simpleGit } from 'simple-git';
 import type { FilePath, AsyncResult, CommitHash } from '@/lib/common/types';
 import type { GitBranchInfo } from '@/lib/git/types';
+import { createSandboxedGit } from '@/lib/git/sandbox';
 
 /**
  * Add directory to Git safe directories to prevent ownership issues
  */
 async function addToSafeDirectory(directoryPath: FilePath): Promise<void> {
   try {
-    const git = simpleGit();
+    const git = createSandboxedGit();
     await git.raw(['config', '--global', '--add', 'safe.directory', directoryPath]);
   } catch (error) {
     // Non-fatal error - log but don't fail the operation
@@ -26,43 +26,77 @@ async function addToSafeDirectory(directoryPath: FilePath): Promise<void> {
  */
 export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncResult<string>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
-    // Try to add to safe directory first if we get an ownership error
+    // Add to safe directory first to avoid ownership issues
+    await addToSafeDirectory(workspacePath);
+
+    // Try git status first (works for normal checkouts)
     try {
       const status = await git.status();
-      const currentBranch = status.current;
-
-      if (!currentBranch) {
-        return {
-          success: false,
-          error: new Error('No current branch found (detached HEAD?)'),
-        };
+      if (status.current) {
+        return { success: true, data: status.current };
       }
-
-      return { success: true, data: currentBranch };
-    } catch (error) {
-      // If it's an ownership error, try adding to safe directory and retry
-      if (String(error).includes('dubious ownership')) {
-        await addToSafeDirectory(workspacePath);
-
-        // Retry after adding to safe directory
-        const status = await git.status();
-        const currentBranch = status.current;
-
-        if (!currentBranch) {
-          return {
-            success: false,
-            error: new Error('No current branch found (detached HEAD?)'),
-          };
-        }
-
-        return { success: true, data: currentBranch };
-      }
-
-      // Re-throw if it's not an ownership error
-      throw error;
+    } catch {
+      // Continue to fallback methods
     }
+
+    // Fallback: use rev-parse to get branch name
+    try {
+      const branch = await git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
+      const branchName = branch.trim();
+
+      // If not detached HEAD, return the branch
+      if (branchName && branchName !== 'HEAD') {
+        return { success: true, data: branchName };
+      }
+    } catch {
+      // Continue to next fallback
+    }
+
+    // Fallback for detached HEAD: check what remote branch we're tracking
+    try {
+      // Get the commit we're on
+      const commit = await git.raw(['rev-parse', 'HEAD']);
+      const commitHash = commit.trim();
+
+      // Check which remote branches contain this commit
+      const remoteBranches = await git.raw(['branch', '-r', '--contains', commitHash]);
+      const branches = remoteBranches
+        .split('\n')
+        .map((b) => b.trim())
+        .filter((b) => b && !b.includes('HEAD'));
+
+      const firstBranch = branches[0];
+      if (firstBranch) {
+        // Get the first branch, remove 'origin/' prefix
+        const remoteBranch = firstBranch.replace(/^origin\//, '');
+        console.log('[GIT] Detached HEAD detected, inferred branch from remote:', remoteBranch);
+
+        // Checkout the branch properly to fix detached HEAD
+        await git.checkout(remoteBranch);
+        return { success: true, data: remoteBranch };
+      }
+    } catch {
+      // Continue to final fallback
+    }
+
+    // Final fallback: try to get default branch
+    try {
+      const defaultBranchResult = await getDefaultBranch(workspacePath);
+      if (defaultBranchResult.success) {
+        console.log('[GIT] Using default branch as fallback:', defaultBranchResult.data);
+        await git.checkout(defaultBranchResult.data);
+        return { success: true, data: defaultBranchResult.data };
+      }
+    } catch {
+      // Give up
+    }
+
+    return {
+      success: false,
+      error: new Error('Could not determine current branch'),
+    };
   } catch (error) {
     return {
       success: false,
@@ -76,7 +110,7 @@ export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncRe
  */
 export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<GitBranchInfo[]>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const branches = await git.branch(['--all']);
 
     const branchInfo: GitBranchInfo[] = [];
@@ -106,7 +140,7 @@ export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<
  */
 export async function getDefaultBranch(workspacePath: FilePath): Promise<AsyncResult<string>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Use git remote show origin (most reliable method)
     try {
@@ -145,7 +179,7 @@ export async function getDefaultBranch(workspacePath: FilePath): Promise<AsyncRe
  */
 export async function getLocalBranches(workspacePath: FilePath): Promise<AsyncResult<string[]>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     const branches = await git.branch();
 
     const localBranches = Object.keys(branches.branches)
@@ -168,7 +202,7 @@ export async function getAllRemoteBranches(
   workspacePath: FilePath
 ): Promise<AsyncResult<string[]>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Get remote branches using ls-remote
     const remoteBranchesOutput = await git.raw(['ls-remote', '--heads', 'origin']);
@@ -203,7 +237,7 @@ export async function deleteBranch(
   force = false
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Use -D for force delete, -d for normal delete
     const deleteFlag = force ? '-D' : '-d';
@@ -226,7 +260,7 @@ export async function switchBranch(
   branchName: string
 ): Promise<AsyncResult<void>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Check if branch exists locally
     const branches = await git.branch();
@@ -259,7 +293,7 @@ export async function cleanBranches(
 ): Promise<AsyncResult<void>> {
   try {
     console.log('[GIT WORKFLOW] Cleaning branches...');
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
 
     // Get current branch to avoid deleting it
     const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
@@ -328,7 +362,7 @@ export async function isBranchMerged(
   targetBranch: string
 ): Promise<AsyncResult<boolean>> {
   try {
-    const git = simpleGit(workspacePath);
+    const git = createSandboxedGit(workspacePath);
     // Check if branch is merged into target
     const mergedBranches = await git.raw(['branch', '--merged', targetBranch]);
     const isMerged = mergedBranches

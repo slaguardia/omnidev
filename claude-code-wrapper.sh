@@ -72,5 +72,5 @@ cd "$WORKSPACE_PATH" || {
 }
 
 # Run Claude Code with all passed arguments
-# Note: claude-code must be installed globally via npm
-exec claude-code "$@"
+# Note: @anthropic-ai/claude-code installs as 'claude' binary
+exec claude "$@"

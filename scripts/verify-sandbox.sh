@@ -71,17 +71,7 @@ echo "-----------------------------"
 
 echo "Current user: $(whoami)"
 echo "Working directory: $(pwd)"
-echo "SANDBOX_ENABLED: ${SANDBOX_ENABLED:-not set}"
-echo "DOCKER_ENV: ${DOCKER_ENV:-not set}"
-echo "INTERNAL_GIT_PATH: ${INTERNAL_GIT_PATH:-not set}"
-echo "CLAUDE_CODE_WRAPPER: ${CLAUDE_CODE_WRAPPER:-not set}"
 echo ""
-
-if [ "$SANDBOX_ENABLED" != "true" ]; then
-  echo -e "${YELLOW}WARNING: SANDBOX_ENABLED is not set to 'true'${NC}"
-  echo "The sandbox may not be active. Check docker-compose.yml"
-  echo ""
-fi
 
 # =============================================================================
 # Test Blocked Executables

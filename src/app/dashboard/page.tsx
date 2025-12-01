@@ -2,18 +2,20 @@
 
 import React, { useState } from 'react';
 import { addToast } from '@heroui/toast';
-import { Tab, Tabs } from '@heroui/tabs';
 // Components
 import {
   CloneRepositoryModal,
-  GitConfigModal,
+  ChangePasswordModal,
+  ConfirmClearApiKeyModal,
+  DashboardNavigation,
   WorkspacesTab,
   OperationsTab,
   SettingsTab,
+  GitSourceConfigTab,
+  AccountSecurityTab,
+  ExecutionHistoryTab,
+  QueueTab,
 } from '@/components/dashboard';
-
-// Types
-import type { Workspace } from '@/lib/dashboard/types';
 
 // Hooks
 import {
@@ -21,12 +23,12 @@ import {
   useEnvironmentConfig,
   useCloneRepository,
   useClaudeOperations,
-  useGitConfiguration,
+  useChangePassword,
+  useExecutionHistory,
 } from '@/hooks';
 
 // Utils
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
-import { Divider } from '@heroui/divider';
 
 // Replace the simple toast system with HeroUI toast
 const toast = {
@@ -40,6 +42,10 @@ const toast = {
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('workspaces');
+  const [clearApiKeyConfirmation, setClearApiKeyConfirmation] = useState<{
+    isOpen: boolean;
+    keysToRemove: string[];
+  }>({ isOpen: false, keysToRemove: [] });
 
   // Custom hooks
   const {
@@ -56,6 +62,7 @@ export default function DashboardPage() {
     loading: envLoading,
     saveEnvironmentConfig,
     resetToDefaults,
+    getApiKeyChanges,
   } = useEnvironmentConfig();
   const {
     cloneForm,
@@ -73,14 +80,22 @@ export default function DashboardPage() {
     handleAskClaude,
   } = useClaudeOperations();
   const {
-    gitConfigForm,
-    setGitConfigForm,
-    selectedWorkspaceForGitConfig,
-    loading: gitConfigLoading,
-    handleSetGitConfig,
-    handleGetGitConfig,
-    closeGitConfigModal,
-  } = useGitConfiguration();
+    form: changePasswordForm,
+    setForm: setChangePasswordForm,
+    isModalOpen: isChangePasswordModalOpen,
+    setIsModalOpen: setIsChangePasswordModalOpen,
+    loading: changePasswordLoading,
+    handleChangePassword,
+    closeModal: closeChangePasswordModal,
+  } = useChangePassword();
+  const {
+    history: executionHistory,
+    loading: historyLoading,
+    loadHistory,
+    addExecution,
+    deleteExecution,
+    clearHistory,
+  } = useExecutionHistory();
 
   // Handlers with toast notifications
   const handleCloneWithToast = async () => {
@@ -94,7 +109,29 @@ export default function DashboardPage() {
   };
 
   const handleClaudeWithToast = async () => {
+    const startTime = Date.now();
     const result = await handleAskClaude();
+
+    // Find the workspace name for history
+    const workspace = workspaces.find((w) => w.id === claudeForm.workspaceId);
+    const workspaceName = workspace
+      ? getProjectDisplayName(workspace.repoUrl)
+      : claudeForm.workspaceId;
+
+    // Save to execution history
+    const executionEntry: Parameters<typeof addExecution>[0] = {
+      workspaceId: claudeForm.workspaceId,
+      workspaceName,
+      question: claudeForm.question,
+      response: result.response || result.message,
+      status: result.success ? 'success' : 'error',
+      executionTimeMs: Date.now() - startTime,
+    };
+    if (!result.success) {
+      executionEntry.errorMessage = result.message;
+    }
+    await addExecution(executionEntry);
+
     if (result.success) {
       toast.success(result.message);
     } else {
@@ -112,6 +149,19 @@ export default function DashboardPage() {
   };
 
   const handleSaveEnvConfigWithToast = async () => {
+    // Check if user is about to clear any API keys
+    const changes = getApiKeyChanges();
+
+    if (changes.clearing.length > 0) {
+      // Show confirmation modal before saving
+      setClearApiKeyConfirmation({
+        isOpen: true,
+        keysToRemove: changes.clearing,
+      });
+      return;
+    }
+
+    // No API keys being cleared, save directly
     const result = await saveEnvironmentConfig();
     if (result.success) {
       toast.success(result.message);
@@ -120,85 +170,54 @@ export default function DashboardPage() {
     }
   };
 
-  const handleGitConfigWithToast = async (workspaceId: string, workspace: Workspace) => {
-    const result = await handleGetGitConfig(workspaceId, workspace);
-    if (!result.success && result.message) {
-      toast.error(result.message);
-    }
-  };
+  const handleConfirmClearApiKeys = async () => {
+    // User confirmed clearing, proceed with save
+    const result = await saveEnvironmentConfig();
+    setClearApiKeyConfirmation({ isOpen: false, keysToRemove: [] });
 
-  const handleSetGitConfigWithToast = async (workspaceId: string) => {
-    const result = await handleSetGitConfig(workspaceId);
     if (result.success) {
       toast.success(result.message);
-      loadWorkspaces(); // Refresh workspaces to show updated config
     } else {
       toast.error(result.message);
     }
   };
 
+  const handleChangePasswordWithToast = async () => {
+    const result = await handleChangePassword();
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
+    return result;
+  };
+
   const loading =
-    workspacesLoading || envLoading || cloneLoading || claudeLoading || gitConfigLoading;
+    workspacesLoading ||
+    envLoading ||
+    cloneLoading ||
+    claudeLoading ||
+    changePasswordLoading ||
+    historyLoading;
 
   return (
-    <div className="max-w-7xl mx-auto relative mb-16 mt-8">
-      {/* Blur effects for natural inset/outset */}
-      <div className="absolute -inset-8 bg-gradient-to-r from-transparent via-red-50/20 to-transparent blur-xl rounded-3xl dark:via-red-950/10"></div>
-      <div className="absolute -inset-4 bg-gradient-to-b from-background/60 to-background/80 rounded-2xl shadow-inner"></div>
-
-      <div className="relative z-10 p-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">
-            <span
-              style={{
-                background: 'linear-gradient(to right, #dc2626, #1e40af)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              Code
-            </span>
-            <span
-              style={{
-                background: 'linear-gradient(to right, #1e40af, #dc2626)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              Spider
-            </span>
-            <span className="text-white"> Dashboard</span>
-          </h1>
-          <p className="text-default-600">
-            Manage your development workspaces, configure environment settings, and interact with
-            Claude AI
-          </p>
+    <>
+      {/* Left Sidebar - Fixed */}
+      <aside className="fixed left-0 top-16 bottom-0 hidden w-64 overflow-y-auto bg-background/95 backdrop-blur lg:block xl:w-72">
+        <div className="p-6">
+          <DashboardNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
+      </aside>
 
-        <Tabs
-          selectedKey={activeTab}
-          onSelectionChange={(key: React.Key) => setActiveTab(key as string)}
-          className="w-full"
-          variant="light"
-          color="primary"
-        >
-          <Tab key="workspaces" title="Workspaces" />
-          <Tab key="operations" title="Operations" />
-          <Tab key="settings" title="Environment Config" />
-        </Tabs>
-
-        <Divider className="my-4" />
-
-        <div className="mt-6">
+      {/* Main Content Area - scrolls independently */}
+      <div className="lg:pl-64 xl:pl-72">
+        <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
           {activeTab === 'workspaces' && (
             <WorkspacesTab
               workspaces={workspaces}
               loading={loading}
               onRefreshWorkspaces={loadWorkspaces}
               onOpenCloneModal={() => setIsCloneModalOpen(true)}
-              onConfigureGit={handleGitConfigWithToast}
               onDeleteWorkspace={handleCleanupWithToast}
               getProjectDisplayName={getProjectDisplayName}
             />
@@ -216,6 +235,29 @@ export default function DashboardPage() {
             />
           )}
 
+          {activeTab === 'queue' && <QueueTab />}
+
+          {activeTab === 'history' && (
+            <ExecutionHistoryTab
+              history={executionHistory}
+              loading={historyLoading}
+              onRefresh={loadHistory}
+              onDelete={deleteExecution}
+              onClearAll={clearHistory}
+            />
+          )}
+
+          {activeTab === 'git-source' && (
+            <GitSourceConfigTab
+              envConfig={envConfig}
+              setEnvConfig={setEnvConfig}
+              pendingSensitiveData={pendingSensitiveData}
+              updateSensitiveData={updateSensitiveData}
+              loading={loading}
+              onSaveConfig={handleSaveEnvConfigWithToast}
+            />
+          )}
+
           {activeTab === 'settings' && (
             <SettingsTab
               envConfig={envConfig}
@@ -227,29 +269,47 @@ export default function DashboardPage() {
               onResetToDefaults={resetToDefaults}
             />
           )}
-        </div>
 
-        {/* Clone Repository Modal */}
-        <CloneRepositoryModal
-          isOpen={isCloneModalOpen}
-          onOpenChange={setIsCloneModalOpen}
-          onClone={handleCloneWithToast}
-          cloneForm={cloneForm}
-          setCloneForm={setCloneForm}
-          loading={loading}
-        />
-
-        {/* Git Configuration Modal */}
-        <GitConfigModal
-          workspace={selectedWorkspaceForGitConfig}
-          onClose={closeGitConfigModal}
-          onSave={handleSetGitConfigWithToast}
-          gitConfigForm={gitConfigForm}
-          setGitConfigForm={setGitConfigForm}
-          loading={loading}
-          getProjectDisplayName={getProjectDisplayName}
-        />
+          {activeTab === 'security' && (
+            <AccountSecurityTab onOpenChangePassword={() => setIsChangePasswordModalOpen(true)} />
+          )}
+        </main>
       </div>
-    </div>
+
+      {/* Modals */}
+      <CloneRepositoryModal
+        isOpen={isCloneModalOpen}
+        onOpenChange={setIsCloneModalOpen}
+        onClone={handleCloneWithToast}
+        cloneForm={cloneForm}
+        setCloneForm={setCloneForm}
+        loading={loading}
+        hasCredentials={!!(envConfig.gitlab.username && envConfig.gitlab.tokenSet)}
+      />
+
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onOpenChange={(open) => {
+          if (!open) closeChangePasswordModal();
+          else setIsChangePasswordModalOpen(true);
+        }}
+        onChangePassword={handleChangePasswordWithToast}
+        form={changePasswordForm}
+        setForm={setChangePasswordForm}
+        loading={changePasswordLoading}
+      />
+
+      <ConfirmClearApiKeyModal
+        isOpen={clearApiKeyConfirmation.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setClearApiKeyConfirmation({ isOpen: false, keysToRemove: [] });
+          }
+        }}
+        keysToRemove={clearApiKeyConfirmation.keysToRemove}
+        onConfirm={handleConfirmClearApiKeys}
+        loading={envLoading}
+      />
+    </>
   );
 }

@@ -1,28 +1,60 @@
-# API Authentication Setup
+# API Authentication
 
-This document explains how to set up simple API key authentication for your API routes to secure them from external requests.
+This document covers authentication methods and security configuration for the API.
 
-## Authentication Method
+For API routes, request/response schemas, and the job queue system, see [API Operations](/docs/api-operations).
 
-**API Key Authentication** - Simple and secure authentication using API keys with optional IP whitelisting and rate limiting.
+## Authentication Methods
 
-## Environment Variables
+The application supports two authentication methods:
 
-Add these variables to your `.env.local` file:
+1. **Session Authentication** (Dashboard users) - Automatically authenticated via NextAuth session when logged in
+2. **API Key Authentication** (External clients) - API keys for programmatic access with optional IP whitelisting and rate limiting
+
+Dashboard users don't need to manage API keys for using the dashboard - they're authenticated via their login session. API keys are only needed for external programmatic access.
+
+## Configuration Methods
+
+### 1. Dashboard (Recommended)
+
+The recommended way to manage API keys is through the web dashboard:
+
+1. Navigate to **Dashboard** → **Account Security** tab
+2. Click **Generate API Key** to create a new key
+3. Copy the generated key immediately (it won't be shown again)
+4. Use this key in your API requests
+
+Dashboard-generated keys are stored securely in `workspaces/api-keys.json` and are automatically validated by the API.
+
+### 2. Environment Variables (Legacy/Fallback)
+
+For backwards compatibility or CI/CD environments, you can also configure API keys via environment variables in your `.env.local` file:
 
 ```bash
+# Optional - only needed if not using dashboard-generated keys
 ADMIN_API_KEY=your-secure-admin-api-key-here
 VALID_API_KEYS=client-key-1,client-key-2,client-key-3
+
+# Rate limiting and IP restrictions
 API_RATE_LIMIT=100
 ALLOWED_IPS=192.168.1.100,10.0.0.50
 ```
 
 **Variable descriptions:**
 
-- `ADMIN_API_KEY` - Generate secure API keys (32+ characters recommended)
+- `ADMIN_API_KEY` - Admin API key (32+ characters recommended)
 - `VALID_API_KEYS` - Comma-separated list of client keys
 - `API_RATE_LIMIT` - Requests per hour per client
 - `ALLOWED_IPS` - IP whitelist (use `*` to allow all, or comma-separated list)
+
+## Authentication Priority
+
+The API validates authentication in the following order:
+
+1. **Session authentication** (NextAuth session for logged-in dashboard users)
+2. **Dashboard-generated API keys** (stored in `workspaces/api-keys.json`)
+3. **Admin API key** (from `ADMIN_API_KEY` environment variable)
+4. **Client API keys** (from `VALID_API_KEYS` environment variable)
 
 ## How to Use
 
@@ -117,7 +149,21 @@ print(result)
 5. **HTTPS Only**: Always use HTTPS in production
 6. **Rotate Keys**: Regularly rotate API keys
 
-## Generating Secure API Keys
+## Generating API Keys
+
+### Recommended: Use the Dashboard
+
+The easiest way to generate secure API keys is through the dashboard:
+
+1. Go to **Dashboard** → **Account Security**
+2. Click **Generate API Key**
+3. Copy and store the key securely
+
+The dashboard automatically generates cryptographically secure keys.
+
+### Manual Generation (for environment variables)
+
+If you need to generate keys for environment variable configuration:
 
 **Using Node.js crypto:**
 

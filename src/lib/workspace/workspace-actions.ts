@@ -6,6 +6,7 @@ import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
 import { listWorkspaces } from '@/lib/managers/repository-manager';
 import { loadAllWorkspacesFromStorage } from '@/lib/managers/repository-manager';
 import { cloneRepository } from '@/lib/managers/repository-manager';
+import { getConfig } from '@/lib/config/server-actions';
 
 export async function getWorkspaces(): Promise<Workspace[]> {
   console.log('[WORKSPACE ACTIONS] Starting getWorkspaces()');
@@ -91,8 +92,7 @@ export async function cloneRepositoryAction(
   repoUrl: string,
   branch?: string,
   depth: number = 1,
-  singleBranch: boolean = true,
-  credentials?: { username: string; password: string }
+  singleBranch: boolean = true
 ): Promise<{
   success: boolean;
   message: string;
@@ -133,6 +133,22 @@ export async function cloneRepositoryAction(
       };
     }
     console.log('[WORKSPACE ACTIONS] Workspace manager initialized successfully');
+
+    // Get credentials from config
+    const config = await getConfig();
+    const credentials: GitCredentials | undefined =
+      config.gitlab.username && config.gitlab.token
+        ? { username: config.gitlab.username, password: config.gitlab.token }
+        : undefined;
+
+    if (credentials) {
+      console.log(
+        '[WORKSPACE ACTIONS] Using credentials from config for user:',
+        config.gitlab.username
+      );
+    } else {
+      console.log('[WORKSPACE ACTIONS] No credentials configured, attempting public clone');
+    }
 
     // Use the repository manager to clone
     console.log('[WORKSPACE ACTIONS] Cloning repository...');

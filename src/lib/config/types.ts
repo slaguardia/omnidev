@@ -26,14 +26,12 @@ export interface ClientSafeAppConfig {
 
 export interface ClaudeConfig {
   apiKey: string;
-  codeCliPath: string;
   maxTokens: number;
   defaultTemperature: number;
 }
 
 export interface ClientSafeClaudeConfig {
   apiKeySet: boolean; // Instead of the actual API key
-  codeCliPath: string;
   maxTokens: number;
   defaultTemperature: number;
 }
@@ -41,7 +39,6 @@ export interface ClientSafeClaudeConfig {
 export interface SecurityConfig {
   allowedGitLabHosts: string[];
   maxWorkspaceSize: number;
-  enableSandboxing: boolean;
   apiKey: string;
 }
 

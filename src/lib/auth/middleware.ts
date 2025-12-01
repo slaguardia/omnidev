@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from './auth';
 import { validateApiKey, checkRateLimit, checkIpWhitelist, type AuthResult } from './api-auth';
 
 /**
  * Simple authentication check for API routes
+ * Supports both session-based auth (for dashboard) and API key auth (for external clients)
  * Usage: const authResult = await withAuth(request); if (!authResult.success) return authResult.response;
  */
 export async function withAuth(request: NextRequest): Promise<{
@@ -24,7 +27,21 @@ export async function withAuth(request: NextRequest): Promise<{
       };
     }
 
-    // 2. Validate API key
+    // 2. First, check for NextAuth session (dashboard users)
+    const session = await getServerSession(authOptions);
+    if (session?.user) {
+      console.log(`[AUTH] Session authentication successful for user: ${session.user.name}`);
+      return {
+        success: true,
+        auth: {
+          success: true,
+          userId: session.user.name || 'session-user',
+          clientName: session.user.name || 'Dashboard User',
+        },
+      };
+    }
+
+    // 3. Fall back to API key validation (external clients)
     const authResult = await validateApiKey(request);
     if (!authResult.success) {
       console.log(`[AUTH] Authentication failed: ${authResult.error}`);
@@ -34,7 +51,7 @@ export async function withAuth(request: NextRequest): Promise<{
       };
     }
 
-    // 3. Check rate limits
+    // 4. Check rate limits
     const rateLimitResult = await checkRateLimit(authResult.userId!);
     if (!rateLimitResult.allowed) {
       console.log(`[AUTH] Rate limit exceeded for user: ${authResult.userId}`);

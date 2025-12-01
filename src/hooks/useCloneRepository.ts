@@ -9,11 +9,6 @@ const initialCloneForm: CloneForm = {
   branch: '',
   depth: '1',
   singleBranch: true,
-  showCredentials: false,
-  credentials: {
-    username: '',
-    password: '',
-  },
 };
 
 export const useCloneRepository = () => {
@@ -25,21 +20,12 @@ export const useCloneRepository = () => {
     try {
       setLoading(true);
 
-      // Prepare clone options
-      const credentials =
-        cloneForm.showCredentials &&
-        cloneForm.credentials.username &&
-        cloneForm.credentials.password
-          ? cloneForm.credentials
-          : undefined;
-
-      // Call server action to clone repository
+      // Call server action to clone repository (credentials come from config)
       const result = await cloneRepositoryAction(
         cloneForm.repoUrl,
         cloneForm.branch || undefined,
         parseInt(cloneForm.depth) || 1,
-        cloneForm.singleBranch,
-        credentials
+        cloneForm.singleBranch
       );
 
       if (result.success) {

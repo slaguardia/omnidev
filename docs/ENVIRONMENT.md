@@ -42,24 +42,26 @@ This document provides detailed information about all environment variables used
 
 ---
 
-### Optional Variables (Recommended for Production)
+### API Key Configuration
+
+> **Recommended:** Use the Dashboard to generate and manage API keys instead of environment variables. Navigate to **Dashboard** → **Account Security** to generate keys. Dashboard-generated keys are stored in `workspaces/api-keys.json` and are automatically validated.
 
 #### VALID_API_KEYS
 
-- **Required:** No
-- **Description:** Comma-separated list of valid API keys for external clients
+- **Required:** No (use Dashboard instead)
+- **Description:** Comma-separated list of valid API keys for external clients (legacy/fallback)
 - **Format:** `key1,key2,key3`
 - **Generate:** `openssl rand -hex 32` (for each key)
 - **Example:** `abc123def456,xyz789ghi012`
-- **Note:** If not set, API authentication will be disabled
+- **Note:** Only needed if not using dashboard-generated keys
 
 #### ADMIN_API_KEY
 
-- **Required:** No
-- **Description:** Admin API key with elevated privileges
+- **Required:** No (use Dashboard instead)
+- **Description:** Admin API key with elevated privileges (legacy/fallback)
 - **Format:** String (32+ characters recommended)
 - **Generate:** `openssl rand -hex 32`
-- **Security:** Keep separate from VALID_API_KEYS and highly secure
+- **Note:** Only needed if not using dashboard-generated keys
 
 ---
 
@@ -295,9 +297,11 @@ echo "NEXTAUTH_SECRET=<generated-secret>" >> .env
 
 **Solutions:**
 
-1. Ensure `VALID_API_KEYS` or `ADMIN_API_KEY` is set
-2. Verify API key format (no spaces, correct delimiter)
-3. Check that the key matches exactly (case-sensitive)
+1. Generate an API key in the Dashboard (**Dashboard** → **Account Security**)
+2. Or set `VALID_API_KEYS` or `ADMIN_API_KEY` in environment variables
+3. Verify API key format (no spaces, correct delimiter)
+4. Check that the key matches exactly (case-sensitive)
+5. Ensure `workspaces/api-keys.json` exists if using dashboard-generated keys
 
 ### IP Blocked
 
@@ -311,11 +315,19 @@ echo "NEXTAUTH_SECRET=<generated-secret>" >> .env
 
 ---
 
-## Environment Variable Priority
+## Configuration Priority
 
 The application checks for configuration in this order:
 
-1. **Runtime configuration** (set via UI)
+### API Keys (for API authentication)
+
+1. **Dashboard-generated keys** (stored in `workspaces/api-keys.json`)
+2. **Admin API key** (`ADMIN_API_KEY` environment variable)
+3. **Client API keys** (`VALID_API_KEYS` environment variable)
+
+### Other Settings
+
+1. **Runtime configuration** (set via Dashboard UI, stored in `workspaces/app-config.json`)
 2. **Environment variables** (.env file or system)
 3. **Default values** (hardcoded fallbacks)
 

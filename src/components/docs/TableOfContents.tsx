@@ -46,18 +46,20 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     const element = document.getElementById(id);
-    if (element) {
-      const top = element.offsetTop - 80; // Account for header
-      window.scrollTo({
-        top,
-        behavior: 'smooth',
-      });
+    const scrollContainer = document.querySelector('[data-docs-content]') as HTMLElement | null;
+
+    if (element && scrollContainer) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const scrollTop = scrollContainer.scrollTop + (elementRect.top - containerRect.top) - 20;
+      scrollContainer.scrollTo({ top: scrollTop, behavior: 'instant' });
+      window.history.pushState(null, '', `#${id}`);
       setActiveId(id);
     }
   };
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-2 pb-4">
       <h3 className="text-sm font-semibold text-default-700 mb-4">On this page</h3>
       <ul className="space-y-2 text-sm">
         {headings.map((heading) => {

@@ -134,29 +134,14 @@ function createGitInstance(workingDirectory?: string): SimpleGit {
 
 #### 5. Claude Code Execution
 
-**Location**: `/src/lib/claudeCode/execution.ts`
+**Location**: `/src/lib/claudeCode/orchestrator.ts`
 
-Updated to use wrapper when sandboxed:
+Uses the sandbox wrapper with defaults defined in code:
 
 ```typescript
-const isSandboxed = process.env.SANDBOX_ENABLED === 'true';
-const wrapperPath = process.env.CLAUDE_CODE_WRAPPER;
-
-const command = isSandboxed
-  ? `${wrapperPath} ${workspacePath} --verbose -p "..."`
-  : `claude --verbose -p "..."`;
+const wrapperPath = process.env.CLAUDE_CODE_WRAPPER || '/usr/local/bin/claude-code-wrapper';
+const command = `${wrapperPath} ${workspacePath} --verbose -p "..."`;
 ```
-
-### Environment Variables
-
-Set in `docker-compose.yml`:
-
-| Variable              | Value                                | Purpose                                |
-| --------------------- | ------------------------------------ | -------------------------------------- |
-| `SANDBOX_ENABLED`     | `true`                               | Enable sandbox mode                    |
-| `DOCKER_ENV`          | `true`                               | Indicate Docker environment            |
-| `INTERNAL_GIT_PATH`   | `/opt/internal/bin/git`              | Path to real git binary (app use only) |
-| `CLAUDE_CODE_WRAPPER` | `/usr/local/bin/claude-code-wrapper` | Path to Claude Code wrapper script     |
 
 ## Workflow Example
 
@@ -164,20 +149,19 @@ Set in `docker-compose.yml`:
 
 1. **User initiates Claude Code request** → API endpoint
 2. **Application calls** `askClaudeCode(question, options)`
-3. **Execution module detects** `SANDBOX_ENABLED=true`
-4. **Spawns process** using wrapper:
+3. **Spawns process** using wrapper:
    ```bash
    /usr/local/bin/claude-code-wrapper /app/workspaces/repo -p "question"
    ```
-5. **Wrapper script**:
+4. **Wrapper script**:
    - Validates workspace path
    - Sets restricted PATH
    - Changes to workspace directory
    - Executes `claude-code` with args
-6. **Claude Code attempts** to run `git` command
-7. **PATH lookup finds** `/usr/bin/git` (blocking wrapper)
-8. **Wrapper returns** error: `[BLOCKED] git access denied`
-9. **Claude Code cannot** perform git operations ✓
+5. **Claude Code attempts** to run `git` command
+6. **PATH lookup finds** `/usr/bin/git` (blocking wrapper)
+7. **Wrapper returns** error: `[BLOCKED] git access denied`
+8. **Claude Code cannot** perform git operations ✓
 
 ### When Application Uses Git
 
@@ -329,7 +313,7 @@ docker exec workflow-app /app/scripts/verify-sandbox.sh
 
 **Check**:
 
-1. Verify `SANDBOX_ENABLED=true` in environment
+1. Verify git is blocked: `docker exec workflow-app git --version`
 2. Check wrapper script execution: `which claude-code-wrapper`
 3. Verify PATH in Claude Code context
 4. Check wrapper script logs
