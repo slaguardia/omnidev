@@ -3,6 +3,22 @@ import { getToken } from 'next-auth/jwt';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const protectedPaths = [
+    '/dashboard',
+    '/dashboard/',
+    '/dashboard/:path*',
+    '/settings',
+    '/settings/:path*',
+    '/api/user/:path*',
+    // Dashboard-only API routes (defense in depth; route handlers also enforce session)
+    '/api/claude-md',
+  ];
+
+  const pathname = request.nextUrl.pathname;
+  const isProtected = protectedPaths.some((path) =>
+    new RegExp(`^${path.replace(/:\w+\*/g, '.*')}$`).test(pathname)
+  );
+
   try {
     // Get the token with proper configuration
     const tokenParams: { req: NextRequest; secret?: string } = { req: request };
@@ -13,21 +29,6 @@ export async function middleware(request: NextRequest) {
     const token = await getToken(tokenParams);
 
     const isAuthenticated = !!token;
-
-    const protectedPaths = [
-      '/dashboard',
-      '/dashboard/',
-      '/dashboard/:path*',
-      '/settings',
-      '/settings/:path*',
-      '/api/user/:path*',
-    ];
-
-    const pathname = request.nextUrl.pathname;
-
-    const isProtected = protectedPaths.some((path) =>
-      new RegExp(`^${path.replace(/:\w+\*/g, '.*')}$`).test(pathname)
-    );
 
     if (isProtected && !isAuthenticated) {
       console.log('[MIDDLEWARE] Redirecting to signin from:', pathname);
@@ -45,7 +46,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   } catch (error) {
     console.error('[MIDDLEWARE] Error:', error);
-    // On error, allow the request to continue to avoid blocking the app
+    // Fail closed for protected paths to avoid accidental auth bypass.
+    if (isProtected) {
+      const signInUrl = new URL('/signin', request.url);
+      return NextResponse.redirect(signInUrl);
+    }
     return NextResponse.next();
   }
 }

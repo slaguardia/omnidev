@@ -24,7 +24,7 @@ export const docsConfig: DocSection[] = [
         title: 'Quick Start',
         slug: 'quickstart',
         description: 'Get up and running with Workflow in minutes',
-        file: 'QUICKSTART.md',
+        file: 'quickstart.md',
       },
       {
         title: 'Environment Setup',

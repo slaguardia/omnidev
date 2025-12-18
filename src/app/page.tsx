@@ -1,6 +1,6 @@
 import { Link } from '@heroui/link';
 import { Button } from '@heroui/button';
-import { Zap, BookOpen, Search, GitBranch, Brain } from 'lucide-react';
+import { Zap, BookOpen, Clock, Plug, ListChecks } from 'lucide-react';
 
 import { title, subtitle } from '@/components/Primitives';
 
@@ -166,9 +166,8 @@ export default function Home() {
           </h1>
 
           <div className={subtitle({ class: 'mb-12 max-w-2xl mx-auto' })}>
-            Eats your{' '}
-            <code className="px-2 py-1 bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 rounded font-mono text-sm border border-red-200 dark:border-red-800">{`//BUGs`}</code>{' '}
-            and asynchronously attacks your backlog.
+            Turn your Claude subscription into a 24/7 development assistant. Queue tasks from your
+            phone, wake up to merge requests.
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -201,35 +200,40 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-red-300/50 dark:hover:border-red-400/50 hover:bg-background/80">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <Search className="w-12 h-12 text-red-500" />
+                <Clock className="w-12 h-12 text-red-500" />
               </div>
-              <h3 className="font-bold text-xl mb-4 text-red-700 dark:text-red-300">AI Analysis</h3>
-              <p className="text-default-600 text-sm leading-relaxed">
-                Let Claude understand your codebase structure and provide intelligent insights
-              </p>
-            </div>
-
-            <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-blue-300/50 dark:hover:border-blue-400/50 hover:bg-background/80">
-              <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <Brain className="w-12 h-12 text-blue-500" />
-              </div>
-              <h3 className="font-bold text-xl mb-4 text-blue-700 dark:text-blue-300">
-                Intelligent Caching
+              <h3 className="font-bold text-xl mb-4 text-red-700 dark:text-red-300">
+                Async Job Queue
               </h3>
               <p className="text-default-600 text-sm leading-relaxed">
-                For optimal performance and blazing-fast development workflows
+                Queue code changes and let them run in the background. Check back when it&apos;s
+                done, or get notified via webhook.
               </p>
             </div>
 
             <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-orange-300/50 dark:hover:border-orange-400/50 hover:bg-background/80">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <GitBranch className="w-12 h-12 text-orange-500" />
+                <Plug className="w-12 h-12 text-orange-500" />
               </div>
               <h3 className="font-bold text-xl mb-4 text-orange-700 dark:text-orange-300">
-                Repository Management
+                API-First Design
               </h3>
               <p className="text-default-600 text-sm leading-relaxed">
-                Seamlessly clone, sync, and manage repositories from various platforms
+                REST endpoints for everything. Integrate with n8n, CI/CD pipelines, or build your
+                own automations.
+              </p>
+            </div>
+
+            <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-blue-300/50 dark:hover:border-blue-400/50 hover:bg-background/80">
+              <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
+                <ListChecks className="w-12 h-12 text-blue-500" />
+              </div>
+              <h3 className="font-bold text-xl mb-4 text-blue-700 dark:text-blue-300">
+                Faster Backlog Triage
+              </h3>
+              <p className="text-default-600 text-sm leading-relaxed">
+                Analyze issues, estimate complexity, and plan features with AI assistance. Turn your
+                backlog into actionable tasks.
               </p>
             </div>
           </div>

@@ -290,7 +290,6 @@ export default function QueueTab() {
         queueStatus.pendingJobs.length === 0 &&
         queueStatus.recentJobs.length === 0 && (
           <div className="text-center py-12">
-            <ListOrdered className="w-12 h-12 text-default-300 mx-auto mb-4" />
             <p className="text-default-600">No jobs in the queue.</p>
             <p className="text-sm text-default-500">
               Jobs will appear here when you make requests through the Operations tab.

@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,6 +13,7 @@ import { Divider } from '@heroui/divider';
  */
 const components = {
   // Headings with anchor links
+  // Note: H1 in markdown renders as H2 since DocContent already provides the page title as H1
   h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => {
     const text = String(children);
     const id = text
@@ -23,9 +22,13 @@ const components = {
       .replace(/\s+/g, '-');
 
     return (
-      <h1 id={id} className="scroll-mt-20 text-4xl font-bold tracking-tight mb-4 mt-8" {...props}>
+      <h2
+        id={id}
+        className="scroll-mt-20 text-3xl font-semibold tracking-tight mb-3 mt-8 border-b pb-2"
+        {...props}
+      >
         {children}
-      </h1>
+      </h2>
     );
   },
 
@@ -142,7 +145,7 @@ const components = {
     // Use original text to preserve spacing
     if (isAsciiDiagram) {
       return (
-        <div className="mb-4 overflow-x-auto rounded-lg bg-content2 p-4">
+        <div className="mt-3 mb-4 overflow-x-auto rounded-lg bg-content2 p-4">
           <pre className="text-base font-mono whitespace-pre leading-tight">{text.trim()}</pre>
         </div>
       );
@@ -160,7 +163,7 @@ const components = {
     // If directory structure, render as non-copyable code block
     if (isDirectoryStructure) {
       return (
-        <Code className="block w-full p-4 mb-4 text-base whitespace-pre-wrap break-words">
+        <Code className="block w-full p-4 mt-3 mb-4 text-base whitespace-pre-wrap break-words">
           {text}
         </Code>
       );
@@ -208,7 +211,7 @@ const components = {
     if (!isCommandBlock) {
       return (
         <Snippet
-          className="mb-4 w-full max-w-full"
+          className="mt-3 mb-4 w-full max-w-full"
           classNames={{
             base: 'w-full max-w-full',
             pre: 'whitespace-pre-wrap break-words text-base',
@@ -222,7 +225,7 @@ const components = {
 
     // Render command block - standalone comments as text, commands (with inline comments) as snippets
     return (
-      <div className="mb-4 space-y-2">
+      <div className="mt-3 mb-4 space-y-2">
         {lines.map((line, i) => {
           const trimmedLine = line.trim();
           // Check if line is a standalone comment (starts with # and has no command)

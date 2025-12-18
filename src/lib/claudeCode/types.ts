@@ -19,16 +19,13 @@ export interface ClaudeCodeOptions {
     labels?: string[];
     removeSourceBranch?: boolean;
     squash?: boolean;
-    taskId?: string;
   };
 }
 
 export interface GitWorkflowOptions {
   workspaceId: WorkspaceId;
-  sourceBranch: string;
-  taskId: string | null;
-  newBranchName?: string | null;
-  createMR?: boolean;
+  /** Optional. If omitted, the workflow uses the workspace targetBranch as the base. */
+  sourceBranch?: string;
 }
 
 /**

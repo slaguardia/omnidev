@@ -59,7 +59,7 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
   };
 
   return (
-    <nav className="space-y-2 pb-4">
+    <nav className="space-y-2 pb-4 p-4 rounded-lg border border-divider/50 bg-content1/50">
       <h3 className="text-sm font-semibold text-default-700 mb-4">On this page</h3>
       <ul className="space-y-2 text-sm">
         {headings.map((heading) => {

@@ -1,7 +1,3 @@
-# Docker Setup Guide
-
-This guide will help you dockerize and run the Workflow Manager application using Docker.
-
 ## Files Overview
 
 - `Dockerfile` - Production-optimized multi-stage build
@@ -16,7 +12,7 @@ This guide will help you dockerize and run the Workflow Manager application usin
 1. **Build and run with Docker Compose:**
 
    ```bash
-   docker-compose up --build -d
+   docker compose up -d --build workflow-app
    ```
 
 2. **Or build and run manually:**
@@ -38,27 +34,71 @@ This guide will help you dockerize and run the Workflow Manager application usin
 
 ### Development Setup
 
-1. **Use the development service in docker-compose.yml:**
+You have two dev-friendly options:
 
-   First uncomment the workflow-dev service in docker-compose.yml, then:
-
-   ```bash
-   docker-compose -f docker-compose.yml up workflow-dev --build
-   ```
-
-2. **Or run development container manually:**
-
-   Build development image:
+1. **Hot reload (recommended): `workflow-dev` (detached)**
 
    ```bash
-   docker build -f Dockerfile.dev -t workflow-app-dev .
+   docker compose up -d --build workflow-dev
    ```
 
-   Run with volume mounting for hot reloading:
+   This runs `pnpm dev` inside the container with your repo bind-mounted for fast iteration.
+   By default, `workflow-dev` binds to `http://localhost:3000`.
+
+   If you see `Bind for 0.0.0.0:3000 failed: port is already allocated`, it means something else is already using port 3000 (often `workflow-app`).
+   Stop the other service before starting `workflow-dev`:
 
    ```bash
-   docker run -p 3000:3000 -v "$(pwd)":/app -v /app/node_modules --name workflow-dev workflow-app-dev
+   docker compose stop workflow-app
+   docker compose up -d --build workflow-dev
    ```
+
+2. **Auto-rebuild on file changes (slower): `docker compose watch`**
+
+   The production-like service (`workflow-app`) has `develop.watch` configured in `docker-compose.yml`.
+   This will rebuild/recreate the container when files change:
+
+   ```bash
+   docker compose watch workflow-app
+   ```
+
+## Running Detached (Recommended)
+
+If you want the container logs to show in **Docker Desktop** (not your terminal), run in detached mode:
+
+### Dev (hot reload)
+
+```bash
+docker compose up -d --build workflow-dev
+```
+
+Open: `http://localhost:3000`
+
+### App (prod-like)
+
+```bash
+docker compose up -d --build workflow-app
+```
+
+Open: `http://localhost:3000`
+
+### Viewing logs
+
+- **Docker Desktop**: open the container and view the **Logs** tab
+- **CLI (optional)**:
+
+  ```bash
+  docker compose logs -f workflow-dev
+  # or:
+  docker compose logs -f workflow-app
+  ```
+
+### Stopping
+
+```bash
+docker compose stop workflow-dev
+docker compose stop workflow-app
+```
 
 ## Environment Variables
 
@@ -79,11 +119,105 @@ GITLAB_TOKEN=your_gitlab_token_here
 **Claude Configuration:**
 
 ```bash
-CLAUDE_API_KEY=your_claude_api_key_here
-CLAUDE_CODE_PATH=claude-code
+ANTHROPIC_API_KEY=your_claude_api_key_here
+# Optional override for the sandbox wrapper path used to run Claude Code non-interactively
+CLAUDE_CODE_WRAPPER=/usr/local/bin/claude-code-wrapper
 ```
 
-**Advanced Configuration:**
+## Claude Code Authentication
+
+This app runs Claude Code via the `claude` CLI inside the container.
+
+- **Platform account (API key login)**: If you have an Anthropic **platform** account, set `ANTHROPIC_API_KEY` (recommended for headless/automation).
+- **Claude subscription (manual login)**: If you only have a Claude **subscription** plan (not a platform account), you typically **cannot** use an API key and must log in interactively once.
+
+If you are using a subscription/manual login, set:
+
+```bash
+CLAUDE_CODE_AUTH_MODE=cli
+```
+
+This forces the app to **not pass** `ANTHROPIC_API_KEY` into the `claude` subprocess even if it is set in the container environment.
+
+### One-time manual login inside Docker
+
+1. Exec into the running container:
+
+   ```bash
+   docker exec -it workflow-app bash
+   # or (dev):
+   docker exec -it workflow-dev bash
+   ```
+
+2. Run an **interactive** Claude CLI session and follow the prompts (it will typically print a URL + code):
+
+   ```bash
+   claude --help
+   # Start interactive mode (this is the most version-stable way to complete auth + trust):
+   claude
+   ```
+
+3. Exit and restart the app container:
+
+   ```bash
+   exit
+   docker compose restart workflow-app
+   ```
+
+### Persisting the login across rebuilds/restarts
+
+Claude Code stores its auth + settings under `~/.claude` inside the container.
+`docker-compose.yml` mounts a named volume so your login persists:
+
+- `/home/nextjs/.claude` (the app runs as the `nextjs` user)
+- `/root/.claude` (if you exec into the container as root and run `claude`, it may write here)
+
+**Important:** Claude also writes a `~/.claude.json` file in the user's home directory.
+The container startup scripts migrate this file into `~/.claude/.claude.json` and symlink it back,
+so it persists in the same named volume across restarts.
+
+If you want a single consistent location, log in as `nextjs` (recommended):
+
+```bash
+docker exec -it --user nextjs workflow-app bash
+cd /app/workspaces
+claude
+```
+
+#### Trusted directory (important)
+
+When Claude prompts you to "trust" a directory, do it from the directory you want Claude to operate in.
+For this app, that's typically **`/app/workspaces`** (or a specific repo under it).
+
+**Important nuance:** this app typically runs Claude Code in **non-interactive** mode using `-p/--print` (and `--output-format stream-json`).
+Per the Claude CLI help, **the workspace trust dialog is skipped in `-p` mode**, which is why "headless" commands can appear to work even if you haven't completed the interactive trust/setup flow yet.
+
+If you want to "do it the right way" once and have it persist, run an **interactive** Claude session (no `-p`) from `/app/workspaces` and complete the trust prompt once:
+
+```bash
+# Git Bash / mintty on Windows: use winpty for proper TTY
+winpty docker exec -it --user nextjs workflow-dev bash
+cd /app/workspaces
+claude
+```
+
+Example (dev or prod):
+
+```bash
+docker exec -it --user nextjs workflow-dev bash
+cd /app/workspaces
+# run any claude command once to trigger the trust prompt if needed
+claude --help
+```
+
+To "log out" / reset Claude CLI credentials, remove the volume (this deletes the stored login):
+
+```bash
+docker compose down
+docker volume rm workflow_workflow_claude_config
+```
+
+### Advanced Configuration
 
 ```bash
 MAX_WORKSPACE_SIZE_MB=500
@@ -108,31 +242,31 @@ The Docker setup includes a named volume `workflow_workspaces` to persist:
 Start the application:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Stop the application:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 View logs:
 
 ```bash
-docker-compose logs -f workflow-app
+docker compose logs -f workflow-app
 ```
 
 Restart the application:
 
 ```bash
-docker-compose restart workflow-app
+docker compose restart workflow-app
 ```
 
 Update and rebuild:
 
 ```bash
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ### Development Commands
@@ -140,19 +274,21 @@ docker-compose up --build -d
 Access the container shell:
 
 ```bash
-docker-compose exec workflow-app sh
+docker exec -it workflow-app bash
+# or (dev):
+docker exec -it workflow-dev bash
 ```
 
 Run tests inside container:
 
 ```bash
-docker-compose exec workflow-app pnpm test
+docker exec -it workflow-app bash -lc "pnpm test"
 ```
 
 Check application health:
 
 ```bash
-docker-compose exec workflow-app wget -qO- http://localhost:3000/api/config/validate
+docker exec -it workflow-app bash -lc "wget -qO- http://localhost:3000/api/config/validate"
 ```
 
 ### Cleanup
@@ -160,13 +296,13 @@ docker-compose exec workflow-app wget -qO- http://localhost:3000/api/config/vali
 Remove containers and networks:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 Remove containers, networks, and volumes:
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 Remove all related images:
@@ -244,7 +380,7 @@ spec:
    Fix volume permissions:
 
    ```bash
-   docker-compose exec workflow-app chown -R nextjs:nodejs /app/workspaces
+   docker compose exec workflow-app chown -R nextjs:nodejs /app/workspaces
    ```
 
 3. **Build failures:**
@@ -252,8 +388,37 @@ spec:
    Clean build with no cache:
 
    ```bash
-   docker-compose build --no-cache
+   docker compose build --no-cache
    ```
+
+### Local testing with ngrok
+
+If you want to test webhooks (e.g. n8n callbacks) or access the app from outside your network:
+
+1. Start the app locally (prod or dev):
+
+   ```bash
+   docker compose up -d workflow-app
+   # or:
+   docker compose up workflow-dev --build
+   ```
+
+2. Expose port 3000:
+
+   ```bash
+   ngrok http 3000
+   ```
+
+3. Use the printed URL (e.g. `https://xxxx.ngrok-free.app`) as your base URL:
+
+   - `POST https://xxxx.ngrok-free.app/api/ask`
+   - `POST https://xxxx.ngrok-free.app/api/edit`
+   - `GET  https://xxxx.ngrok-free.app/api/jobs/:jobId`
+
+   Notes:
+
+   - If you are testing **NextAuth session login** through ngrok, you must set `NEXTAUTH_URL` to the ngrok URL.
+   - If you are using **API key auth**, `NEXTAUTH_URL` is not required.
 
 4. **Memory issues:**
 
@@ -304,6 +469,23 @@ Add monitoring with tools like:
 2. **Network security** - Consider using custom networks
 3. **Image scanning** - Regularly scan images for vulnerabilities
 4. **Updates** - Keep base images and dependencies updated
+5. **Reverse proxy (Traefik/Caddy) recommended**:
+
+   - Terminate TLS at the reverse proxy and forward traffic to the app over a private network.
+   - **Do not publish the app container port to the internet**; only the reverse proxy should connect to it.
+   - If you enable API IP allowlisting (`ALLOWED_IPS`), configure the proxy to **overwrite/sanitize** `X-Forwarded-For` / `X-Real-IP` so clients cannot spoof their IP.
+   - **Caddy example**:
+
+     ```caddyfile
+     reverse_proxy workflow-app:3000 {
+       header_up X-Forwarded-For {remote_host}
+       header_up X-Real-IP {remote_host}
+     }
+     ```
+
+6. **Logging hygiene**:
+   - Avoid running with overly verbose logging in production.
+   - The API avoids logging raw prompts and filesystem paths by default, but you should still treat logs as sensitive (they can contain error details and operational metadata).
 
 ## Next Steps
 
@@ -312,87 +494,59 @@ Add monitoring with tools like:
 3. Set up backup strategy for persistent data
 4. Consider using a reverse proxy (nginx, traefik) for production
 
-# VM Setup
+---
 
-✅ Prerequisites
-Ubuntu VM (20.04, 22.04, etc.) running inside VirtualBox
+## VM Setup (Ubuntu)
 
-You’re logged in with a user that has sudo privileges
+If you're setting up Docker on a fresh Ubuntu VM (20.04+), follow these steps.
 
-Internet access on the VM
+### Prerequisites
 
-🔧 Step-by-Step: Install Docker Engine
+- Ubuntu VM with sudo privileges
+- Internet access
 
-1. Update packages
-   bash
-   Copy
-   Edit
-   sudo apt update && sudo apt upgrade -y
-2. Install dependencies
-   bash
-   Copy
-   Edit
-   sudo apt install -y \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
-3. Add Docker’s official GPG key
-   bash
-   Copy
-   Edit
-   sudo mkdir -p /etc/apt/keyrings
+### Install Docker Engine
 
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
- sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 4. Set up the stable Docker repo
-bash
-Copy
-Edit
-echo \
- "deb [arch=$(dpkg --print-architecture) \
- signed-by=/etc/apt/keyrings/docker.gpg] \
- https://download.docker.com/linux/ubuntu \
- $(lsb_release -cs) stable" | \
- sudo tee /etc/apt/sources.list.d/docker.list > /dev/null 5. Update apt and install Docker
-bash
-Copy
-Edit
+Update packages and install dependencies:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y ca-certificates curl gnupg lsb-release
+```
+
+Add Docker's official GPG key:
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+```
+
+Set up the Docker repository:
+
+```bash
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+Install Docker:
+
+```bash
 sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io 6. Post-install: Allow non-root usage (optional)
-bash
-Copy
-Edit
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+```
+
+### Post-Install Configuration
+
+Allow non-root Docker usage:
+
+```bash
 sudo usermod -aG docker $USER
-Then log out and log back in (or run newgrp docker) for changes to take effect.
+```
 
-7. Verify Docker is running
-   bash
-   Copy
-   Edit
-   docker version
-   docker run hello-world
-   🧠 Notes:
-   If docker run hello-world works, Docker is ready.
+Log out and back in, or run `newgrp docker` for the change to take effect.
 
-If you're using a cloud-init VM or a minimal base image, you may need to manually install sudo or other dependencies.
+Verify installation:
 
-Consider installing Docker Compose if needed:
-
-bash
-Copy
-Edit
-sudo apt install docker-compose-plugin
-
-1. Add your user to the docker group:
-   bash
-   Copy
-   Edit
-   sudo usermod -aG docker $USER
-2. Apply the group change:
-   You must log out and log back in for the group change to take effect.
-   Or, just run:
-
-bash
-Copy
-Edit
-newgrp docker
+```bash
+docker version
+docker run hello-world
+```

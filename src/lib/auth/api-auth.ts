@@ -1,7 +1,8 @@
 'use server';
 
 import { resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { compare, hash } from 'bcryptjs';
 
 export interface AuthResult {
   success: boolean;
@@ -10,26 +11,58 @@ export interface AuthResult {
   clientName?: string;
 }
 
-interface StoredApiKey {
+interface StoredHashedApiKey {
+  keyHash: string;
+  userId: string;
+  createdAt: string;
+}
+
+interface StoredLegacyApiKey {
   key: string;
   userId: string;
   createdAt: string;
 }
 
+type StoredApiKey = StoredHashedApiKey | StoredLegacyApiKey;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseStoredApiKeys(data: unknown): StoredApiKey[] {
+  if (!Array.isArray(data)) return [];
+  const out: StoredApiKey[] = [];
+  for (const item of data) {
+    if (!isObject(item)) continue;
+    const userId = item.userId;
+    const createdAt = item.createdAt;
+    if (typeof userId !== 'string' || typeof createdAt !== 'string') continue;
+    if (typeof item.keyHash === 'string') {
+      out.push({ userId, createdAt, keyHash: item.keyHash });
+      continue;
+    }
+    if (typeof item.key === 'string') {
+      out.push({ userId, createdAt, key: item.key });
+      continue;
+    }
+  }
+  return out;
+}
+
 /**
  * Load API keys from the stored api-keys.json file
  */
-function loadStoredApiKeys(): StoredApiKey[] {
+function loadStoredApiKeys(): { apiKeys: StoredApiKey[]; apiKeysPath: string } {
+  const apiKeysPath = resolve(process.cwd(), 'workspaces', 'api-keys.json');
   try {
-    const apiKeysPath = resolve(process.cwd(), 'workspaces', 'api-keys.json');
     if (!existsSync(apiKeysPath)) {
-      return [];
+      return { apiKeys: [], apiKeysPath };
     }
     const data = readFileSync(apiKeysPath, 'utf-8');
-    return JSON.parse(data) as StoredApiKey[];
+    return { apiKeys: parseStoredApiKeys(JSON.parse(data) as unknown), apiKeysPath };
   } catch (error) {
     console.error('Failed to load stored API keys:', error);
-    return [];
+    return { apiKeys: [], apiKeysPath };
   }
 }
 
@@ -49,20 +82,48 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
   }
 
   // Load API keys from stored file (dashboard-generated keys)
-  const storedApiKeys = loadStoredApiKeys();
+  const { apiKeys: storedApiKeys, apiKeysPath } = loadStoredApiKeys();
 
   // Also check environment variables for backwards compatibility
   const envApiKeys = process.env.VALID_API_KEYS?.split(',').filter((k) => k.trim()) || [];
   const adminApiKey = process.env.ADMIN_API_KEY;
 
   // Check if provided key matches a stored key (from dashboard)
-  const matchedStoredKey = storedApiKeys.find((k) => k.key === apiKey);
-  if (matchedStoredKey) {
-    return {
-      success: true,
-      userId: matchedStoredKey.userId,
-      clientName: matchedStoredKey.userId,
-    };
+  for (const stored of storedApiKeys) {
+    // Preferred: hashed key
+    if ('keyHash' in stored) {
+      const isMatch = await compare(apiKey, stored.keyHash);
+      if (isMatch) {
+        return {
+          success: true,
+          userId: stored.userId,
+          clientName: stored.userId,
+        };
+      }
+      continue;
+    }
+
+    // Legacy: plaintext key (deprecated). If matched, migrate to a hash.
+    if (stored.key === apiKey) {
+      try {
+        const migratedHash = await hash(apiKey, 10);
+        const migrated: StoredApiKey[] = storedApiKeys.map((k) => {
+          if ('key' in k && k.key === apiKey && k.userId === stored.userId) {
+            return { userId: k.userId, createdAt: k.createdAt, keyHash: migratedHash };
+          }
+          return k;
+        });
+        writeFileSync(apiKeysPath, JSON.stringify(migrated, null, 2));
+      } catch (migrateError) {
+        console.warn('[AUTH] Failed to migrate legacy API key to hash:', migrateError);
+      }
+
+      return {
+        success: true,
+        userId: stored.userId,
+        clientName: stored.userId,
+      };
+    }
   }
 
   // Check if provided key matches admin key from env
@@ -105,16 +166,36 @@ export async function validateApiKey(request: Request): Promise<AuthResult> {
  * Rate limiting check (basic implementation)
  */
 export async function checkRateLimit(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _clientId: string
+  clientId: string
 ): Promise<{ allowed: boolean; remaining?: number }> {
   // For a production app, you'd want to use Redis or a proper rate limiting service
-  // This is a basic in-memory implementation
+  // This is a basic in-memory implementation (works best on a single instance).
   const maxRequests = parseInt(process.env.API_RATE_LIMIT || '100'); // requests per hour
 
-  // In production, implement proper rate limiting with Redis/database
-  // For now, return allowed
-  return { allowed: true, remaining: maxRequests };
+  const windowMs = 60 * 60 * 1000; // 1 hour
+  const now = Date.now();
+
+  type Bucket = { windowStart: number; count: number };
+  const globalKey = '__workflow_rate_limit__';
+  const store = (globalThis as unknown as Record<string, unknown>)[globalKey];
+
+  const buckets: Map<string, Bucket> =
+    store instanceof Map ? (store as Map<string, Bucket>) : new Map<string, Bucket>();
+  (globalThis as unknown as Record<string, unknown>)[globalKey] = buckets;
+
+  const current = buckets.get(clientId);
+  if (!current || now - current.windowStart >= windowMs) {
+    buckets.set(clientId, { windowStart: now, count: 1 });
+    return { allowed: true, remaining: Math.max(0, maxRequests - 1) };
+  }
+
+  if (current.count >= maxRequests) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  const nextCount = current.count + 1;
+  buckets.set(clientId, { windowStart: current.windowStart, count: nextCount });
+  return { allowed: true, remaining: Math.max(0, maxRequests - nextCount) };
 }
 
 /**

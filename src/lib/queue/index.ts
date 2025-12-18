@@ -15,6 +15,7 @@ export {
   getJob,
   listJobs,
   cleanupOldJobs,
+  deleteFinishedJob,
 } from './queue-manager';
 
 // Worker functions

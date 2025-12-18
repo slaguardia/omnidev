@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown';
 import { Link } from '@heroui/link';
 import RenderExampleModal, { EXAMPLE_CLAUDE_CONTENT } from './RenderExampleModal';
 import { getClaudeMDContent } from '@/lib/claudeCode/claudemd';
+import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 export default function ClaudeMDTab() {
   const [loading, setLoading] = useState(false);
@@ -207,13 +208,19 @@ export default function ClaudeMDTab() {
               </div>
             ) : (
               <Textarea
+                labelPlacement="outside"
+                label={
+                  <LabelWithTooltip
+                    label="CLAUDE.md Content"
+                    tooltip="Use Markdown syntax to format your Claude instructions"
+                  />
+                }
                 value={content}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setContent(e.target.value)}
                 minRows={20}
                 maxRows={30}
                 variant="bordered"
                 className="text-sm w-full max-w-full"
-                description="Use Markdown syntax to format your Claude instructions"
               />
             )}
 

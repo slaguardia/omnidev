@@ -45,6 +45,10 @@ export default [
       ...pluginReact.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
       'no-undef': 'off', // TypeScript handles this better
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
 

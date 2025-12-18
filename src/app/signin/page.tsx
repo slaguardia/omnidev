@@ -17,12 +17,23 @@ interface TwoFactorState {
   useRecoveryCode: boolean;
 }
 
+interface CheckCredentialsResponse {
+  success: boolean;
+  requires2FA?: boolean;
+  pendingToken?: string;
+  hasRecoveryCodes?: boolean;
+  isSignup?: boolean;
+  requiresSetupToken?: boolean;
+  error?: string;
+}
+
 export default function SigninPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingUser, setIsCheckingUser] = useState(true);
   const [error, setError] = useState('');
   const [userExists, setUserExists] = useState<boolean | null>(null);
   const [authSuccess, setAuthSuccess] = useState(false);
+  const [requiresSetupToken, setRequiresSetupToken] = useState(false);
   const [twoFactor, setTwoFactor] = useState<TwoFactorState>({
     required: false,
     pendingToken: '',
@@ -34,6 +45,7 @@ export default function SigninPage() {
     username: '',
     password: '',
     confirmPassword: '',
+    setupToken: '',
   });
   const { data: session, status } = useSession();
 
@@ -106,7 +118,7 @@ export default function SigninPage() {
         }),
       });
 
-      const checkResult = await checkResponse.json();
+      const checkResult = (await checkResponse.json()) as CheckCredentialsResponse;
 
       if (!checkResponse.ok) {
         setError(checkResult.error || 'Invalid credentials');
@@ -114,13 +126,24 @@ export default function SigninPage() {
         return;
       }
 
+      if (checkResult.isSignup && checkResult.requiresSetupToken) {
+        setRequiresSetupToken(true);
+        if (!formData.setupToken) {
+          setError('Setup token is required to create the first account');
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        setRequiresSetupToken(false);
+      }
+
       // Check if 2FA is required
       if (checkResult.requires2FA) {
         console.log('[SIGNIN] 2FA required, showing verification step');
         setTwoFactor({
           required: true,
-          pendingToken: checkResult.pendingToken,
-          hasRecoveryCodes: checkResult.hasRecoveryCodes,
+          pendingToken: checkResult.pendingToken ?? '',
+          hasRecoveryCodes: checkResult.hasRecoveryCodes ?? false,
           useRecoveryCode: false,
         });
         setIsLoading(false);
@@ -132,6 +155,7 @@ export default function SigninPage() {
       await signIn('credentials', {
         username: formData.username,
         password: formData.password,
+        setupToken: formData.setupToken,
         callbackUrl: '/dashboard',
       });
 
@@ -181,6 +205,8 @@ export default function SigninPage() {
       await signIn('credentials', {
         username: formData.username,
         password: formData.password,
+        twoFactorToken:
+          typeof validateResult.twoFactorToken === 'string' ? validateResult.twoFactorToken : '',
         callbackUrl: '/dashboard',
       });
 
@@ -368,6 +394,20 @@ export default function SigninPage() {
                 onChange={handleInputChange}
                 isRequired
                 variant="bordered"
+              />
+            )}
+
+            {isSignup && requiresSetupToken && (
+              <Input
+                name="setupToken"
+                type="password"
+                label="Setup Token"
+                placeholder="Enter setup token"
+                value={formData.setupToken}
+                onChange={handleInputChange}
+                isRequired
+                variant="bordered"
+                autoComplete="off"
               />
             )}
 

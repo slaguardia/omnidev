@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { addToast } from '@heroui/toast';
 import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
 import { getAllRemoteBranches } from '@/lib/git/branches';
 import { loadAllWorkspacesFromStorage } from '@/lib/managers/repository-manager';
@@ -29,7 +30,15 @@ export const useBranches = () => {
       const branchesResult = await getAllRemoteBranches(workspace.data.path);
 
       if (!branchesResult.success) {
-        console.error(`Failed to get branches: ${branchesResult.error.message}`);
+        const message = branchesResult.error.message || 'Failed to get branches';
+        console.error(`Failed to get branches: ${message}`);
+        addToast({
+          title: 'Failed to load branches',
+          description: message.includes('ENOENT')
+            ? 'Git executable not found. Install git (and ensure it is on PATH), or set INTERNAL_GIT_PATH.'
+            : message,
+          color: 'danger',
+        });
         setBranches([]);
         return;
       }
@@ -53,6 +62,14 @@ export const useBranches = () => {
       }
     } catch (error) {
       console.error('Error fetching branches:', error);
+      addToast({
+        title: 'Failed to load branches',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred while loading branches',
+        color: 'danger',
+      });
       setBranches([]);
     } finally {
       setLoading(false);

@@ -5,7 +5,6 @@ import { authOptions } from '@/lib/auth/auth';
 import { saveApiKey } from '@/lib/config/api-key-store';
 
 // This API route only requires next-auth authentication
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function POST(_req: NextRequest) {
   const session = await getServerSession(authOptions);
 

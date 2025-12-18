@@ -39,9 +39,6 @@ export interface AskForm {
 
 export interface EditForm extends AskForm {
   createMR: boolean;
-  taskId?: string;
-  taskName?: string;
-  newBranchName?: string;
 }
 
 export interface ChangePasswordForm {

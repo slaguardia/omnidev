@@ -100,7 +100,7 @@ The Claude Code MCP server may be configured with an invalid or expired GitLab A
 The current implementation handles all git operations manually:
 
 - **Before Claude Code**: Application prepares git workspace, branches, and context
-- **After Claude Code**: Application handles commits, pushes, and merge request creation
+- **After Claude Code (edit requests with `createMR: true`)**: Application handles change detection, commit, push, and optional merge request creation as part of the same queue job.
 
 **Why avoid GitLab MCP server:**
 

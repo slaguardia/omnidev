@@ -45,6 +45,29 @@ export interface ClaudeCodeJobPayload {
   context?: string;
   sourceBranch?: string;
   repoUrl?: string;
+  /**
+   * Optional webhook callback invoked when the job completes or fails.
+   * Useful for webhook-driven orchestrators (e.g. n8n) to avoid polling.
+   */
+  callback?: {
+    /** Destination URL to POST job completion payload to. Must be http(s). */
+    url: string;
+    /**
+     * Optional shared secret used to sign the callback payload.
+     * When provided, Workflow will send `x-workflow-signature: sha256=<hex>`.
+     */
+    secret?: string;
+  };
+  /**
+   * Explicitly mark this as an edit-style request so Claude runs with the right permissions mode.
+   * When omitted, the job handler will infer from createMR.
+   */
+  editRequest?: boolean;
+  /**
+   * If true, the worker will run git workflow initialization before Claude and post-execution
+   * commit/push/MR handling after Claude (best-effort).
+   */
+  createMR?: boolean;
 }
 
 /**
@@ -100,6 +123,16 @@ export interface ClaudeCodeJobResult {
   output: string;
   gitInitResult?: unknown;
   executionTimeMs: number;
+  /**
+   * Result of post-execution git actions (commit/push/MR), if attempted.
+   * Present when createMR was requested and git initialization succeeded.
+   */
+  postExecution?: {
+    hasChanges: boolean;
+    commitHash?: string;
+    mergeRequestUrl?: string;
+    pushedBranch?: string;
+  };
   /** Raw JSON stream logs from Claude Code execution */
   jsonLogs?: ClaudeCodeJsonLog[];
   /** Raw stdout output (includes all output before parsing) */

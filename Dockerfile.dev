@@ -1,0 +1,55 @@
+FROM ubuntu:22.04
+
+# Dev image for hot-reload (next dev --turbopack) inside Docker.
+# This is intentionally larger than prod, optimized for iteration speed.
+
+RUN apt-get update && apt-get install -y \
+    bash \
+    curl \
+    ca-certificates \
+    gnupg \
+    wget \
+    git \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Match prod sandboxing: move real git to internal path and block git for Claude Code
+RUN mkdir -p /opt/internal/bin \
+    && mv /usr/bin/git /opt/internal/bin/git \
+    && chmod 755 /opt/internal/bin/git \
+    && echo '#!/bin/bash' > /usr/bin/git \
+    && echo 'echo \"[BLOCKED] git access denied - all git operations must go through the app API\"' >> /usr/bin/git \
+    && echo 'echo \"Claude Code cannot access git for security reasons.\"' >> /usr/bin/git \
+    && echo 'exit 1' >> /usr/bin/git \
+    && chmod 755 /usr/bin/git
+
+# Package manager + Claude Code CLI
+RUN npm install -g pnpm @anthropic-ai/claude-code@latest
+
+# Create the same non-root user as prod so `docker exec --user nextjs ...` works in dev too.
+# We do NOT switch the default user here because dev bind mounts may require root for write access.
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid 1001 --create-home --home-dir /home/nextjs nextjs
+
+# Claude Code wrapper (used by the app server)
+COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
+RUN chmod 755 /usr/local/bin/claude-code-wrapper
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+# Source is bind-mounted in docker-compose; we install deps on container start there.
+# Use Next's supported flags (avoid invalid short flags like -H).
+CMD ["bash", "-lc", "mkdir -p /app/workspaces /home/nextjs/.claude; if [ -f /home/nextjs/.claude.json ] && [ ! -L /home/nextjs/.claude.json ] && [ ! -f /home/nextjs/.claude/.claude.json ]; then mv /home/nextjs/.claude.json /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; if [ ! -f /home/nextjs/.claude/.claude.json ]; then : > /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; ln -sf /home/nextjs/.claude/.claude.json /home/nextjs/.claude.json 2>/dev/null || true; if [ -f /home/nextjs/.claude.json.backup ] && [ ! -L /home/nextjs/.claude.json.backup ] && [ ! -f /home/nextjs/.claude/.claude.json.backup ]; then mv /home/nextjs/.claude.json.backup /home/nextjs/.claude/.claude.json.backup 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json.backup ]; then ln -sf /home/nextjs/.claude/.claude.json.backup /home/nextjs/.claude.json.backup 2>/dev/null || true; fi; chown -R nextjs:nodejs /app/workspaces /home/nextjs 2>/dev/null || true; pnpm install --frozen-lockfile && pnpm exec next dev --turbopack --hostname 0.0.0.0 --port 3000"]
+
+

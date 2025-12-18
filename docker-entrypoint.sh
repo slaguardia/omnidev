@@ -5,10 +5,64 @@ echo "[ENTRYPOINT] Starting entrypoint script..."
 echo "[ENTRYPOINT] Current user: $(whoami)"
 echo "[ENTRYPOINT] Current directory: $(pwd)"
 echo "[ENTRYPOINT] NEXTAUTH_SECRET_FILE: $NEXTAUTH_SECRET_FILE"
+echo "[ENTRYPOINT] NEXTAUTH_SECRET provided: $( [ -n "$NEXTAUTH_SECRET" ] && echo "yes" || echo "no" )"
 
-# Ensure env variable is set
+# -----------------------------------------------------------------------------
+# Claude Code persistence helpers
+# -----------------------------------------------------------------------------
+# Claude Code stores auth under ~/.claude, but also writes a ~/.claude.json file
+# in the user's home directory. If only ~/.claude is persisted via a volume,
+# ~/.claude.json will be lost on container recreate, which can trigger setup/login
+# prompts again. We migrate these files into ~/.claude and symlink them back.
+persist_claude_home_files() {
+  USER_HOME="$1"
+  if [ -z "$USER_HOME" ]; then
+    return 0
+  fi
+
+  # Ensure base dirs exist
+  mkdir -p "$USER_HOME/.claude" 2>/dev/null || true
+
+  # Migrate + symlink ~/.claude.json
+  if [ -f "$USER_HOME/.claude.json" ] && [ ! -L "$USER_HOME/.claude.json" ]; then
+    if [ ! -f "$USER_HOME/.claude/.claude.json" ]; then
+      mv "$USER_HOME/.claude.json" "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
+    fi
+  fi
+  if [ ! -f "$USER_HOME/.claude/.claude.json" ]; then
+    # Create an empty file so the symlink target always exists
+    : > "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
+  fi
+  ln -sf "$USER_HOME/.claude/.claude.json" "$USER_HOME/.claude.json" 2>/dev/null || true
+
+  # Migrate + symlink ~/.claude.json.backup
+  if [ -f "$USER_HOME/.claude.json.backup" ] && [ ! -L "$USER_HOME/.claude.json.backup" ]; then
+    if [ ! -f "$USER_HOME/.claude/.claude.json.backup" ]; then
+      mv "$USER_HOME/.claude.json.backup" "$USER_HOME/.claude/.claude.json.backup" 2>/dev/null || true
+    fi
+  fi
+  if [ -f "$USER_HOME/.claude/.claude.json.backup" ]; then
+    ln -sf "$USER_HOME/.claude/.claude.json.backup" "$USER_HOME/.claude.json.backup" 2>/dev/null || true
+  fi
+}
+
+# Apply for the current user (prod runs as nextjs, so this will typically be /home/nextjs)
+persist_claude_home_files "$HOME"
+
+# Support both direct secret and file-based secret.
+# - If NEXTAUTH_SECRET is already set, use it as-is.
+# - Else, if NEXTAUTH_SECRET_FILE is set, load/generate from that file.
+if [ -n "$NEXTAUTH_SECRET" ]; then
+  echo "[ENTRYPOINT] Using NEXTAUTH_SECRET from environment"
+  echo "[ENTRYPOINT] Secret length: ${#NEXTAUTH_SECRET} characters"
+  echo "[ENTRYPOINT] Entrypoint script completed successfully"
+  echo "[ENTRYPOINT] Running main process: $@"
+  exec "$@"
+fi
+
+# Ensure env variable is set for file-based secret
 if [ -z "$NEXTAUTH_SECRET_FILE" ]; then
-  echo "[ENTRYPOINT] ERROR: Env var 'NEXTAUTH_SECRET_FILE' missing"
+  echo "[ENTRYPOINT] ERROR: Env var 'NEXTAUTH_SECRET' or 'NEXTAUTH_SECRET_FILE' must be set"
   exit 1
 fi
 

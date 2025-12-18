@@ -204,22 +204,76 @@ export async function getAllRemoteBranches(
   try {
     const git = createSandboxedGit(workspacePath);
 
-    // Get remote branches using ls-remote
-    const remoteBranchesOutput = await git.raw(['ls-remote', '--heads', 'origin']);
-    const remoteBranchNames = remoteBranchesOutput
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => {
-        // Extract branch name from "hash refs/heads/branch-name"
-        const match = line.match(/refs\/heads\/(.+)$/);
-        return match ? match[1] : null;
-      })
-      .filter((branch): branch is string => branch !== null);
+    // Add to safe directory first to avoid ownership issues
+    await addToSafeDirectory(workspacePath);
 
-    // Deduplicate branches
-    const uniqueBranches = Array.from(new Set(remoteBranchNames));
+    // Determine whether an 'origin' remote exists. Some workspaces may be local-only.
+    let hasOriginRemote = false;
+    try {
+      const remotesOutput = await git.raw(['remote']);
+      const remotes = remotesOutput
+        .split('\n')
+        .map((r) => r.trim())
+        .filter(Boolean);
+      hasOriginRemote = remotes.includes('origin');
+    } catch {
+      // If remote listing fails, we may not even be in a git repo. We'll fall back below.
+    }
 
-    return { success: true, data: uniqueBranches };
+    // If no origin remote, fall back to local branches instead of hard failing.
+    if (!hasOriginRemote) {
+      const localBranches = await getLocalBranches(workspacePath);
+      if (localBranches.success) {
+        const uniqueBranches = Array.from(new Set(localBranches.data)).filter(Boolean);
+        return { success: true, data: uniqueBranches };
+      }
+      // If local branch listing fails too, propagate a clearer error.
+      return {
+        success: false,
+        error: new Error(
+          `Failed to get branches: workspace has no 'origin' remote and local branch listing failed: ${localBranches.error}`
+        ),
+      };
+    }
+
+    // Get remote branches using ls-remote (fast, no need to fetch).
+    try {
+      const remoteBranchesOutput = await git.raw(['ls-remote', '--heads', 'origin']);
+      const remoteBranchNames = remoteBranchesOutput
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => {
+          // Extract branch name from "hash refs/heads/branch-name"
+          const match = line.match(/refs\/heads\/(.+)$/);
+          return match ? match[1] : null;
+        })
+        .filter((branch): branch is string => branch !== null);
+
+      const uniqueBranches = Array.from(new Set(remoteBranchNames)).filter(Boolean);
+      if (uniqueBranches.length > 0) {
+        return { success: true, data: uniqueBranches };
+      }
+    } catch (error) {
+      // Fall back to local branches below.
+      console.warn(
+        '[GIT] Failed to list remote branches from origin; falling back to local:',
+        error
+      );
+    }
+
+    // Fallback: local branches (covers cases where origin exists but is temporarily unreachable)
+    const localBranches = await getLocalBranches(workspacePath);
+    if (localBranches.success) {
+      const uniqueBranches = Array.from(new Set(localBranches.data)).filter(Boolean);
+      return { success: true, data: uniqueBranches };
+    }
+
+    return {
+      success: false,
+      error: new Error(
+        `Failed to get all branches (origin unreachable and local listing failed): ${localBranches.error}`
+      ),
+    };
   } catch (error) {
     return {
       success: false,

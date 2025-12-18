@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { Settings } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Select, SelectItem } from '@heroui/select';
 import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Divider } from '@heroui/divider';
 import { Snippet } from '@heroui/snippet';
+import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 interface SettingsTabProps {
   envConfig: ClientSafeAppConfig;
@@ -31,6 +32,9 @@ export default function SettingsTab({
   onResetToDefaults,
 }: SettingsTabProps) {
   const [apiKey, setApiKey] = useState('');
+  useEffect(() => {
+    // Reserved for future initialization needs in this tab
+  }, []);
 
   async function generateApiKey() {
     const res = await fetch('/api/generate-key', {
@@ -66,12 +70,57 @@ export default function SettingsTab({
       </div>
 
       {/* Claude Configuration */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-secondary-500">Claude Configuration</h3>
-        <Divider />
+      <section className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-secondary-500">Claude Configuration</h3>
+          <Divider />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            labelPlacement="outside"
+            label={
+              <LabelWithTooltip
+                label="Claude Auth Mode"
+                tooltip={
+                  envConfig.claude.authMode === 'cli'
+                    ? "Use subscription/manual login. The app will not pass ANTHROPIC_API_KEY to the 'claude' subprocess."
+                    : 'Auto: use an API key if available, otherwise rely on CLI login.'
+                }
+              />
+            }
+            placeholder="Select auth mode"
+            selectedKeys={[envConfig.claude.authMode]}
+            onSelectionChange={(keys: React.Key | Set<React.Key>) => {
+              const keyArray = Array.from(keys as Set<React.Key>);
+              setEnvConfig((prev) => ({
+                ...prev,
+                claude: {
+                  ...prev.claude,
+                  authMode: keyArray[0] as 'auto' | 'cli',
+                },
+              }));
+            }}
+            variant="bordered"
+          >
+            <SelectItem key="auto">Auto (API key if available)</SelectItem>
+            <SelectItem key="cli">CLI Login (Subscription)</SelectItem>
+          </Select>
           <Input
-            label="Claude API Key"
+            labelPlacement="outside"
+            label={
+              <LabelWithTooltip
+                label="Claude API Key"
+                tooltip={
+                  envConfig.claude.apiKeySet
+                    ? envConfig.claude.authMode === 'cli'
+                      ? 'API key is configured but auth mode is CLI login (API key will be ignored).'
+                      : 'API key is configured (enter new key to update)'
+                    : envConfig.claude.authMode === 'cli'
+                      ? 'Optional in CLI login mode (subscription accounts).'
+                      : 'Your Claude API key for AI operations'
+                }
+              />
+            }
             type="password"
             value={pendingSensitiveData.claudeApiKey || ''}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -81,22 +130,20 @@ export default function SettingsTab({
             placeholder={
               envConfig.claude.apiKeySet ? '••••••••••••••••' : 'Enter your Claude API key'
             }
-            description={
-              envConfig.claude.apiKeySet
-                ? 'API key is configured (enter new key to update)'
-                : 'Your Claude API key for AI operations'
-            }
           />
         </div>
       </section>
 
       {/* Application Settings */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-success-500">Application Settings</h3>
-        <Divider />
+      <section className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-success-500">Application Settings</h3>
+          <Divider />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="Temp Directory Prefix"
+            labelPlacement="outside"
             value={envConfig.workspace.tempDirPrefix}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setEnvConfig((prev) => ({
@@ -108,6 +155,7 @@ export default function SettingsTab({
           />
           <Select
             label="Log Level"
+            labelPlacement="outside"
             placeholder="Select log level"
             selectedKeys={[envConfig.logging.level]}
             onSelectionChange={(keys: React.Key | Set<React.Key>) => {
@@ -174,6 +222,8 @@ export default function SettingsTab({
           )}
         </div>
       </section>
+
+      {/* Snippets/examples moved to the Snippets tab */}
     </div>
   );
 }

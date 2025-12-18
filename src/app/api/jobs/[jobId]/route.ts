@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
-import { getJob, createJobId } from '@/lib/queue';
+import { deleteFinishedJob, getJob, createJobId } from '@/lib/queue';
 
 /**
  * GET /api/jobs/:jobId
@@ -69,6 +69,57 @@ export async function GET(
     return NextResponse.json(response);
   } catch (error) {
     console.error('[JOBS API] Error getting job:', error);
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/jobs/:jobId
+ *
+ * Delete a finished job (completed/failed). Intended for external orchestrators (e.g. n8n)
+ * that have already processed the job result and want to remove it early.
+ *
+ * Safety: this refuses to delete pending/processing jobs.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ jobId: string }> }
+) {
+  try {
+    const authResult = await withAuth(request);
+    if (!authResult.success) return authResult.response!;
+
+    const { jobId } = await params;
+    if (!jobId) {
+      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+    }
+
+    const result = await deleteFinishedJob(createJobId(jobId));
+
+    if (result.success) {
+      return NextResponse.json({ success: true, deletedFrom: result.deletedFrom });
+    }
+
+    if (result.reason === 'not_found') {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (result.reason === 'not_finished') {
+      return NextResponse.json(
+        { error: 'Job is not finished (pending/processing jobs cannot be deleted)' },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ error: 'Failed to delete job' }, { status: 500 });
+  } catch (error) {
+    console.error('[JOBS API] Error deleting job:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',

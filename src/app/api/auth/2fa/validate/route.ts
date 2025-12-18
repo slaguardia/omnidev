@@ -5,6 +5,7 @@ import {
   decryptSecret,
   verifyPendingAuthToken,
   verifyRecoveryCode,
+  generateSecondFactorToken,
 } from '@/lib/auth/totp-service';
 
 /**
@@ -45,9 +46,11 @@ export async function POST(request: NextRequest) {
       // Mark the code as used
       await markRecoveryCodeUsed(result.index);
 
+      const twoFactorToken = generateSecondFactorToken(pendingResult.username);
       return NextResponse.json({
         success: true,
         username: pendingResult.username,
+        twoFactorToken,
         message: 'Recovery code verified',
       });
     }
@@ -65,9 +68,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 
+    const twoFactorToken = generateSecondFactorToken(pendingResult.username);
     return NextResponse.json({
       success: true,
       username: pendingResult.username,
+      twoFactorToken,
       message: '2FA verified successfully',
     });
   } catch (error) {

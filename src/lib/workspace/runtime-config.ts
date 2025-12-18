@@ -15,13 +15,19 @@ export async function getRuntimeConfig() {
 export async function validateRuntimeConfiguration() {
   const config = await getRuntimeConfig();
   const errors: string[] = [];
+  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
+  const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
+  const forceCliAuth = authMode === 'cli';
 
   if (!config.gitlab.token) {
     errors.push('GitLab token is required. Please configure it in Settings.');
   }
 
-  if (!config.claude.apiKey) {
-    errors.push('Claude API key is required. Please configure it in Settings.');
+  // In subscription/manual-login mode, an API key is intentionally not required.
+  if (!forceCliAuth && !config.claude.apiKey && !process.env.ANTHROPIC_API_KEY) {
+    errors.push(
+      "Claude authentication is required. Set an API key in Settings (platform account) or set CLAUDE_CODE_AUTH_MODE=cli and log in with the 'claude' CLI inside the container (subscription account)."
+    );
   }
 
   if (errors.length > 0) {

@@ -10,6 +10,7 @@ import {
   DashboardNavigation,
   WorkspacesTab,
   OperationsTab,
+  SnippetsTab,
   SettingsTab,
   GitSourceConfigTab,
   AccountSecurityTab,
@@ -256,6 +257,10 @@ export default function DashboardPage() {
               loading={loading}
               onSaveConfig={handleSaveEnvConfigWithToast}
             />
+          )}
+
+          {activeTab === 'snippets' && (
+            <SnippetsTab workspaces={workspaces} getProjectDisplayName={getProjectDisplayName} />
           )}
 
           {activeTab === 'settings' && (

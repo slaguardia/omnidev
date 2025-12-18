@@ -2,6 +2,8 @@
 
 This guide covers how to integrate Workflow with n8n for automated task processing.
 
+For long-running requests and recommended designs (Option A vs Option B), see `docs/N8N_ASYNC_PATTERNS.md`.
+
 ## Overview
 
 The n8n integration allows you to create automated workflows that:
@@ -15,7 +17,7 @@ The n8n integration allows you to create automated workflows that:
 ```mermaid
 graph TD
     A[ClickUp Task Created] -->|Assigned to bot| B[Trigger Planning Flow]
-    B --> C[Fetch Task Info<br/>+ sourceBranch]
+    B --> C[Fetch Task Info<br/>+ optional sourceBranch]
     C --> D[Send Prompt to Claude Code<br/>via Planner Template]
     D --> E[Claude Planner Agent<br/>Analyzes Codebase]
     E --> F[Refined Task Output:<br/>Title, Steps, Files, DoD]
@@ -76,6 +78,22 @@ Authorization: Bearer YOUR_API_KEY
 Content-Type: application/json
 ```
 
+Example JSON body:
+
+```json
+{
+  "workspaceId": "your-workspace-id",
+  "question": "Your prompt text here",
+  "context": "Optional extra context"
+}
+```
+
+Notes:
+
+- `sourceBranch` is optional. If omitted, the server defaults to the workspace `targetBranch`.
+- For edits, use `POST /api/edit` (and optionally set `createMR: true`). For large requests, expect `queued: true` frequently.
+- For webhook-driven processing (recommended for large jobs), submit with a `callback` object and handle completion in a separate workflow. See `docs/N8N_ASYNC_PATTERNS.md`.
+
 ### Step 3: Parse Response
 
 Use a Set node to extract the Claude response and format it for ClickUp.
@@ -89,3 +107,4 @@ Use the ClickUp node to update the task with the refined information.
 - See [Prompt Templates](/docs/prompt-templates) for the planner prompt format
 - See [API Operations](/docs/api-operations) for API endpoint details
 - See [API Authentication](/docs/api-authentication) for securing your integration
+- See `docs/N8N_ASYNC_PATTERNS.md` for robust async patterns and modular processing flows

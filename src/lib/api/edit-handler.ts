@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkClaudeCodeAvailability, initializeGitWorkflow } from '@/lib/claudeCode';
+import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { validateAndLoadWorkspace } from './workspace-validation';
 import { EditRouteParams } from './types';
-import { saveExecutionToHistory } from '@/lib/dashboard/execution-history';
-import { getProjectDisplayName } from '@/lib/dashboard/helpers';
 import { executeOrQueue, type ClaudeCodeJobPayload, type ClaudeCodeJobResult } from '@/lib/queue';
 
 /**
@@ -15,8 +13,8 @@ export async function handleEditClaudeCodeRequest(
   logPrefix: string,
   parsedData: EditRouteParams
 ): Promise<NextResponse> {
-  const { workspaceId, question, context, sourceBranch, createMR, taskId, newBranchName } =
-    parsedData;
+  const { workspaceId, question, context, sourceBranch, callback } = parsedData;
+  const createMR = Boolean(parsedData.createMR);
   const startTime = Date.now();
 
   console.log(`[${logPrefix}] Request started at ${new Date().toISOString()}`);
@@ -46,6 +44,7 @@ export async function handleEditClaudeCodeRequest(
     }
 
     const workspace = workspaceValidation.workspace;
+    const effectiveSourceBranch = sourceBranch || workspace?.targetBranch;
 
     // ============================================================================
     // STEP 4: CLAUDE CODE AVAILABILITY CHECK
@@ -80,34 +79,6 @@ export async function handleEditClaudeCodeRequest(
     }
 
     // ============================================================================
-    // STEP 5: GIT WORKFLOW INITIALIZATION
-    // ============================================================================
-
-    if (createMR && workspaceId) {
-      console.log(`[CLAUDE CODE] 🔄 Initializing git workflow for edit request...`);
-      const gitInitStart = Date.now();
-
-      const result = await initializeGitWorkflow({
-        workspaceId: workspaceId,
-        sourceBranch: sourceBranch,
-        taskId: taskId || null,
-        newBranchName: newBranchName || null,
-        createMR: createMR,
-      });
-      const gitInitTime = Date.now() - gitInitStart;
-
-      if (!result.success) {
-        console.warn(
-          `[CLAUDE CODE] ⚠️ Git workflow initialization failed in ${gitInitTime}ms:`,
-          result.error?.message
-        );
-        // Don't fail the request, just warn - Claude Code might still work
-      } else {
-        console.log(`[CLAUDE CODE] ✅ Git workflow initialized successfully in ${gitInitTime}ms`);
-      }
-    }
-
-    // ============================================================================
     // STEP 5: CLAUDE CODE EXECUTION VIA JOB QUEUE
     // ============================================================================
 
@@ -117,7 +88,7 @@ export async function handleEditClaudeCodeRequest(
       questionLength: question.length,
       workingDirectory: workspace?.path,
       contextLength: context?.length || 0,
-      sourceBranch: sourceBranch ?? 'default',
+      sourceBranch: effectiveSourceBranch ?? 'default',
       workspaceId: workspace?.id,
       mode: 'edit',
     });
@@ -137,9 +108,16 @@ export async function handleEditClaudeCodeRequest(
         workspacePath: workspace.path,
         question: question,
         context: context ?? '',
-        sourceBranch: sourceBranch,
         repoUrl: workspace.repoUrl,
+        editRequest: true,
+        createMR,
       };
+      if (effectiveSourceBranch) {
+        jobPayload.sourceBranch = effectiveSourceBranch;
+      }
+      if (callback) {
+        jobPayload.callback = callback;
+      }
 
       // Execute or queue the job
       const execution = await executeOrQueue('claude-code', jobPayload);
@@ -154,32 +132,12 @@ export async function handleEditClaudeCodeRequest(
           `[${logPrefix}] ✅ Claude Code execution completed immediately in ${claudeExecutionTime}ms`
         );
 
-        // Save to execution history (including full JSON stream)
-        const workspaceName = getProjectDisplayName(workspace.repoUrl);
-        const historyEntry: Parameters<typeof saveExecutionToHistory>[0] = {
-          workspaceId: workspace.id,
-          workspaceName,
-          question,
-          response: result.output || '',
-          status: 'success',
-          executionTimeMs: totalTime,
-        };
-        if (result.jsonLogs) {
-          historyEntry.jsonLogs = result.jsonLogs;
-        }
-        if (result.rawOutput) {
-          historyEntry.rawOutput = result.rawOutput;
-        }
-        await saveExecutionToHistory(historyEntry);
-        console.log(
-          `[${logPrefix}] 📝 Saved execution to history with ${result.jsonLogs?.length || 0} JSON logs`
-        );
-
         return NextResponse.json({
           success: true,
           response: result.output,
           queued: false,
           method: 'claude-code',
+          ...(result.postExecution ? { postExecution: result.postExecution } : {}),
           workspace: {
             id: workspace.id,
             path: workspace.path,
@@ -217,7 +175,7 @@ export async function handleEditClaudeCodeRequest(
       // This is separate from the outer catch block which handles general request errors
 
       const claudeExecutionTime = Date.now() - claudeStart;
-      const totalTime = Date.now() - startTime;
+      const _totalTime = Date.now() - startTime;
       const errorMessage = claudeError instanceof Error ? claudeError.message : String(claudeError);
       console.error(
         `[${logPrefix}] ❌ Claude Code execution threw error after ${claudeExecutionTime}ms:`,
@@ -228,21 +186,6 @@ export async function handleEditClaudeCodeRequest(
         message: errorMessage,
         stack: claudeError instanceof Error ? claudeError.stack : undefined,
       });
-
-      // Save error to execution history
-      if (workspace) {
-        const workspaceName = getProjectDisplayName(workspace.repoUrl);
-        await saveExecutionToHistory({
-          workspaceId: workspace.id,
-          workspaceName,
-          question,
-          response: '',
-          status: 'error',
-          errorMessage: `Claude Code execution failed: ${errorMessage}`,
-          executionTimeMs: totalTime,
-        });
-        console.log(`[${logPrefix}] 📝 Saved error execution to history`);
-      }
 
       return NextResponse.json(
         {

@@ -7,7 +7,7 @@ This document provides detailed information about all environment variables used
 1. **Copy the example file:**
 
    ```bash
-   cp docs/.env.example .env
+   cp env.example .env
    ```
 
 2. **Configure required variables:**
@@ -16,9 +16,61 @@ This document provides detailed information about all environment variables used
    - `NEXTAUTH_URL` - Your application URL
 
 3. **Start the application:**
+
    ```bash
    pnpm dev
    ```
+
+## Production Deployment
+
+For production deployments, use the following template. Generate secure values for each secret before deploying.
+
+### Minimum Production Configuration
+
+```bash
+# Required - generate with: openssl rand -base64 32
+NEXTAUTH_SECRET=<your-generated-secret>
+
+# Required - your production URL (no trailing slash)
+NEXTAUTH_URL=https://your-domain.com
+
+# Required for production - generate with: openssl rand -hex 32
+# Prevents unauthorized first-user account creation
+INITIAL_SIGNUP_TOKEN=<your-generated-token>
+```
+
+### Recommended Production Configuration
+
+```bash
+# ---- Required ----
+NEXTAUTH_SECRET=<your-generated-secret>
+NEXTAUTH_URL=https://your-domain.com
+INITIAL_SIGNUP_TOKEN=<your-generated-token>
+
+# ---- Security (recommended) ----
+ALLOWED_IPS=<your-trusted-ips>
+API_RATE_LIMIT=100
+
+# ---- Integration credentials (or configure via Dashboard UI) ----
+ANTHROPIC_API_KEY=<your-anthropic-key>
+GITLAB_URL=https://gitlab.com
+GITLAB_TOKEN=<your-gitlab-token>
+ALLOWED_GITLAB_HOSTS=gitlab.com
+```
+
+### Generate Secure Values
+
+Run these commands to generate the required secrets:
+
+```bash
+# Generate NEXTAUTH_SECRET
+echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)"
+
+# Generate INITIAL_SIGNUP_TOKEN
+echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
+```
+
+---
 
 ## Environment Variables
 
@@ -78,13 +130,28 @@ This document provides detailed information about all environment variables used
 #### ALLOWED_IPS
 
 - **Required:** No
-- **Description:** IP whitelist for API access
+- **Description:** IP whitelist for API access.
 - **Format:** Comma-separated IPs or `*` for all
 - **Default:** Allow all (if not set)
 - **Examples:**
   - `192.168.1.100,10.0.0.50` - Specific IPs
   - `*` - Allow all
   - Empty - Allow all
+- **Reverse proxy note (Traefik/Caddy):**
+
+  - The app determines the client IP from `x-forwarded-for` (first value) or `x-real-ip`.
+  - **Only enable `ALLOWED_IPS` if your reverse proxy is trusted** and **overwrites/sanitizes** these headers.
+  - **Do not expose the app container/port directly to the internet**; only your reverse proxy should be able to reach it (private Docker network / firewall).
+  - **Caddy example** (overwrite headers):
+
+    ```caddyfile
+    reverse_proxy workflow-app:3000 {
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Real-IP {remote_host}
+    }
+    ```
+
+  - **Traefik**: configure forwarded headers so untrusted client-supplied `X-Forwarded-*` values are not accepted (use trusted proxy hops / `trustedIPs` and keep `insecure=false`).
 
 ---
 
@@ -97,6 +164,15 @@ This document provides detailed information about all environment variables used
 - **Format:** String
 - **Get Key:** https://console.anthropic.com/
 - **Note:** Can also be configured through the web UI
+
+#### CLAUDE_CODE_AUTH_MODE
+
+- **Required:** No
+- **Description:** Controls how the app authenticates the `claude` CLI subprocess
+- **Values:**
+  - `auto` (default): use an API key if available, otherwise rely on CLI login
+  - `cli`: **never pass `ANTHROPIC_API_KEY`** to the `claude` subprocess (useful for Claude subscription accounts that require interactive login)
+- **Example:** `CLAUDE_CODE_AUTH_MODE=cli`
 
 ---
 
@@ -151,6 +227,20 @@ This document provides detailed information about all environment variables used
 - **Description:** Application logging level
 - **Values:** `debug` | `info` | `warn` | `error`
 - **Default:** `info`
+
+---
+
+### First User Signup Hardening (Recommended for Production)
+
+#### INITIAL_SIGNUP_TOKEN
+
+- **Required:** No
+- **Description:** If set, creating the **first** (initial) dashboard user requires providing this token during signup.
+- **Format:** String (32+ characters recommended)
+- **Example:** `openssl rand -hex 32`
+- **Notes:**
+  - Leave unset for local/dev convenience.
+  - Set this in production to prevent “first user wins” account takeover if the app is accidentally exposed before setup.
 
 ---
 
@@ -211,7 +301,7 @@ GITLAB_TOKEN=your-token
 1. **Never commit `.env` files**
 
    - The `.env` file is in `.gitignore`
-   - Use `docs/.env.example` as a template
+   - Use `env.example` as a template
 
 2. **Use strong secrets**
 

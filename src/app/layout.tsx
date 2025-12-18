@@ -7,6 +7,7 @@ import { Providers } from '@/app/providers';
 import { siteConfig } from '@/lib/config/site';
 import { fontSans } from '@/lib/config/fonts';
 import { Navbar } from '@/components/NavBar';
+import { Footer } from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: {
@@ -41,11 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="relative flex flex-col min-h-screen">
             <Navbar />
             <main className="flex-1 pt-16">{children}</main>
-            <footer className="w-full flex items-center justify-center py-6 bg-background/80 backdrop-blur-sm">
-              <div className="text-sm text-default-500">
-                © 2024 CodeSpider. All rights reserved.
-              </div>
-            </footer>
+            <Footer />
           </div>
         </Providers>
       </body>

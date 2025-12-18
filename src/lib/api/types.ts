@@ -7,14 +7,18 @@ export interface AskRouteParams {
   workspaceId: WorkspaceId;
   question: string;
   context?: string | null;
-  sourceBranch: string;
+  /** Optional. If omitted, routes default to the workspace's targetBranch. */
+  sourceBranch?: string;
+  /** Optional webhook callback invoked when the queued job completes/fails. */
+  callback?: {
+    url: string;
+    secret?: string;
+  };
 }
 
 export interface EditRouteParams extends AskRouteParams {
-  createMR: boolean;
-  taskId?: string;
-  taskName?: string;
-  newBranchName?: string;
+  /** Optional. Defaults to false. */
+  createMR?: boolean;
 }
 
 export interface WorkspaceValidationResult {
@@ -25,31 +29,30 @@ export interface WorkspaceValidationResult {
 }
 
 // Utility functions for type-safe payload transformation
-export const transformAskFormToParams = (form: AskForm): AskRouteParams => ({
-  workspaceId: form.workspaceId as WorkspaceId,
-  question: form.question,
-  context: form.context || null,
-  sourceBranch: form.sourceBranch,
-});
+export const transformAskFormToParams = (form: AskForm): AskRouteParams => {
+  const params: AskRouteParams = {
+    workspaceId: form.workspaceId as WorkspaceId,
+    question: form.question,
+    context: form.context || null,
+  };
+
+  if (form.sourceBranch && form.sourceBranch.trim().length > 0) {
+    params.sourceBranch = form.sourceBranch.trim();
+  }
+
+  return params;
+};
 
 export const transformEditFormToParams = (form: EditForm): EditRouteParams => {
   const params: EditRouteParams = {
     workspaceId: form.workspaceId as WorkspaceId,
     question: form.question,
     context: form.context || null,
-    sourceBranch: form.sourceBranch,
     createMR: form.createMR,
   };
 
-  // Only include optional properties if they have values
-  if (form.taskId && form.taskId.trim()) {
-    params.taskId = form.taskId;
-  }
-  if (form.taskName && form.taskName.trim()) {
-    params.taskName = form.taskName;
-  }
-  if (form.newBranchName && form.newBranchName.trim()) {
-    params.newBranchName = form.newBranchName;
+  if (form.sourceBranch && form.sourceBranch.trim().length > 0) {
+    params.sourceBranch = form.sourceBranch.trim();
   }
 
   return params;

@@ -108,7 +108,7 @@ All configuration is managed through the web interface:
 If you prefer environment variables, copy the example file and configure:
 
 ```bash
-cp docs/.env.example .env
+cp env.example .env
 # Edit .env with your values
 ```
 

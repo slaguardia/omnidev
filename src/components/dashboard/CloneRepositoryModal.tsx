@@ -57,6 +57,7 @@ export default function CloneRepositoryModal({
               <div className="space-y-4">
                 <Input
                   label="Repository URL"
+                  labelPlacement="outside"
                   placeholder="https://gitlab.com/user/repo.git"
                   value={cloneForm.repoUrl}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -66,6 +67,7 @@ export default function CloneRepositoryModal({
                 />
                 <Input
                   label="Branch (optional)"
+                  labelPlacement="outside"
                   placeholder="main"
                   value={cloneForm.branch}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -76,6 +78,7 @@ export default function CloneRepositoryModal({
                 <div className="flex gap-4">
                   <Input
                     label="Depth"
+                    labelPlacement="outside"
                     type="number"
                     value={cloneForm.depth}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>

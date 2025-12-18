@@ -1,5 +1,3 @@
-# Sandbox Architecture Documentation
-
 ## Overview
 
 This document describes the sandboxing architecture implemented to isolate Claude Code from sensitive system executables while allowing the main application to retain full access to these tools.
@@ -150,9 +148,11 @@ const command = `${wrapperPath} ${workspacePath} --verbose -p "..."`;
 1. **User initiates Claude Code request** → API endpoint
 2. **Application calls** `askClaudeCode(question, options)`
 3. **Spawns process** using wrapper:
+
    ```bash
    /usr/local/bin/claude-code-wrapper /app/workspaces/repo -p "question"
    ```
+
 4. **Wrapper script**:
    - Validates workspace path
    - Sets restricted PATH
@@ -169,9 +169,11 @@ const command = `${wrapperPath} ${workspacePath} --verbose -p "..."`;
 2. **Calls** `cloneRepository(url, path)`
 3. **Function uses** `createGitInstance(path)`
 4. **Creates** sandboxed git instance:
+
    ```typescript
    return simpleGit({ binary: '/opt/internal/bin/git' });
    ```
+
 5. **simple-git library** calls `/opt/internal/bin/git` directly
 6. **Real git binary** executes successfully ✓
 

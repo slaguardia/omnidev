@@ -13,6 +13,7 @@ import type { AsyncResult, Result } from '@/lib/types/index';
  */
 export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean>> {
   const startTime = Date.now();
+  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
   console.log(
     `[AVAILABILITY CHECK] Starting Claude Code availability check at ${new Date().toISOString()}`
   );
@@ -45,6 +46,8 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
   try {
     // Get runtime configuration for API key outside the promise
     const config = await getRuntimeConfig();
+    const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
+    const forceCliAuth = authMode === 'cli';
 
     return await new Promise<Result<boolean>>((resolve) => {
       let resolved = false;
@@ -80,15 +83,20 @@ export async function checkClaudeCodeAvailability(): Promise<AsyncResult<boolean
 
       const spawnStart = Date.now();
 
+      const childEnv: NodeJS.ProcessEnv = { ...process.env };
+      if (forceCliAuth) {
+        delete childEnv.ANTHROPIC_API_KEY;
+      } else {
+        childEnv.ANTHROPIC_API_KEY = config.claude.apiKey || process.env.ANTHROPIC_API_KEY;
+      }
+
       const testProcess = spawn('claude', ['--version'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
         signal: controller.signal,
         timeout: 5000, // Built-in timeout as backup
         env: {
-          ...process.env,
-          // Use API key from runtime configuration if available
-          ANTHROPIC_API_KEY: config.claude.apiKey || process.env.ANTHROPIC_API_KEY,
+          ...childEnv,
         },
       });
 

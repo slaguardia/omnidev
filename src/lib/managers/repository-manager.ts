@@ -408,7 +408,8 @@ export async function switchBranch(
     }
 
     // Switch branch using git operations
-    const switchResult = await switchBranch(workspaceId, branchName);
+    const gitOps = new GitOperations();
+    const switchResult = await gitOps.switchBranch(workspace.path, branchName);
     if (!switchResult.success) {
       return switchResult;
     }
@@ -856,8 +857,7 @@ export async function initializeWorkspaceGitConfig(
  */
 export async function initializeGitWorkflow(
   workspaceId: WorkspaceId,
-  sourceBranch: string,
-  taskId: string
+  sourceBranch?: string
 ): Promise<AsyncResult<GitInitResult>> {
   try {
     // Get the workspace
@@ -893,8 +893,12 @@ export async function initializeGitWorkflow(
         };
       }
     }
+
+    // If no sourceBranch was provided, default to the targetBranch.
+    const effectiveSourceBranch = sourceBranch || targetBranch;
+
     // Check if the source branch is the same as the target branch
-    if (sourceBranch === targetBranch) {
+    if (effectiveSourceBranch === targetBranch) {
       console.log(
         '[GIT WORKFLOW] Source branch is the same as the target branch, checking out target branch...'
       );
@@ -931,8 +935,7 @@ export async function initializeGitWorkflow(
       }
 
       // Create a new branch with a unique name
-      const uniqueBranchName =
-        taskId && taskId.trim() !== '' ? taskId : `${sourceBranch}-${Date.now()}`;
+      const uniqueBranchName = `${targetBranch}-${Date.now()}`;
       const createBranchResult = await gitOps.switchBranch(workspace.path, uniqueBranchName);
       if (!createBranchResult.success) {
         return {
@@ -956,12 +959,12 @@ export async function initializeGitWorkflow(
     // If the source branch is different from the target branch
     else {
       // Switch to the source branch
-      const switchResult = await gitOps.switchBranch(workspace.path, sourceBranch);
+      const switchResult = await gitOps.switchBranch(workspace.path, effectiveSourceBranch);
       if (!switchResult.success) {
         return {
           success: false,
           error: new Error(
-            `Failed to switch to source branch ${sourceBranch}: ${switchResult.error.message}`
+            `Failed to switch to source branch ${effectiveSourceBranch}: ${switchResult.error.message}`
           ),
         };
       }
@@ -981,7 +984,7 @@ export async function initializeGitWorkflow(
         success: true,
         data: {
           mergeRequestRequired: false,
-          sourceBranch: sourceBranch,
+          sourceBranch: effectiveSourceBranch,
           targetBranch: targetBranch,
         },
       };

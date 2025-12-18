@@ -4,7 +4,9 @@ This document explains how the merge request creation functionality works after 
 
 ## Overview
 
-The system can create merge requests after Claude Code makes changes to your workspace. **Note: Auto-generated summaries using AI are deprecated.** You must now provide manual titles and descriptions for merge requests.
+The system can create merge requests after Claude Code makes changes to your workspace.
+
+For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR creation runs **inside the same queue job** (consistent whether the request is immediate or queued).
 
 ## Setup
 
@@ -31,35 +33,29 @@ Note: Use your GitLab instance URL if self-hosted
 
 ## How It Works
 
-### Manual MR Creation
+### Automated MR Creation
 
 After Claude Code completes any changes to your workspace:
 
 1. **Change Detection**: The system checks if any files were modified
-2. **Auto Commit**: Changes are automatically committed with a descriptive message
+2. **Auto Commit**: Changes are automatically committed
 3. **Branch Push**: The feature branch is pushed to the remote repository
-4. **MR Creation**: A merge request is created with **manually provided** title and description
+4. **MR Creation**: A merge request is created (if GitLab API is configured)
 
-### Current Branch Detection
+### Branch Workflow
 
 The system automatically detects:
 
-- **Source Branch**: Current branch from `git branch --show-current`
-- **Target Branch**: Defaults to `main` (configurable)
-- **Project ID**: Extracted from the repository URL
+- **Target Branch**: From the workspace configuration (falls back to the repo default branch)
+- **Source Branch**:
+  - If `sourceBranch === targetBranch`, the system will create a unique feature branch automatically
+  - Otherwise it uses `sourceBranch`
+- **Project ID**: Extracted from the repository URL when creating an MR
 
-### Manual Descriptions Required
+### MR Title/Description
 
-**IMPORTANT**: Auto-generated summaries are deprecated. You must provide:
-
-- **Title**: A clear, descriptive title for your merge request
-- **Description**: A detailed description of the changes made
-
-The system will include context about:
-
-- Modified files list
-- Original question/request (if available)
-- Basic merge request metadata
+MR metadata is generated automatically by the server (title/description include timestamps and commit info).
+If you need fully custom MR metadata, that would be a follow-up enhancement to pass `title`/`description` through the `/api/edit` payload.
 
 ## API Usage
 
@@ -105,49 +101,18 @@ The system gracefully handles errors:
 }
 ```
 
-**If title/description is missing (auto mode deprecated):**
-
-```json
-{
-  "success": false,
-  "error": "Auto mode is deprecated. Please provide title and description manually."
-}
-```
-
 **If MR creation fails but Claude Code succeeds:**
 
 ```json
 {
   "success": true,
   "response": "Claude response...",
-  "mergeRequest": {
-    "created": false,
-    "error": "Failed to create merge request"
+  "postExecution": {
+    "hasChanges": true,
+    "pushedBranch": "feature/branch",
+    "mergeRequestUrl": null
   }
 }
-```
-
-## Migration from Auto Mode
-
-If you were using auto mode (deprecated), update your code:
-
-**OLD (deprecated):**
-
-```typescript
-const result = await createMergeRequest(options, true);
-```
-
-**NEW (required):**
-
-```typescript
-const result = await createMergeRequest(
-  {
-    ...options,
-    title: 'Your manual title',
-    description: 'Your manual description',
-  },
-  false
-);
 ```
 
 ## Best Practices

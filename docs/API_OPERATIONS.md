@@ -10,12 +10,13 @@ Query Claude Code about a workspace/repository (read-only, no file modifications
 
 **Request Payload:**
 
-| Field          | Type   | Required | Description                      |
-| -------------- | ------ | -------- | -------------------------------- |
-| `workspaceId`  | string | Yes      | The workspace ID to query        |
-| `question`     | string | Yes      | The question to ask Claude Code  |
-| `context`      | string | No       | Additional context for the query |
-| `sourceBranch` | string | Yes      | The source branch to work from   |
+| Field          | Type   | Required | Description                                                         |
+| -------------- | ------ | -------- | ------------------------------------------------------------------- |
+| `workspaceId`  | string | Yes      | The workspace ID to query                                           |
+| `question`     | string | Yes      | The question to ask Claude Code                                     |
+| `context`      | string | No       | Additional context for the query                                    |
+| `sourceBranch` | string | No       | Optional override branch. Defaults to the workspace `targetBranch`. |
+| `callback`     | object | No       | Optional completion webhook config: `{ url, secret? }`              |
 
 **Example Request:**
 
@@ -24,6 +25,22 @@ curl -X POST http://localhost:3000/api/ask \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key-here" \
   -d '{"workspaceId": "workspace-123", "question": "How does the authentication system work?", "sourceBranch": "main"}'
+```
+
+**Example Request (with completion webhook callback):**
+
+```bash
+curl -X POST http://localhost:3000/api/ask \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key-here" \
+  -d '{
+    "workspaceId": "workspace-123",
+    "question": "How does the authentication system work?",
+    "callback": {
+      "url": "https://n8n.example.com/webhook/workflow-job-complete",
+      "secret": "optional-shared-secret"
+    }
+  }'
 ```
 
 **Response (Immediate Execution):**
@@ -76,16 +93,14 @@ Execute Claude Code edits with optional merge request creation.
 
 **Request Payload:**
 
-| Field           | Type    | Required | Description                                         |
-| --------------- | ------- | -------- | --------------------------------------------------- |
-| `workspaceId`   | string  | Yes      | The workspace ID to edit                            |
-| `question`      | string  | Yes      | The edit instructions for Claude Code               |
-| `context`       | string  | No       | Additional context for the edit                     |
-| `sourceBranch`  | string  | Yes      | The source branch to work from                      |
-| `createMR`      | boolean | Yes      | Whether to create a merge request                   |
-| `taskId`        | string  | No       | Task identifier for branch naming                   |
-| `taskName`      | string  | No       | Task name for commit messages                       |
-| `newBranchName` | string  | No       | Custom branch name (auto-generated if not provided) |
+| Field          | Type    | Required | Description                                                                                         |
+| -------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `workspaceId`  | string  | Yes      | The workspace ID to edit                                                                            |
+| `question`     | string  | Yes      | The edit instructions for Claude Code                                                               |
+| `context`      | string  | No       | Additional context for the edit                                                                     |
+| `sourceBranch` | string  | No       | Optional branch to commit to. If omitted (or equals target), a new branch is created automatically. |
+| `createMR`     | boolean | No       | Defaults to `false`. If `true`, a merge request may be created after pushing changes.               |
+| `callback`     | object  | No       | Optional completion webhook config: `{ url, secret? }`                                              |
 
 **Example Request:**
 
@@ -94,6 +109,38 @@ curl -X POST http://localhost:3000/api/edit \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key-here" \
   -d '{"workspaceId": "workspace-123", "question": "Add input validation to the login form", "sourceBranch": "main", "createMR": true}'
+```
+
+**Example Request (no MR, commit+push to an unprotected branch):**
+
+```bash
+curl -X POST http://localhost:3000/api/edit \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key-here" \
+  -d '{
+    "workspaceId": "workspace-123",
+    "question": "Implement the requested change",
+    "sourceBranch": "feature/unprotected-branch",
+    "createMR": false
+  }'
+```
+
+**Example Request (with completion webhook callback):**
+
+```bash
+curl -X POST http://localhost:3000/api/edit \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-api-key-here" \
+  -d '{
+    "workspaceId": "workspace-123",
+    "question": "Implement the requested change",
+    "sourceBranch": "feature/unprotected-branch",
+    "createMR": false,
+    "callback": {
+      "url": "https://n8n.example.com/webhook/workflow-job-complete",
+      "secret": "optional-shared-secret"
+    }
+  }'
 ```
 
 **Response (Immediate Execution):**
@@ -139,6 +186,35 @@ curl -X POST http://localhost:3000/api/edit \
 ### GET `/api/jobs/:jobId`
 
 Poll for the status and result of a queued job.
+
+---
+
+## Completion Webhook Callback (optional)
+
+If you submit a job with `callback: { url, secret? }`, Workflow will POST to your webhook when the job **completes** or **fails**.
+
+### Headers
+
+- `content-type: application/json`
+- `x-workflow-job-id`
+- `x-workflow-job-type`
+- `x-workflow-job-status`
+- `x-workflow-signature: sha256=<hex>` (only when `callback.secret` is provided)
+
+### Body
+
+```json
+{
+  "jobId": "…",
+  "type": "claude-code",
+  "status": "completed|failed",
+  "timestamp": "…",
+  "result": {
+    /* present when completed */
+  },
+  "error": "…"
+}
+```
 
 **Request:**
 
@@ -218,6 +294,11 @@ The API uses an execute-or-queue pattern to ensure sequential processing:
 
 This design prevents git conflicts by ensuring only one Claude Code execution runs at a time.
 
+**Concurrency note (Docker VM):**
+
+- The queue uses an **atomic processing lock file** (`workspaces/queue/processing.lock.json`) to prevent two concurrent requests from both starting “immediate” execution at the same time.
+- Jobs are processed sequentially by the background worker started at server boot (see `src/instrumentation.ts`).
+
 ### Job States
 
 | State        | Description                                          |
@@ -240,7 +321,11 @@ This design prevents git conflicts by ensuring only one Claude Code execution ru
 
 ## Git Actions After Execution
 
-When a Claude Code job completes (for edit requests with `createMR: true`), the following git actions may occur:
+For **edit** jobs (`POST /api/edit`), the worker runs git actions **inside the job** so behavior is consistent whether the request was immediate or queued:
+
+1. **Before Claude**: initialize git workflow (branch checkout/pull/branch creation when needed)
+2. **Run Claude**
+3. **After Claude**: detect changes → commit → push → optional MR creation (only if `createMR: true`)
 
 ### Execution Flow
 
@@ -256,11 +341,12 @@ When a Claude Code job completes (for edit requests with `createMR: true`), the 
 
 When git actions are performed, the job result includes:
 
-| Field             | Type    | Description                                        |
-| ----------------- | ------- | -------------------------------------------------- |
-| `hasChanges`      | boolean | Whether Claude Code made any file changes          |
-| `pushedBranch`    | string  | Name of the branch that was pushed (if applicable) |
-| `mergeRequestUrl` | string  | URL of the created merge request (if applicable)   |
+| Field                           | Type    | Description                                        |
+| ------------------------------- | ------- | -------------------------------------------------- |
+| `postExecution.hasChanges`      | boolean | Whether any file changes were detected             |
+| `postExecution.pushedBranch`    | string  | Name of the branch that was pushed (if applicable) |
+| `postExecution.mergeRequestUrl` | string  | URL of the created merge request (if applicable)   |
+| `postExecution.commitHash`      | string  | Commit hash created by the post-execution step     |
 
 ### Example Completed Job with Git Result
 
@@ -272,9 +358,12 @@ When git actions are performed, the job result includes:
   "result": {
     "output": "I've added the validation logic...",
     "executionTimeMs": 45000,
-    "hasChanges": true,
-    "pushedBranch": "feature/add-validation-abc123",
-    "mergeRequestUrl": "https://gitlab.com/org/repo/-/merge_requests/42"
+    "postExecution": {
+      "hasChanges": true,
+      "pushedBranch": "feature/add-validation-abc123",
+      "mergeRequestUrl": "https://gitlab.com/org/repo/-/merge_requests/42",
+      "commitHash": "abc123def456"
+    }
   }
 }
 ```
@@ -406,11 +495,11 @@ async function executeEdit(workspaceId, question, createMR = true) {
   }
 
   // Step 3: Handle git results if present
-  if (result.hasChanges) {
-    console.log(`Changes pushed to branch: ${result.pushedBranch}`);
+  if (result.postExecution?.hasChanges) {
+    console.log(`Changes pushed to branch: ${result.postExecution.pushedBranch}`);
 
-    if (result.mergeRequestUrl) {
-      console.log(`Merge request created: ${result.mergeRequestUrl}`);
+    if (result.postExecution.mergeRequestUrl) {
+      console.log(`Merge request created: ${result.postExecution.mergeRequestUrl}`);
     }
   } else {
     console.log('No file changes were made');

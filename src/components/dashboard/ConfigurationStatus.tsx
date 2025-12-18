@@ -67,7 +67,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
             <span className="font-medium">Configuration Complete</span>
           </div>
           <p className="text-sm text-gray-600 mt-1">
-            Your GitLab and Claude credentials are configured and ready to use.
+            Your GitLab and Claude configuration is ready to use.
           </p>
         </CardBody>
       </Card>

@@ -25,6 +25,7 @@ The recommended way to manage API keys is through the web dashboard:
 4. Use this key in your API requests
 
 Dashboard-generated keys are stored securely in `workspaces/api-keys.json` and are automatically validated by the API.
+For security, the application stores **only a hash** of dashboard-generated keys (the plaintext key is shown only once when generated).
 
 ### 2. Environment Variables (Legacy/Fallback)
 
@@ -131,6 +132,7 @@ print(result)
 2. **Rate Limiting**: Configurable request limits per client per hour
 3. **IP Whitelisting**: Optional IP address restrictions
 4. **Request Logging**: All authentication attempts are logged
+5. **Key Storage**: Dashboard-generated API keys are stored as hashes (not plaintext)
 
 ## Error Responses
 
@@ -148,6 +150,9 @@ print(result)
 4. **Rate Limiting**: Use Redis or a database for production rate limiting
 5. **HTTPS Only**: Always use HTTPS in production
 6. **Rotate Keys**: Regularly rotate API keys
+7. **Reverse Proxy / Client IP Headers**:
+   - If you use `ALLOWED_IPS`, deploy behind a trusted reverse proxy (Traefik/Caddy) that **overwrites** `X-Forwarded-For` / `X-Real-IP`.
+   - Ensure the app container/port is not directly internet-accessible (proxy-only network path), otherwise IP allowlisting can be bypassed by spoofing headers.
 
 ## Generating API Keys
 

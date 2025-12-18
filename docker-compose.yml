@@ -8,11 +8,19 @@ services:
       - '3000:3000'
     environment:
       - NODE_ENV=production
-      - NEXTAUTH_SECRET_FILE=/secrets/nextauth.secret
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=NpFJbJe9X9mjBCvf2HhFfYnVdfa/AGf3iredF376t8M=
+      - NEXTAUTH_URL=http://localhost:3000
+      - GITLAB_URL=http://localhost:10080
+      - INITIAL_SIGNUP_TOKEN=5b069c38b4ed2f2a2a9ab58a00291809b819f03743fd636b60c40cbe5a6840d6
+      - API_RATE_LIMIT=100
+      - ALLOWED_IPS=*
     volumes:
       - workflow_workspaces:/app/workspaces
       - next_auth_secret:/secrets
+      # Persist Claude Code CLI auth + settings (~/.claude) across restarts/rebuilds
+      - workflow_claude_config:/home/nextjs/.claude
+      # If you auth as root inside the container, Claude may write to /root/.claude
+      - workflow_claude_config:/root/.claude
     restart: unless-stopped
     healthcheck:
       test:
@@ -46,7 +54,39 @@ services:
           action: sync
           target: /app/public
 
+  # Development service (hot reload). Run explicitly:
+  #   docker compose up workflow-dev --build
+  workflow-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: workflow-dev
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=development
+      - NEXTAUTH_SECRET=NpFJbJe9X9mjBCvf2HhFfYnVdfa/AGf3iredF376t8M=
+      - NEXTAUTH_URL=http://localhost:3000
+      - GITLAB_URL=http://localhost:10080
+      - INITIAL_SIGNUP_TOKEN=5b069c38b4ed2f2a2a9ab58a00291809b819f03743fd636b60c40cbe5a6840d6
+      - API_RATE_LIMIT=100
+      - ALLOWED_IPS=*
+    volumes:
+      - ./:/app
+      - workflow_node_modules:/app/node_modules
+      - workflow_next_cache:/app/.next
+      - workflow_workspaces:/app/workspaces
+      - next_auth_secret:/secrets
+      # Persist Claude Code CLI auth + settings (~/.claude) across restarts/rebuilds
+      - workflow_claude_config:/home/nextjs/.claude
+      # If you auth as root inside the container, Claude may write to /root/.claude
+      - workflow_claude_config:/root/.claude
+    restart: unless-stopped
+
 volumes:
   workflow_workspaces:
     driver: local
   next_auth_secret:
+  workflow_node_modules:
+  workflow_next_cache:
+  workflow_claude_config:

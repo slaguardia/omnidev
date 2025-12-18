@@ -24,10 +24,14 @@ export default function ExecutionHistoryTab({
   const [selectedExecution, setSelectedExecution] = useState<ExecutionHistoryEntry | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [showRawOutput, setShowRawOutput] = useState(false);
+  const [showJsonLogs, setShowJsonLogs] = useState(false);
 
   const handleViewDetails = (execution: ExecutionHistoryEntry) => {
     setSelectedExecution(execution);
     setIsDetailModalOpen(true);
+    setShowRawOutput(false);
+    setShowJsonLogs(false);
   };
 
   const handleClearAll = async () => {
@@ -125,7 +129,6 @@ export default function ExecutionHistoryTab({
 
         {history.length === 0 && !loading && (
           <div className="text-center py-12">
-            <History className="w-12 h-12 text-default-300 mx-auto mb-4" />
             <p className="text-default-600">No execution history yet.</p>
             <p className="text-sm text-default-500">
               Ask Claude a question in the Operations tab to see your history here.
@@ -187,6 +190,71 @@ export default function ExecutionHistoryTab({
                         </p>
                       </div>
                     </div>
+
+                    {(selectedExecution.rawOutput || selectedExecution.jsonLogs) && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-default-700">Execution Stream</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedExecution.rawOutput && (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onClick={() => setShowRawOutput((v) => !v)}
+                            >
+                              {showRawOutput ? 'Hide Raw Output' : 'Show Raw Output'}
+                            </Button>
+                          )}
+                          {selectedExecution.jsonLogs && (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onClick={() => setShowJsonLogs((v) => !v)}
+                            >
+                              {showJsonLogs
+                                ? 'Hide JSON Logs'
+                                : `Show JSON Logs (${selectedExecution.jsonLogs.length})`}
+                            </Button>
+                          )}
+                          {selectedExecution.rawOutput && (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onClick={() =>
+                                navigator.clipboard.writeText(selectedExecution.rawOutput || '')
+                              }
+                            >
+                              Copy Raw Output
+                            </Button>
+                          )}
+                        </div>
+
+                        {showRawOutput && selectedExecution.rawOutput && (
+                          <div>
+                            <p className="text-xs text-default-500 mb-1">
+                              Raw stdout capture (includes stream-json + wrapper output).
+                            </p>
+                            <div className="p-3 bg-default-100 rounded-lg max-h-96 overflow-y-auto">
+                              <pre className="text-xs whitespace-pre-wrap font-mono">
+                                {selectedExecution.rawOutput}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {showJsonLogs && selectedExecution.jsonLogs && (
+                          <div>
+                            <p className="text-xs text-default-500 mb-1">
+                              Parsed stream-json logs captured during execution.
+                            </p>
+                            <div className="p-3 bg-default-100 rounded-lg max-h-96 overflow-y-auto">
+                              <pre className="text-xs whitespace-pre-wrap font-mono">
+                                {JSON.stringify(selectedExecution.jsonLogs, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {selectedExecution.errorMessage && (
                       <div>
                         <h4 className="text-sm font-semibold text-danger-500 mb-1">Error</h4>

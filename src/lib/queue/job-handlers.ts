@@ -5,7 +5,11 @@
  * to be called by the queue worker.
  */
 
-import { askClaudeCode, handlePostClaudeCodeExecution } from '@/lib/claudeCode';
+import {
+  askClaudeCode,
+  handlePostClaudeCodeExecution,
+  initializeGitWorkflow,
+} from '@/lib/claudeCode';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type {
   ClaudeCodeJobPayload,
@@ -25,19 +29,60 @@ export async function executeClaudeCodeJob(
   const startTime = Date.now();
   console.log(`[JOB] Starting Claude Code job for workspace ${payload.workspaceId}`);
 
+  // For edit jobs, initialize git workflow inside the job so behavior is consistent
+  // whether the API executed immediately or queued. This also ensures we can commit/push
+  // changes to the selected branch even when no merge request is requested.
+  let gitInitResult: GitInitResult | undefined;
+  let effectiveSourceBranch = payload.sourceBranch;
+
+  const isEditJob = payload.editRequest ?? false;
+  if (isEditJob) {
+    console.log(`[JOB] 🔄 Initializing git workflow for edit job...`);
+    const gitInitStart = Date.now();
+
+    const initResult = await initializeGitWorkflow({
+      workspaceId: payload.workspaceId,
+      ...(payload.sourceBranch ? { sourceBranch: payload.sourceBranch } : {}),
+    });
+
+    const gitInitTime = Date.now() - gitInitStart;
+
+    if (!initResult.success) {
+      console.warn(
+        `[JOB] ⚠️ Git workflow initialization failed in ${gitInitTime}ms:`,
+        initResult.error?.message
+      );
+      // Best-effort: continue without git automation.
+    } else {
+      // Only create merge requests when explicitly requested.
+      // We still want commit+push behavior for edit jobs even when createMR=false.
+      gitInitResult = {
+        ...initResult.data,
+        mergeRequestRequired: Boolean(payload.createMR) && initResult.data.mergeRequestRequired,
+      };
+      effectiveSourceBranch = initResult.data.sourceBranch;
+      console.log(`[JOB] ✅ Git workflow initialized in ${gitInitTime}ms`, {
+        mergeRequestRequired: gitInitResult.mergeRequestRequired,
+        sourceBranch: initResult.data.sourceBranch,
+        targetBranch: initResult.data.targetBranch,
+      });
+    }
+  }
+
   // Build options, only including defined properties
   const options: Parameters<typeof askClaudeCode>[0] = {
     question: payload.question,
     workingDirectory: payload.workspacePath as FilePath,
     workspaceId: payload.workspaceId,
+    editRequest: isEditJob,
   };
 
   if (payload.context) {
     options.context = payload.context;
   }
 
-  if (payload.sourceBranch) {
-    options.sourceBranch = payload.sourceBranch;
+  if (effectiveSourceBranch) {
+    options.sourceBranch = effectiveSourceBranch;
   }
 
   const result = await askClaudeCode(options);
@@ -50,18 +95,31 @@ export async function executeClaudeCodeJob(
 
   console.log(`[JOB] Claude Code job completed in ${executionTimeMs}ms`);
 
+  let postExecution: ClaudeCodeJobResult['postExecution'] | undefined;
+
   // Handle post-execution git operations if needed
-  if (result.data?.gitInitResult && payload.repoUrl) {
+  if (gitInitResult && payload.repoUrl) {
     console.log(`[JOB] Processing post-execution git operations...`);
 
     try {
       const postResult = await handlePostClaudeCodeExecution(
         payload.workspacePath as FilePath,
-        result.data.gitInitResult,
+        gitInitResult,
         payload.repoUrl as GitUrl
       );
 
       if (postResult.success) {
+        if (postResult.data) {
+          const pe: NonNullable<ClaudeCodeJobResult['postExecution']> = {
+            hasChanges: postResult.data.hasChanges,
+          };
+          if (postResult.data.commitHash) pe.commitHash = postResult.data.commitHash;
+          if (postResult.data.mergeRequestUrl) pe.mergeRequestUrl = postResult.data.mergeRequestUrl;
+          if (postResult.data.pushedBranch) pe.pushedBranch = postResult.data.pushedBranch;
+          postExecution = pe;
+        } else {
+          postExecution = undefined;
+        }
         console.log(`[JOB] Post-execution completed:`, {
           hasChanges: postResult.data?.hasChanges,
           mergeRequestUrl: postResult.data?.mergeRequestUrl,
@@ -81,8 +139,11 @@ export async function executeClaudeCodeJob(
     executionTimeMs,
   };
 
-  if (result.data?.gitInitResult) {
-    jobResult.gitInitResult = result.data.gitInitResult;
+  if (gitInitResult) {
+    jobResult.gitInitResult = gitInitResult;
+  }
+  if (postExecution) {
+    jobResult.postExecution = postExecution;
   }
   if (result.data?.jsonLogs) {
     jobResult.jsonLogs = result.data.jsonLogs;
