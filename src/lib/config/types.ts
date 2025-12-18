@@ -26,12 +26,19 @@ export interface ClientSafeAppConfig {
 
 export interface ClaudeConfig {
   apiKey: string;
+  /**
+   * How to authenticate the `claude` CLI subprocess.
+   * - auto: use API key if available; otherwise rely on CLI login
+   * - cli: never pass ANTHROPIC_API_KEY to the subprocess (subscription/manual login)
+   */
+  authMode: 'auto' | 'cli';
   maxTokens: number;
   defaultTemperature: number;
 }
 
 export interface ClientSafeClaudeConfig {
   apiKeySet: boolean; // Instead of the actual API key
+  authMode: 'auto' | 'cli';
   maxTokens: number;
   defaultTemperature: number;
 }

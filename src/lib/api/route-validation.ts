@@ -3,21 +3,22 @@ import { AskRouteParams, EditRouteParams } from '@/lib/api/types';
 import { z } from 'zod';
 import type { WorkspaceId } from '@/lib/common/types';
 
-//TODO: Implement zod validation for the request body
-
 // Zod schemas for route params
 const AskRouteParamsSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   question: z.string().min(1, 'Question is required'),
   context: z.string().nullable().optional(),
-  sourceBranch: z.string().min(1, 'Source branch is required'),
+  sourceBranch: z.string().min(1).optional(),
+  callback: z
+    .object({
+      url: z.string().url(),
+      secret: z.string().min(1).optional(),
+    })
+    .optional(),
 });
 
 const EditRouteParamsSchema = AskRouteParamsSchema.extend({
-  createMR: z.boolean(),
-  taskId: z.string().optional(),
-  taskName: z.string().optional(),
-  newBranchName: z.string().optional(),
+  createMR: z.boolean().optional().default(false),
 });
 
 /**
@@ -28,12 +29,17 @@ export function validateAndParseAskRouteParams(
   logPrefix: string
 ): { success: boolean; data?: AskRouteParams; error?: NextResponse } {
   // Log request payload
-  const { workspaceId, question, context, sourceBranch } = (body as Record<string, unknown>) || {};
+  const {
+    workspaceId,
+    question,
+    context,
+    sourceBranch: sourceBranchRaw,
+  } = (body as Record<string, unknown>) || {};
   console.log(`[${logPrefix}] Request payload:`, {
     workspaceId,
     questionLength: typeof question === 'string' ? question.length : 0,
     contextLength: typeof context === 'string' ? context.length : 0,
-    sourceBranch,
+    sourceBranch: sourceBranchRaw,
     timestamp: new Date().toISOString(),
   });
 
@@ -51,10 +57,20 @@ export function validateAndParseAskRouteParams(
 
   // Cast workspaceId to WorkspaceId and ensure context is string|null
   const data = result.data;
+  const { sourceBranch: parsedSourceBranch, callback: rawCallback, ...rest } = data;
+  const parsedCallback =
+    rawCallback && typeof rawCallback === 'object'
+      ? {
+          url: rawCallback.url,
+          ...(rawCallback.secret !== undefined ? { secret: rawCallback.secret } : {}),
+        }
+      : undefined;
   const parsedData: AskRouteParams = {
-    ...data,
+    ...rest,
     workspaceId: data.workspaceId as WorkspaceId,
     context: data.context !== undefined ? data.context : null,
+    ...(parsedSourceBranch !== undefined ? { sourceBranch: parsedSourceBranch } : {}),
+    ...(parsedCallback !== undefined ? { callback: parsedCallback } : {}),
   };
 
   return {
@@ -75,21 +91,15 @@ export function validateAndParseEditRouteParams(
     workspaceId,
     question,
     context,
-    sourceBranch,
+    sourceBranch: sourceBranchRaw,
     createMR,
-    taskId,
-    taskName,
-    newBranchName,
   } = (body as Record<string, unknown>) || {};
   console.log(`[${logPrefix}] Request payload:`, {
     workspaceId,
     questionLength: typeof question === 'string' ? question.length : 0,
     contextLength: typeof context === 'string' ? context.length : 0,
-    sourceBranch,
+    sourceBranch: sourceBranchRaw,
     createMR,
-    taskId,
-    taskName,
-    newBranchName,
     timestamp: new Date().toISOString(),
   });
 
@@ -105,15 +115,22 @@ export function validateAndParseEditRouteParams(
     };
   }
 
-  // Fill in empty string for optional fields if undefined, and cast workspaceId, ensure context is string|null
+  // Cast workspaceId and ensure context is string|null
   const data = result.data;
+  const { sourceBranch: parsedSourceBranch, callback: rawCallback, ...rest } = data;
+  const parsedCallback =
+    rawCallback && typeof rawCallback === 'object'
+      ? {
+          url: rawCallback.url,
+          ...(rawCallback.secret !== undefined ? { secret: rawCallback.secret } : {}),
+        }
+      : undefined;
   const parsedData: EditRouteParams = {
-    ...data,
+    ...rest,
     workspaceId: data.workspaceId as WorkspaceId,
     context: data.context !== undefined ? data.context : null,
-    taskId: data.taskId ?? '',
-    taskName: data.taskName ?? '',
-    newBranchName: data.newBranchName ?? '',
+    ...(parsedSourceBranch !== undefined ? { sourceBranch: parsedSourceBranch } : {}),
+    ...(parsedCallback !== undefined ? { callback: parsedCallback } : {}),
   };
 
   return {

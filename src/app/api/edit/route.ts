@@ -9,9 +9,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const logPrefix = 'EDIT API';
 
-    // Debug logging
-    console.log('[EDIT API] Request body:', body);
-
     // Validate and parse route parameters
     const validationResult = validateAndParseEditRouteParams(body, logPrefix);
     if (!validationResult.success) {

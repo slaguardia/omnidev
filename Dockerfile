@@ -3,6 +3,7 @@ FROM ubuntu:22.04 AS base
 
 # Install Node.js 18 and essential build tools
 RUN apt-get update && apt-get install -y \
+    bash \
     curl \
     ca-certificates \
     gnupg \

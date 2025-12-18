@@ -54,9 +54,11 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
       </h2>
 
       {/* Two-Factor Authentication */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-success-500">Two-Factor Authentication</h3>
-        <Divider />
+      <section className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-success-500">Two-Factor Authentication</h3>
+          <Divider />
+        </div>
 
         {isLoadingStatus ? (
           <div className="flex items-center gap-2">
@@ -128,9 +130,11 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
       </section>
 
       {/* Change Password */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-warning-500">Password</h3>
-        <Divider />
+      <section className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-warning-500">Password</h3>
+          <Divider />
+        </div>
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
           <Button
             color="warning"

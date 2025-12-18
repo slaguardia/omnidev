@@ -20,10 +20,12 @@ export async function POST(request: NextRequest) {
     const userExists = await hasUser();
     if (!userExists) {
       // No user exists - this is a signup, proceed directly
+      const requiresSetupToken = Boolean(process.env.INITIAL_SIGNUP_TOKEN);
       return NextResponse.json({
         success: true,
         isSignup: true,
         requires2FA: false,
+        requiresSetupToken,
       });
     }
 

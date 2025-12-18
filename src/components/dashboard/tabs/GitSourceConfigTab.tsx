@@ -6,6 +6,7 @@ import { Input } from '@heroui/input';
 import { GitBranch, ExternalLink } from 'lucide-react';
 import { Divider } from '@heroui/divider';
 import { ClientSafeAppConfig } from '@/lib/types/index';
+import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 interface GitSourceConfigTabProps {
   envConfig: ClientSafeAppConfig;
@@ -40,112 +41,156 @@ export default function GitSourceConfigTab({
       </div>
 
       {/* GitLab Configuration */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-primary-500">GitLab Connection</h3>
-        <Divider />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="GitLab URL"
-            value={envConfig.gitlab.url}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEnvConfig((prev) => ({
-                ...prev,
-                gitlab: { ...prev.gitlab, url: e.target.value },
-              }))
-            }
-            variant="bordered"
-          />
-          <Input
-            label="GitLab Username"
-            value={envConfig.gitlab.username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEnvConfig((prev) => ({
-                ...prev,
-                gitlab: { ...prev.gitlab, username: e.target.value },
-              }))
-            }
-            variant="bordered"
-            placeholder="your-gitlab-username"
-            description="Used for git clone authentication"
-          />
+      <section className="flex flex-col gap-6">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-primary-500">GitLab Connection</h3>
+          <Divider />
         </div>
-        <Input
-          label="GitLab Personal Access Token"
-          type="password"
-          value={pendingSensitiveData.gitlabToken || ''}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            updateSensitiveData('gitlabToken', e.target.value)
-          }
-          variant="bordered"
-          placeholder={envConfig.gitlab.tokenSet ? '••••••••••••••••' : 'Enter your GitLab token'}
-          description={
-            envConfig.gitlab.tokenSet
-              ? 'Token is configured (enter new value to update)'
-              : 'Personal access token with api scope'
-          }
-        />
-        <Input
-          label="Allowed GitLab Hosts"
-          value={envConfig.gitlab.allowedHosts.join(', ')}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setEnvConfig((prev) => ({
-              ...prev,
-              gitlab: {
-                ...prev.gitlab,
-                allowedHosts: e.target.value
-                  .split(',')
-                  .map((h) => h.trim())
-                  .filter((h) => h),
-              },
-            }))
-          }
-          variant="bordered"
-          description="Comma-separated list of allowed hosts"
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="GitLab URL"
+                tooltip="Base URL for your GitLab instance (e.g. https://gitlab.com)"
+              />
+            </label>
+            <Input
+              value={envConfig.gitlab.url}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEnvConfig((prev) => ({
+                  ...prev,
+                  gitlab: { ...prev.gitlab, url: e.target.value },
+                }))
+              }
+              variant="bordered"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="GitLab Username"
+                tooltip="Used for git clone authentication"
+              />
+            </label>
+            <Input
+              value={envConfig.gitlab.username}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEnvConfig((prev) => ({
+                  ...prev,
+                  gitlab: { ...prev.gitlab, username: e.target.value },
+                }))
+              }
+              variant="bordered"
+              placeholder="your-gitlab-username"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="GitLab Personal Access Token"
+                tooltip={
+                  envConfig.gitlab.tokenSet
+                    ? 'Token is configured (enter new value to update)'
+                    : 'Personal access token with api scope'
+                }
+              />
+            </label>
+            <Input
+              type="password"
+              value={pendingSensitiveData.gitlabToken || ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                updateSensitiveData('gitlabToken', e.target.value)
+              }
+              variant="bordered"
+              placeholder={
+                envConfig.gitlab.tokenSet ? '••••••••••••••••' : 'Enter your GitLab token'
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="Allowed GitLab Hosts"
+                tooltip="Comma-separated list of allowed hosts"
+              />
+            </label>
+            <Input
+              value={envConfig.gitlab.allowedHosts.join(', ')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEnvConfig((prev) => ({
+                  ...prev,
+                  gitlab: {
+                    ...prev.gitlab,
+                    allowedHosts: e.target.value
+                      .split(',')
+                      .map((h) => h.trim())
+                      .filter((h) => h),
+                  },
+                }))
+              }
+              variant="bordered"
+            />
+          </div>
+        </div>
       </section>
 
       {/* Git Identity (for commits) */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-primary-500">Git Identity (for commits)</h3>
-        <Divider />
-        <p className="text-sm text-foreground-500">
-          Configure the name and email that will be used for git commits in all workspaces.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="Commit Name"
-            value={envConfig.gitlab.commitName}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEnvConfig((prev) => ({
-                ...prev,
-                gitlab: { ...prev.gitlab, commitName: e.target.value },
-              }))
-            }
-            variant="bordered"
-            placeholder="Your Name"
-            description="Used as git user.name for commits"
-          />
-          <Input
-            label="Commit Email"
-            value={envConfig.gitlab.commitEmail}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEnvConfig((prev) => ({
-                ...prev,
-                gitlab: { ...prev.gitlab, commitEmail: e.target.value },
-              }))
-            }
-            variant="bordered"
-            placeholder="you@example.com"
-            description="Used as git user.email for commits"
-          />
+      <section className="flex flex-col gap-6">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-primary-500">Git Identity (for commits)</h3>
+          <Divider />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="Commit Name"
+                tooltip="Used as git user.name for commits (applies to all workspaces)"
+              />
+            </label>
+            <Input
+              value={envConfig.gitlab.commitName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEnvConfig((prev) => ({
+                  ...prev,
+                  gitlab: { ...prev.gitlab, commitName: e.target.value },
+                }))
+              }
+              variant="bordered"
+              placeholder="Your Name"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">
+              <LabelWithTooltip
+                label="Commit Email"
+                tooltip="Used as git user.email for commits (applies to all workspaces)"
+              />
+            </label>
+            <Input
+              value={envConfig.gitlab.commitEmail}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEnvConfig((prev) => ({
+                  ...prev,
+                  gitlab: { ...prev.gitlab, commitEmail: e.target.value },
+                }))
+              }
+              variant="bordered"
+              placeholder="you@example.com"
+            />
+          </div>
         </div>
       </section>
 
       {/* Bot User Setup Guide */}
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold text-purple-500">Bot User Setup</h3>
-        <Divider />
-        <div className="p-4 bg-default-100 dark:bg-default-50/5 border border-default-200 dark:border-default-100 rounded-lg space-y-4">
+      <section className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-purple-500">Bot User Setup</h3>
+          <Divider />
+        </div>
+        <div className="space-y-4">
           <p className="text-sm text-foreground-600 dark:text-foreground-400">
             For automation tasks like creating merge requests, you&apos;ll need a dedicated bot
             account on GitLab.com.
@@ -218,8 +263,8 @@ export default function GitSourceConfigTab({
             </div>
           </div>
 
-          <div className="p-3 bg-warning-100 dark:bg-warning-500/10 border border-warning-300 dark:border-warning-500/30 rounded-lg">
-            <p className="text-sm text-warning-700 dark:text-warning-500">
+          <div className="text-sm text-default-600">
+            <p>
               <strong>Tip:</strong> Store the bot account credentials securely. Use a password
               manager and consider setting up 2FA with backup codes for recovery.
             </p>

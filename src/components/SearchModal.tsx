@@ -19,7 +19,7 @@ interface SearchItem {
 
 interface SearchModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onOpenChange: (isOpen: boolean) => void;
 }
 
 // Static app pages (always available)
@@ -36,7 +36,7 @@ const staticPages: SearchItem[] = [
   { label: 'Sign In', href: '/signin', description: 'Sign in to your account', category: 'page' },
 ];
 
-export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
+export const SearchModal = ({ isOpen, onOpenChange }: SearchModalProps) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [docResults, setDocResults] = useState<SearchItem[]>([]);
@@ -142,14 +142,18 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
   const handleSelect = useCallback(
     (href: string) => {
       router.push(href);
-      onClose();
+      onOpenChange(false);
     },
-    [router, onClose]
+    [router, onOpenChange]
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       switch (e.key) {
+        case 'Escape':
+          e.preventDefault();
+          onOpenChange(false);
+          break;
         case 'ArrowDown':
           e.preventDefault();
           setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
@@ -166,7 +170,7 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
           break;
       }
     },
-    [flatItems, selectedIndex, handleSelect]
+    [flatItems, selectedIndex, handleSelect, onOpenChange]
   );
 
   const getMatchTypeLabel = (matchType?: string) => {
@@ -215,10 +219,11 @@ export const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onOpenChange={onOpenChange}
       placement="top"
       size="lg"
       hideCloseButton
+      isDismissable
       classNames={{
         base: 'mt-20',
         body: 'p-0',

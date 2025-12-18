@@ -13,7 +13,6 @@ import {
  * Initialize 2FA setup - returns QR code, secret, and recovery codes
  * Requires authenticated session
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function POST(_request: NextRequest) {
   try {
     // Check authentication

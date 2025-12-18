@@ -8,7 +8,7 @@ export function DocsNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="w-full">
+    <nav className="w-full p-4 rounded-lg border border-divider/50 bg-content1/50">
       <div className="space-y-6">
         {docsConfig.map((section) => (
           <div key={section.title}>

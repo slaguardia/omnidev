@@ -4,13 +4,13 @@ const NAVBAR_HEIGHT = '4rem';
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
-      <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)]">
-        {/* Left Sidebar - Sticky */}
+    <div className="mx-auto w-full max-w-[1800px] pl-2 pr-4 sm:pl-3 sm:pr-6 lg:pl-4 lg:pr-8">
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_260px] 2xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+        {/* Left Sidebar - Docs Navigation (all the way left) */}
         <aside className="hidden lg:block">
           <div className="sticky top-16">
             <div
-              className="scrollbar-hide pr-2 pt-4"
+              className="scrollbar-hide pt-4"
               style={{ maxHeight: `calc(100vh - ${NAVBAR_HEIGHT})`, overflowY: 'auto' }}
             >
               <DocsNavigation />
@@ -18,18 +18,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="min-w-0">
-          <div className="sticky top-16">
-            <div
-              data-docs-content
-              className="scrollbar-hide"
-              style={{ height: `calc(100vh - ${NAVBAR_HEIGHT})`, overflowY: 'auto' }}
-            >
-              {children}
-            </div>
-          </div>
-        </main>
+        {/* Main Content + Right Sidebar - rendered by DocContent */}
+        {children}
       </div>
     </div>
   );

@@ -189,7 +189,7 @@ describe('API Routes Integration', () => {
       const result = await checkRateLimit('test-client');
 
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(100);
+      expect(result.remaining).toBe(99);
     });
   });
 

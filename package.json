@@ -36,6 +36,7 @@
     "@heroui/modal": "^2.2.19",
     "@heroui/navbar": "2.2.18",
     "@heroui/select": "^2.4.22",
+    "@heroui/skeleton": "^2.2.18",
     "@heroui/snippet": "^2.2.21",
     "@heroui/switch": "2.2.18",
     "@heroui/system": "^2.4.18",

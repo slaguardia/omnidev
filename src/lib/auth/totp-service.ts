@@ -176,3 +176,72 @@ export function verifyPendingAuthToken(token: string): { valid: boolean; usernam
     return { valid: false };
   }
 }
+
+/**
+ * Generate a short-lived "second factor proof" token after successful 2FA validation.
+ * This token is required by NextAuth credential authorization when 2FA is enabled,
+ * to prevent bypassing the UI-driven 2FA flow by calling NextAuth directly.
+ */
+export function generateSecondFactorToken(username: string): string {
+  const payload = {
+    purpose: '2fa' as const,
+    username,
+    timestamp: Date.now(),
+    nonce: crypto.randomBytes(16).toString('hex'),
+  };
+  const data = JSON.stringify(payload);
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  let encrypted = cipher.update(data, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
+
+/**
+ * Verify and decode a second factor token.
+ * Returns the username if valid and not expired (5 minute window).
+ */
+export function verifySecondFactorToken(token: string): { valid: boolean; username?: string } {
+  try {
+    const [ivHex, authTagHex, encrypted] = token.split(':');
+    if (!ivHex || !authTagHex || !encrypted) {
+      return { valid: false };
+    }
+
+    const key = getEncryptionKey();
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+
+    const payload: unknown = JSON.parse(decrypted);
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      !('purpose' in payload) ||
+      !('username' in payload) ||
+      !('timestamp' in payload)
+    ) {
+      return { valid: false };
+    }
+
+    const purpose = (payload as { purpose?: unknown }).purpose;
+    const username = (payload as { username?: unknown }).username;
+    const timestamp = (payload as { timestamp?: unknown }).timestamp;
+
+    if (purpose !== '2fa' || typeof username !== 'string' || typeof timestamp !== 'number') {
+      return { valid: false };
+    }
+
+    const age = Date.now() - timestamp;
+    if (age > 5 * 60 * 1000) {
+      return { valid: false };
+    }
+
+    return { valid: true, username };
+  } catch {
+    return { valid: false };
+  }
+}

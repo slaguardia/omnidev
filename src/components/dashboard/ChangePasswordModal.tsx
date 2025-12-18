@@ -6,6 +6,7 @@ import { Input } from '@heroui/input';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
 import { Lock } from 'lucide-react';
 import { ChangePasswordForm } from '@/lib/dashboard/types';
+import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -77,7 +78,7 @@ export default function ChangePasswordModal({
                   isRequired
                 />
                 <Input
-                  label="New Password"
+                  label={<LabelWithTooltip label="New Password" tooltip="Minimum 6 characters" />}
                   type="password"
                   placeholder="Enter your new password"
                   value={form.newPassword}
@@ -86,7 +87,6 @@ export default function ChangePasswordModal({
                   }
                   variant="bordered"
                   isRequired
-                  description="Minimum 6 characters"
                 />
                 <Input
                   label="Confirm New Password"

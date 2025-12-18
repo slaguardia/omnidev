@@ -18,10 +18,20 @@ export const useClaudeOperations = () => {
       setLoading(true);
       setClaudeResponse(null);
 
+      // Omit optional fields when empty so the API can apply defaults.
+      const payload: Record<string, unknown> = {
+        workspaceId: claudeForm.workspaceId,
+        question: claudeForm.question,
+        context: claudeForm.context,
+      };
+      if (claudeForm.sourceBranch && claudeForm.sourceBranch.trim().length > 0) {
+        payload.sourceBranch = claudeForm.sourceBranch.trim();
+      }
+
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(claudeForm),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();

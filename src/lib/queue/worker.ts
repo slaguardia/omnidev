@@ -9,8 +9,13 @@
  */
 
 import type { Job, JobType, ExecutionResult, ClaudeCodeJobPayload } from './types';
+import crypto from 'node:crypto';
+import { saveExecutionToHistory } from '@/lib/dashboard/execution-history';
+import { getProjectDisplayName } from '@/lib/dashboard/helpers';
+import type { ClaudeCodeJobResult } from './types';
 import {
   isProcessing,
+  acquireProcessingLock,
   createProcessingJob,
   enqueueJob,
   getNextPendingJob,
@@ -41,10 +46,9 @@ let workerIntervalId: ReturnType<typeof setInterval> | null = null;
  * @returns { immediate: false, jobId } if queued
  */
 export async function executeOrQueue<T>(type: JobType, payload: T): Promise<ExecutionResult> {
-  // Check if something is already processing
-  const processing = await isProcessing();
-
-  if (!processing) {
+  // Acquire atomic processing lock to prevent concurrent "execute immediately" races.
+  const lock = await acquireProcessingLock('api');
+  if (lock.acquired) {
     // Nothing is processing - execute immediately
     console.log(`[WORKER] No jobs processing, executing ${type} immediately`);
 
@@ -54,19 +58,27 @@ export async function executeOrQueue<T>(type: JobType, payload: T): Promise<Exec
     try {
       const result = await processJob(job);
       await markJobComplete(job.id, result);
+      await saveJobToExecutionHistory(job, { status: 'completed', result });
+      await notifyJobCallback(job, { status: 'completed', result });
 
       console.log(`[WORKER] Job ${job.id} completed immediately`);
       return { immediate: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await markJobFailed(job.id, errorMessage);
+      await saveJobToExecutionHistory(job, { status: 'failed', error: errorMessage });
+      await notifyJobCallback(job, { status: 'failed', error: errorMessage });
 
       console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
       throw error; // Re-throw for API to handle
+    } finally {
+      await lock.release();
     }
   }
 
   // Something is processing - queue the job
+  // Double-check: if already processing, enqueue; otherwise we still enqueue to preserve ordering
+  // and avoid long HTTP requests when there's contention.
   console.log(`[WORKER] Queue busy, enqueueing ${type} job`);
   const jobId = await enqueueJob(type, payload);
 
@@ -126,40 +138,190 @@ export function startWorker(): void {
         await cleanupOldJobs();
       }
 
-      // Skip if already processing (another job is running)
-      if (await isProcessing()) {
+      // Acquire lock for worker processing. If another worker/API is processing, skip.
+      const lock = await acquireProcessingLock('worker');
+      if (!lock.acquired) {
         return;
       }
 
-      // Get next pending job
-      const job = await getNextPendingJob();
-
-      if (!job) {
-        return; // No pending jobs
-      }
-
-      // Move job to processing
-      const moved = await moveJob(job.id, 'pending', 'processing');
-
-      if (!moved) {
-        console.error(`[WORKER] Failed to move job ${job.id} to processing`);
-        return;
-      }
-
-      // Process the job
       try {
-        const result = await processJob(job);
-        await markJobComplete(job.id, result);
-        console.log(`[WORKER] Job ${job.id} completed`);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await markJobFailed(job.id, errorMessage);
-        console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+        // Skip if already processing (another job is running)
+        if (await isProcessing()) {
+          return;
+        }
+
+        // Get next pending job
+        const job = await getNextPendingJob();
+
+        if (!job) {
+          return; // No pending jobs
+        }
+
+        // Move job to processing
+        const moved = await moveJob(job.id, 'pending', 'processing');
+
+        if (!moved) {
+          console.error(`[WORKER] Failed to move job ${job.id} to processing`);
+          return;
+        }
+
+        // Process the job
+        try {
+          const result = await processJob(job);
+          await markJobComplete(job.id, result);
+          await saveJobToExecutionHistory(job, { status: 'completed', result });
+          await notifyJobCallback(job, { status: 'completed', result });
+          console.log(`[WORKER] Job ${job.id} completed`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          await markJobFailed(job.id, errorMessage);
+          await saveJobToExecutionHistory(job, { status: 'failed', error: errorMessage });
+          await notifyJobCallback(job, { status: 'failed', error: errorMessage });
+          console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+        }
+      } finally {
+        await lock.release();
       }
     } catch (error) {
       console.error('[WORKER] Worker loop error:', error);
     }
   }, POLL_INTERVAL);
+}
+
+type CallbackNotification =
+  | { status: 'completed'; result: unknown }
+  | { status: 'failed'; error: string };
+
+type HistoryNotification =
+  | { status: 'completed'; result: unknown }
+  | { status: 'failed'; error: string };
+
+async function saveJobToExecutionHistory(
+  job: Job,
+  notification: HistoryNotification
+): Promise<void> {
+  // Best-effort only; never fail the job for history persistence.
+  try {
+    if (job.type !== 'claude-code') return;
+    const payload = job.payload as ClaudeCodeJobPayload;
+
+    const workspaceName = payload.repoUrl
+      ? getProjectDisplayName(payload.repoUrl)
+      : String(payload.workspaceId);
+
+    if (notification.status === 'completed') {
+      const result = notification.result as ClaudeCodeJobResult;
+      const entry: Parameters<typeof saveExecutionToHistory>[0] = {
+        workspaceId: String(payload.workspaceId),
+        workspaceName,
+        question: payload.question,
+        response: result.output || '',
+        status: 'success',
+        executionTimeMs: result.executionTimeMs,
+      };
+      if (result.jsonLogs) entry.jsonLogs = result.jsonLogs;
+      if (result.rawOutput) entry.rawOutput = result.rawOutput;
+
+      await saveExecutionToHistory(entry);
+      return;
+    }
+
+    await saveExecutionToHistory({
+      workspaceId: String(payload.workspaceId),
+      workspaceName,
+      question: payload.question,
+      response: '',
+      status: 'error',
+      errorMessage: `Claude Code execution failed: ${notification.error}`,
+    });
+  } catch (err) {
+    console.warn('[WORKER] Failed to save execution history entry:', err);
+  }
+}
+
+function isHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function signPayload(secret: string, body: string): string {
+  const digest = crypto.createHmac('sha256', secret).update(body).digest('hex');
+  return `sha256=${digest}`;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function notifyJobCallback(job: Job, notification: CallbackNotification): Promise<void> {
+  // Only Claude Code jobs currently carry callback config.
+  if (job.type !== 'claude-code') return;
+  const payload = job.payload as ClaudeCodeJobPayload;
+  const callback = payload.callback;
+  if (!callback?.url) return;
+
+  if (!isHttpUrl(callback.url)) {
+    console.warn(`[WORKER] Callback URL ignored (non-http): ${callback.url}`);
+    return;
+  }
+
+  const bodyObj: Record<string, unknown> = {
+    jobId: job.id,
+    type: job.type,
+    status: notification.status,
+    timestamp: new Date().toISOString(),
+  };
+  if (notification.status === 'completed') {
+    bodyObj.result = notification.result;
+  } else {
+    bodyObj.error = notification.error;
+  }
+
+  const body = JSON.stringify(bodyObj);
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-workflow-job-id': String(job.id),
+    'x-workflow-job-type': job.type,
+    'x-workflow-job-status': notification.status,
+  };
+  if (callback.secret) {
+    headers['x-workflow-signature'] = signPayload(callback.secret, body);
+  }
+
+  // Retry a few times. Callback delivery should not fail the job.
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(callback.url, {
+        method: 'POST',
+        headers,
+        body,
+        // 10s per attempt so we don't block the worker forever
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (res.ok) {
+        console.log(`[WORKER] Callback delivered for job ${job.id} (attempt ${attempt})`);
+        return;
+      }
+
+      const text = await res.text().catch(() => '');
+      console.warn(
+        `[WORKER] Callback failed for job ${job.id} (attempt ${attempt}) HTTP ${res.status}: ${text.substring(0, 300)}`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[WORKER] Callback error for job ${job.id} (attempt ${attempt}): ${msg}`);
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(1000 * 2 ** (attempt - 1)); // 1s, 2s
+    }
+  }
 }
 
 /**

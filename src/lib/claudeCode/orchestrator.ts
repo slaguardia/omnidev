@@ -7,17 +7,17 @@
 import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { GitInitResult } from '@/lib/managers/repository-manager';
-import { initializeGitWorkflow } from '@/lib/claudeCode/git-workflow';
 import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
 import type { AsyncResult } from '@/lib/types/index';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from '@/lib/claudeCode/types';
 
 /**
- * Detect if a question involves editing operations
+ * Detect if a request involves editing operations.
+ * Prefer explicit caller intent when provided; fall back to keyword heuristics.
  */
-async function isEditRequest(question: string): Promise<boolean> {
+function inferEditRequest(explicit: boolean | undefined, question: string): boolean {
+  if (typeof explicit === 'boolean') return explicit;
   const editKeywords = ['dev-test', 'dev-test mode', 'development mode'];
-
   const questionLower = question.toLowerCase();
   return editKeywords.some((keyword) => questionLower.includes(keyword));
 }
@@ -30,6 +30,7 @@ export async function askClaudeCode(
 ): Promise<AsyncResult<ClaudeCodeResult>> {
   const startTime = Date.now();
   const { question } = options;
+  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
   console.log(`[CLAUDE CODE] Starting execution at ${new Date().toISOString()}`);
   console.log(`[CLAUDE CODE] Parameters:`, {
     questionLength: question.length,
@@ -37,6 +38,7 @@ export async function askClaudeCode(
     contextLength: options.context?.length || 0,
     sourceBranch: options.sourceBranch,
     workspaceId: options.workspaceId,
+    authModeEnv: authModeEnv || undefined,
   });
 
   try {
@@ -45,6 +47,9 @@ export async function askClaudeCode(
     const configStart = Date.now();
     const config = await getRuntimeConfig();
     console.log(`[CLAUDE CODE] ✅ Configuration loaded in ${Date.now() - configStart}ms`);
+    const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
+    const forceCliAuth = authMode === 'cli';
+    console.log(`[CLAUDE CODE] 🔐 Claude auth mode: ${authMode}`);
 
     // Verify working directory exists
     console.log(`[CLAUDE CODE] Verifying working directory: ${options.workingDirectory}`);
@@ -61,40 +66,24 @@ export async function askClaudeCode(
     }
 
     // Check if this is an edit request that needs permissions
-    const needsPermissions = await isEditRequest(question);
+    const needsPermissions = inferEditRequest(options.editRequest, question);
     console.log(`[CLAUDE CODE] Request type analysis:`, {
       isEditRequest: needsPermissions,
       needsPermissions,
     });
 
-    // Initialize git workflow for edit operations
-    let gitInitResult: GitInitResult | undefined;
-    if (needsPermissions && options.workspaceId) {
-      console.log(`[CLAUDE CODE] 🔄 Initializing git workflow for edit request...`);
-      const gitInitStart = Date.now();
-
-      const result = await initializeGitWorkflow({
-        workspaceId: options.workspaceId,
-        sourceBranch: options.sourceBranch || 'main',
-        taskId: options.mrOptions?.taskId || null,
-      });
-      const gitInitTime = Date.now() - gitInitStart;
-
-      if (!result.success) {
-        console.warn(
-          `[CLAUDE CODE] ⚠️ Git workflow initialization failed in ${gitInitTime}ms:`,
-          result.error?.message
-        );
-        // Don't fail the request, just warn - Claude Code might still work
-      } else {
-        console.log(`[CLAUDE CODE] ✅ Git workflow initialized successfully in ${gitInitTime}ms`);
-        gitInitResult = result.data;
-      }
-    }
+    // NOTE: Git workflow initialization is intentionally handled by the caller (API/worker)
+    // so that "before/after" behavior is consistent for immediate vs queued execution.
+    const gitInitResult: GitInitResult | undefined = undefined;
 
     // Build command with sandboxed wrapper
-    // Claude Code always runs through the sandbox wrapper to prevent git operations
+    // Claude Code always runs through the sandbox wrapper to prevent git operations.
+    // Use bash invocation for cross-platform reliability (Windows bind mounts may not preserve +x).
     const wrapperPath = process.env.CLAUDE_CODE_WRAPPER || '/usr/local/bin/claude-code-wrapper';
+    const wrapperCommand =
+      wrapperPath.endsWith('.sh') || wrapperPath.includes('claude-code-wrapper')
+        ? `bash ${wrapperPath}`
+        : wrapperPath;
 
     const skipPermissionsFlag = needsPermissions ? ' --dangerously-skip-permissions' : '';
     const outputFormatFlag = ' --output-format stream-json';
@@ -113,7 +102,7 @@ export async function askClaudeCode(
 
     // Use -p flag to pass the question directly with JSON streaming
     // Note: --verbose is required when using --output-format stream-json with -p
-    const command = `${wrapperPath} ${options.workingDirectory} --verbose${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`;
+    const command = `${wrapperCommand} ${options.workingDirectory} --verbose${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`;
 
     // Activity-based timeout instead of fixed duration
     const maxInactivityTime = 300000; // 5 minutes of inactivity before timeout
@@ -143,26 +132,41 @@ export async function askClaudeCode(
       let lastActivityTime = Date.now();
       let hasReceivedOutput = false;
       const jsonLogs: Array<{ type: string; [key: string]: unknown }> = [];
+      let finalResultSubtype: string | null = null;
+      let finalResultDurationMs: number | null = null;
+      let sawSuccessResult = false;
 
       console.log(`[CLAUDE CODE] 🎬 Spawning Claude process...`);
       const spawnStart = Date.now();
+
+      const childEnv: NodeJS.ProcessEnv = {
+        ...process.env,
+        // Ensure non-interactive environment variables for automation
+        TERM: 'dumb',
+        NO_COLOR: '1',
+      };
+
+      if (forceCliAuth) {
+        // Subscription/manual-login mode: do NOT pass API key to subprocess even if present.
+        delete childEnv.ANTHROPIC_API_KEY;
+      } else {
+        // Use API key from runtime configuration if available, otherwise fall back to environment.
+        childEnv.ANTHROPIC_API_KEY = config.claude.apiKey || process.env.ANTHROPIC_API_KEY;
+      }
 
       const claudeProcess = spawn(command, {
         cwd: process.cwd(), // Wrapper handles cd to workspace directory
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
-        env: {
-          ...process.env,
-          // Use API key from runtime configuration if available, otherwise fall back to environment
-          ANTHROPIC_API_KEY: config.claude.apiKey || process.env.ANTHROPIC_API_KEY,
-          // Ensure non-interactive environment variables for automation
-          TERM: 'dumb',
-          NO_COLOR: '1',
-        },
+        env: childEnv,
       });
 
       // Log which API key source is being used
-      if (config.claude.apiKey) {
+      if (forceCliAuth) {
+        console.log(
+          `[CLAUDE CODE] 🔐 Auth mode 'cli': not passing ANTHROPIC_API_KEY to subprocess (expects manual 'claude' login)`
+        );
+      } else if (config.claude.apiKey) {
         console.log(`[CLAUDE CODE] ✅ Using API key from runtime configuration`);
       } else if (process.env.ANTHROPIC_API_KEY) {
         console.log(`[CLAUDE CODE] ✅ Using API key from environment variables`);
@@ -191,19 +195,28 @@ export async function askClaudeCode(
 
       function handleJsonLog(jsonStr: string) {
         try {
-          const log = JSON.parse(jsonStr);
+          const parsed = JSON.parse(jsonStr) as unknown;
+          if (typeof parsed !== 'object' || parsed === null) {
+            return;
+          }
+          const log = parsed as Record<string, unknown>;
+          const logType = typeof log.type === 'string' ? log.type : 'unknown';
           jsonLogCount++;
           resetActivityTimer();
 
           // Store all JSON logs for history
-          jsonLogs.push(log);
+          jsonLogs.push({ ...log, type: logType });
 
           // Check for final result message
-          if (log.type === 'result') {
+          if (logType === 'result') {
+            const subtype = typeof log.subtype === 'string' ? log.subtype : null;
+            finalResultSubtype = subtype;
+            finalResultDurationMs = typeof log.duration_ms === 'number' ? log.duration_ms : null;
+            sawSuccessResult = subtype === 'success';
             console.log(
-              `[CLAUDE CODE] 🏁 Final result received (${log.subtype}, ${log.duration_ms}ms)`
+              `[CLAUDE CODE] 🏁 Final result received (${subtype ?? 'unknown'}, ${finalResultDurationMs ?? 'unknown'}ms)`
             );
-            if (log.result) {
+            if (typeof log.result === 'string') {
               actualOutput = log.result; // Use the final result as the actual output
               console.log(`[CLAUDE CODE] ✅ Extracted final result (${log.result.length} chars)`);
             }
@@ -211,18 +224,21 @@ export async function askClaudeCode(
           }
 
           // Progress indicators based on JSON log content
-          if (log.type === 'assistant' && log.message) {
-            const message = log.message;
-            if (message.content && Array.isArray(message.content)) {
-              const toolUse = message.content.find(
-                (c: { type: string; name?: string }) => c.type === 'tool_use'
-              );
-              if (toolUse) {
+          if (logType === 'assistant' && log.message && typeof log.message === 'object') {
+            const message = log.message as Record<string, unknown>;
+            const content = message.content;
+            if (Array.isArray(content)) {
+              const toolUse = content.find((c) => {
+                if (typeof c !== 'object' || c === null) return false;
+                const entry = c as Record<string, unknown>;
+                return entry.type === 'tool_use';
+              }) as Record<string, unknown> | undefined;
+              if (toolUse && typeof toolUse.name === 'string') {
                 console.log(`[CLAUDE CODE] 🔧 Claude is using tool: ${toolUse.name}`);
               }
             }
 
-            if (message.stop_reason) {
+            if (typeof message.stop_reason === 'string') {
               console.log(
                 `[CLAUDE CODE] 📝 Claude completed step (reason: ${message.stop_reason})`
               );
@@ -230,8 +246,8 @@ export async function askClaudeCode(
           }
 
           // Generic activity indicator for non-result messages
-          if (log.type !== 'result') {
-            console.log(`[CLAUDE CODE] 📊 JSON log ${jsonLogCount}: ${log.type || 'activity'}`);
+          if (logType !== 'result') {
+            console.log(`[CLAUDE CODE] 📊 JSON log ${jsonLogCount}: ${logType || 'activity'}`);
           }
         } catch {
           // JSON parsing failed - log for debugging but don't add to output
@@ -327,7 +343,15 @@ export async function askClaudeCode(
           executionTime,
         });
 
-        if (code === 0) {
+        const trustSuccessResult = sawSuccessResult && actualOutput.trim().length > 0;
+        const exitCodeOk = code === 0 || trustSuccessResult;
+
+        if (exitCodeOk) {
+          if (code !== 0 && trustSuccessResult) {
+            console.warn(
+              `[CLAUDE CODE] ⚠️ Non-zero exit code (${code}) but received successful result payload; treating as success`
+            );
+          }
           const output = actualOutput.trim() || rawStdout.trim() || stderr.trim();
           console.log(`[CLAUDE CODE] ✅ Successful execution, processing output...`);
 
@@ -371,7 +395,7 @@ export async function askClaudeCode(
           resolve({
             success: false,
             error: new Error(
-              `Claude Code exited with code ${code}${stderr ? ': ' + stderr.substring(0, 500) : ''}`
+              `Claude Code exited with code ${code}${finalResultSubtype ? ` (result subtype: ${finalResultSubtype})` : ''}${stderr ? ': ' + stderr.substring(0, 500) : ''}`
             ),
           });
         }

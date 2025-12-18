@@ -19,6 +19,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   claude: {
     apiKey: '',
+    authMode: 'auto',
     maxTokens: 4000,
     defaultTemperature: 0.3,
   },
@@ -61,6 +62,7 @@ export function getDefaultClientSafeConfig(): ClientSafeAppConfig {
     },
     claude: {
       apiKeySet: false,
+      authMode: DEFAULT_CONFIG.claude.authMode,
       maxTokens: DEFAULT_CONFIG.claude.maxTokens,
       defaultTemperature: DEFAULT_CONFIG.claude.defaultTemperature,
     },
@@ -132,7 +134,12 @@ export function validateClientSafeConfig(config: ClientSafeAppConfig): string[] 
  * Check if configuration is complete (has required tokens)
  */
 export function isConfigurationComplete(config: AppConfig): boolean {
-  return !!(config.gitlab.token && config.claude.apiKey);
+  // In CLI-login mode, a Claude API key is intentionally not required.
+  const claudeOk =
+    config.claude.authMode === 'cli'
+      ? true
+      : Boolean(config.claude.apiKey || process.env.ANTHROPIC_API_KEY);
+  return Boolean(config.gitlab.token) && claudeOk;
 }
 
 /**
@@ -145,7 +152,10 @@ export function getConfigurationStatus(config: AppConfig) {
       url: config.gitlab.url,
     },
     claude: {
-      configured: !!config.claude.apiKey,
+      configured:
+        config.claude.authMode === 'cli'
+          ? true
+          : Boolean(config.claude.apiKey || process.env.ANTHROPIC_API_KEY),
     },
     workspace: {
       baseDir: '/app/workspaces', // Static for client

@@ -19,21 +19,24 @@ export async function initializeClaudeCode(params: ClaudeCodeOptions): Promise<
     config: AppConfig;
   }>
 > {
+  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
+
   // Get runtime configuration for API key
   console.log(`[CLAUDE CODE] Loading runtime configuration...`);
   const configStart = Date.now();
   const config = await getConfig();
   console.log(`[CLAUDE CODE] ✅ Configuration loaded in ${Date.now() - configStart}ms`);
+  const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
+  const forceCliAuth = authMode === 'cli';
 
-  // Validate that API key is configured
-  if (!config.claude.apiKey) {
-    console.error(`[CLAUDE CODE] ❌ No Claude API key found in configuration`);
-    return {
-      success: false,
-      error: new Error(
-        'Claude API key is not configured. Please set your API key in the application settings.'
-      ),
-    };
+  // Validate auth configuration:
+  // - In 'cli' mode (subscription/manual login), API key is intentionally not required.
+  // - In other modes, we still allow missing API key (it may be provided via env),
+  //   but we emit a warning to aid debugging.
+  if (!forceCliAuth && !config.claude.apiKey && !process.env.ANTHROPIC_API_KEY) {
+    console.warn(
+      `[CLAUDE CODE] ⚠️ No Claude API key found in configuration or environment; if you are using a subscription account set CLAUDE_CODE_AUTH_MODE=cli and login with 'claude auth login'`
+    );
   }
 
   // Verify working directory exists

@@ -9,6 +9,7 @@
  */
 
 import { simpleGit, SimpleGit, SimpleGitOptions } from 'simple-git';
+import { existsSync } from 'node:fs';
 
 /**
  * Path to the real git binary (moved during Docker build)
@@ -17,7 +18,19 @@ import { simpleGit, SimpleGit, SimpleGitOptions } from 'simple-git';
  * Note: Only git is sandboxed. Other executables (rm, curl, wget) are
  * accessible to Claude Code as they may be needed for legitimate operations.
  */
-const INTERNAL_GIT_PATH = process.env.INTERNAL_GIT_PATH || '/opt/internal/bin/git';
+const DEFAULT_INTERNAL_GIT_PATH = '/opt/internal/bin/git';
+
+function resolveGitBinary(): string {
+  const override = process.env.INTERNAL_GIT_PATH;
+  if (override && override.trim().length > 0) return override.trim();
+
+  // In Docker builds we move the real git binary here. In local dev (e.g. Windows),
+  // this path won't exist, so fall back to "git" on PATH.
+  if (existsSync(DEFAULT_INTERNAL_GIT_PATH)) return DEFAULT_INTERNAL_GIT_PATH;
+  return 'git';
+}
+
+const INTERNAL_GIT_PATH = resolveGitBinary();
 
 /**
  * Internal git path for application use only

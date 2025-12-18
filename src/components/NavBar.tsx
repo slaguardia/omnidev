@@ -28,6 +28,12 @@ export const Navbar = () => {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering auth content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Handle Command+K / Ctrl+K keyboard shortcut to open search
   useEffect(() => {
@@ -119,24 +125,25 @@ export const Navbar = () => {
           </NavbarItem>
           <NavbarItem className="hidden lg:flex">{searchButton}</NavbarItem>
 
-          {/* Authentication Section */}
-          {status !== 'loading' &&
-            (session ? (
-              <NavbarItem className="hidden sm:flex items-center gap-6 ml-auto">
+          {/* Authentication Section - only render after mount to avoid hydration mismatch */}
+          <NavbarItem className="hidden sm:flex items-center gap-6 ml-auto">
+            {!mounted || status === 'loading' ? (
+              <div className="w-20 h-8" />
+            ) : session ? (
+              <>
                 <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
                   {session.user?.name}
                 </span>
                 <Button size="sm" variant="flat" color="danger" onPress={handleSignOut}>
                   Sign Out
                 </Button>
-              </NavbarItem>
+              </>
             ) : (
-              <NavbarItem className="hidden sm:flex ml-auto">
-                <Button as={NextLink} href="/signin" size="sm" variant="flat">
-                  Sign In
-                </Button>
-              </NavbarItem>
-            ))}
+              <Button as={NextLink} href="/signin" size="sm" variant="flat">
+                Sign In
+              </Button>
+            )}
+          </NavbarItem>
         </NavbarContent>
 
         <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
@@ -171,7 +178,7 @@ export const Navbar = () => {
         </NavbarMenu>
       </HeroUINavbar>
 
-      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      <SearchModal isOpen={isSearchOpen} onOpenChange={setIsSearchOpen} />
     </div>
   );
 };

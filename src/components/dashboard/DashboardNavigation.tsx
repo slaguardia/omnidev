@@ -1,6 +1,15 @@
 'use client';
 
-import { FolderOpen, Bot, Settings, GitBranch, Lock, History, ListOrdered } from 'lucide-react';
+import {
+  FolderOpen,
+  Bot,
+  Settings,
+  GitBranch,
+  Lock,
+  History,
+  ListOrdered,
+  Code,
+} from 'lucide-react';
 
 interface DashboardNavigationProps {
   activeTab: string;
@@ -13,6 +22,7 @@ const navItems = [
   { key: 'queue', title: 'Request Queue', icon: ListOrdered },
   { key: 'history', title: 'Execution History', icon: History },
   { key: 'git-source', title: 'Git Source Config', icon: GitBranch },
+  { key: 'snippets', title: 'Snippets', icon: Code },
   { key: 'settings', title: 'Environment Settings', icon: Settings },
   { key: 'security', title: 'Account Security', icon: Lock },
 ];

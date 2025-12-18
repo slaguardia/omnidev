@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/nextauth-options';
 import { deleteClaudeMdContent, saveClaudeMdContent } from '@/lib/claudeCode/claudemd';
 
 // Save the CLAUDE.md file content
 export async function POST(request: NextRequest) {
   try {
+    // Dashboard-only: require an authenticated NextAuth session (do NOT allow API keys)
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.name) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { content } = await request.json();
 
     if (typeof content !== 'string') {
@@ -23,8 +31,14 @@ export async function POST(request: NextRequest) {
 }
 
 // Delete the CLAUDE.md file
-export async function DELETE() {
+export async function DELETE(_request: NextRequest) {
   try {
+    // Dashboard-only: require an authenticated NextAuth session (do NOT allow API keys)
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.name) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
       await deleteClaudeMdContent();
 

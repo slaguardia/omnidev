@@ -73,6 +73,7 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
     },
     claude: {
       apiKeySet: !!config.claude.apiKey,
+      authMode: config.claude.authMode,
       maxTokens: config.claude.maxTokens,
       defaultTemperature: config.claude.defaultTemperature,
     },
@@ -212,6 +213,7 @@ export async function updateConfigFromClient(
           sensitiveData?.claudeApiKey !== undefined
             ? sensitiveData.claudeApiKey
             : currentConfig.claude.apiKey,
+        authMode: clientConfig.claude.authMode,
         maxTokens: clientConfig.claude.maxTokens,
         defaultTemperature: clientConfig.claude.defaultTemperature,
       },

@@ -2,11 +2,12 @@
 
 import React, { useEffect } from 'react';
 import { Button } from '@heroui/button';
-import { Bot, GitBranch } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { Select, SelectItem } from '@heroui/select';
 import { Textarea } from '@heroui/input';
 import { Workspace, ClaudeForm } from '@/lib/dashboard/types';
 import { useBranches } from '@/hooks';
+import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 interface OperationsTabProps {
   workspaces: Workspace[];
@@ -31,27 +32,21 @@ export default function OperationsTab({
 
   // Get selected workspace
   const selectedWorkspace = workspaces.find((w) => w.id === claudeForm.workspaceId);
+  const sourceBranchTooltip = selectedWorkspace
+    ? `Defaults to workspace target branch: ${selectedWorkspace.branch}`
+    : 'Select a workspace to choose a source branch';
 
   // Fetch branches when workspace changes
   useEffect(() => {
     if (claudeForm.workspaceId && selectedWorkspace) {
       fetchBranches(claudeForm.workspaceId);
-      // Set default source branch to workspace target branch if not already set
-      if (!claudeForm.sourceBranch) {
-        setClaudeForm((prev) => ({
-          ...prev,
-          sourceBranch:
-            (selectedWorkspace as Workspace & { targetBranch?: string }).targetBranch ||
-            selectedWorkspace.branch,
-        }));
-      }
     } else {
       setClaudeForm((prev) => ({ ...prev, sourceBranch: '' }));
     }
   }, [claudeForm.workspaceId, selectedWorkspace, fetchBranches, setClaudeForm]);
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="w-full max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <h2 className="text-2xl font-semibold flex items-center gap-2">
         <Bot className="w-6 h-6 text-purple-500" />
@@ -80,27 +75,11 @@ export default function OperationsTab({
 
         <Select
           isDisabled={!claudeForm.workspaceId}
-          isRequired
           size="md"
-          label="Source Branch (for MR edits)"
-          labelPlacement="outside"
-          description={
-            selectedWorkspace ? (
-              <span className="flex items-center gap-1">
-                <GitBranch className="w-3 h-3" />
-                Defaults to workspace target branch:{' '}
-                <span className="font-mono">
-                  {(selectedWorkspace as Workspace & { targetBranch?: string }).targetBranch ||
-                    selectedWorkspace.branch}
-                </span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <GitBranch className="w-3 h-3" />
-                Select a workspace to choose a source branch
-              </span>
-            )
+          label={
+            <LabelWithTooltip label="Source Branch (optional)" tooltip={sourceBranchTooltip} />
           }
+          labelPlacement="outside"
           placeholder={
             !claudeForm.workspaceId
               ? 'Select a workspace first'
@@ -108,22 +87,30 @@ export default function OperationsTab({
                 ? 'Loading branches...'
                 : 'Select source branch'
           }
-          selectedKeys={claudeForm.sourceBranch ? [claudeForm.sourceBranch] : []}
+          selectedKeys={claudeForm.workspaceId ? [claudeForm.sourceBranch || '__default__'] : []}
           onSelectionChange={
             claudeForm.workspaceId
               ? (keys: React.Key | Set<React.Key>) => {
                   const keyArray = Array.from(keys as Set<React.Key>);
-                  const selectedBranch = keyArray[0] as string;
-                  console.log('Branch selected:', selectedBranch, 'keys:', keys);
-                  setClaudeForm((prev) => ({ ...prev, sourceBranch: selectedBranch }));
+                  const selectedKey = keyArray[0] as string | undefined;
+                  if (!selectedKey || selectedKey === '__default__') {
+                    setClaudeForm((prev) => ({ ...prev, sourceBranch: '' }));
+                    return;
+                  }
+                  setClaudeForm((prev) => ({ ...prev, sourceBranch: selectedKey }));
                 }
               : () => {} // No-op when no workspace selected
           }
           variant="bordered"
         >
-          {claudeForm.workspaceId && !loadingBranches
-            ? branches.map((branch) => <SelectItem key={branch}>{branch}</SelectItem>)
-            : []}
+          <>
+            {claudeForm.workspaceId ? (
+              <SelectItem key="__default__">Default (workspace target branch)</SelectItem>
+            ) : null}
+            {claudeForm.workspaceId && !loadingBranches
+              ? branches.map((branch) => <SelectItem key={branch}>{branch}</SelectItem>)
+              : null}
+          </>
         </Select>
 
         <Textarea
