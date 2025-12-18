@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     gnupg \
     wget \
+    gosu \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get update \
     && apt-get install -y \
@@ -120,7 +121,8 @@ RUN chmod 755 /usr/local/bin/claude-code-wrapper && chown nextjs:nodejs /usr/loc
 COPY --chown=nextjs:nodejs scripts/ ./scripts/
 RUN chmod 755 ./scripts/*.sh
 
-# Switch to non-root user for security
+# Run as non-root user for security. If you persist Claude auth via a named volume,
+# prefer using the docker-compose init service to chown it on first run.
 USER nextjs
 
 # Expose the application port

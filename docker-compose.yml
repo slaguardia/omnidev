@@ -1,9 +1,30 @@
 services:
+  # One-time permissions fix for persisted Claude Code auth volume.
+  # Named volumes are root-owned by default on first create; this makes them writable
+  # by the `nextjs` user (uid/gid 1001) before the app starts.
+  workflow-init-perms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-init-perms
+    user: '0:0'
+    entrypoint: ['bash', '-lc']
+    command:
+      [
+        'mkdir -p /home/nextjs/.claude && chown -R 1001:1001 /home/nextjs/.claude',
+      ]
+    volumes:
+      - workflow_claude_config:/home/nextjs/.claude
+    restart: 'no'
+
   workflow-app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: workflow-app
+    depends_on:
+      workflow-init-perms:
+        condition: service_completed_successfully
     # Production note:
     # - If you're deploying behind a reverse proxy (Traefik/Caddy/nginx), do NOT publish 3000 to the host.
     #   Let the reverse proxy publish 80/443 and route internally to this container on port 3000.
@@ -25,8 +46,6 @@ services:
       - next_auth_secret:/secrets
       # Persist Claude Code CLI auth + settings (~/.claude) across restarts/rebuilds
       - workflow_claude_config:/home/nextjs/.claude
-      # If you auth as root inside the container, Claude may write to /root/.claude
-      - workflow_claude_config:/root/.claude
     restart: unless-stopped
     healthcheck:
       test:
@@ -85,8 +104,6 @@ services:
       - next_auth_secret:/secrets
       # Persist Claude Code CLI auth + settings (~/.claude) across restarts/rebuilds
       - workflow_claude_config:/home/nextjs/.claude
-      # If you auth as root inside the container, Claude may write to /root/.claude
-      - workflow_claude_config:/root/.claude
     restart: unless-stopped
 
 volumes:

@@ -30,8 +30,10 @@ persist_claude_home_files() {
     fi
   fi
   if [ ! -f "$USER_HOME/.claude/.claude.json" ]; then
-    # Create an empty file so the symlink target always exists
-    : > "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
+    # Create an empty file so the symlink target always exists.
+    # Avoid shell redirection here: if the directory isn't writable, the shell prints
+    # "cannot create ..." before redirections (even with 2>/dev/null).
+    touch "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
   fi
   ln -sf "$USER_HOME/.claude/.claude.json" "$USER_HOME/.claude.json" 2>/dev/null || true
 
@@ -46,8 +48,32 @@ persist_claude_home_files() {
   fi
 }
 
-# Apply for the current user (prod runs as nextjs, so this will typically be /home/nextjs)
-persist_claude_home_files "$HOME"
+run_as_nextjs_if_root() {
+  if [ "$(id -u)" != "0" ]; then
+    return 1
+  fi
+
+  # Ensure the nextjs home exists and is writable (named volumes default to root-owned).
+  mkdir -p /home/nextjs/.claude 2>/dev/null || true
+  chown -R nextjs:nodejs /home/nextjs 2>/dev/null || true
+
+  # Some deployments persist workspaces + secrets too; try to fix ownership if mounted.
+  chown -R nextjs:nodejs /app/workspaces 2>/dev/null || true
+  chown -R nextjs:nodejs /secrets 2>/dev/null || true
+
+  # Ensure Claude Code persistence for the intended runtime user.
+  export HOME=/home/nextjs
+  persist_claude_home_files "$HOME"
+
+  # Drop privileges for the main process.
+  exec gosu nextjs "$@"
+}
+
+# If we're root (recommended in Dockerfile), fix volume permissions then drop to nextjs.
+run_as_nextjs_if_root "$@" || {
+  # Otherwise, best-effort for the current user (prod may run as nextjs already).
+  persist_claude_home_files "$HOME"
+}
 
 # Support both direct secret and file-based secret.
 # - If NEXTAUTH_SECRET is already set, use it as-is.
