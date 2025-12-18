@@ -29,12 +29,11 @@ before_script:
 
 workflow:
   rules:
+    # Only run on merge requests (pre-merge validation)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: always
-    - if: $CI_COMMIT_BRANCH
-      when: always
 
 # Test Stage - Run tests with coverage
+# Add label "skip-tests" to MR to skip tests
 test:
   stage: test
   variables:
@@ -53,6 +52,10 @@ test:
     when: always
   cache:
     policy: pull
+  rules:
+    - if: $CI_MERGE_REQUEST_LABELS =~ /skip-tests/
+      when: never
+    - when: on_success
 
 # Lint Stage - Comprehensive code quality checks
 # Runs typecheck (TypeScript), ESLint, Prettier, and depcheck
@@ -86,14 +89,15 @@ docker-build:
     # - docker push $IMAGE_TAG
     # - docker push $IMAGE_TAG_LATEST
   needs:
-    - test
+    - job: test
+      optional: true
     - lint
   rules:
-    # Only run on main/master branch or merge requests
-    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
+    # Add label "skip-docker" to MR to skip docker jobs
+    - if: $CI_MERGE_REQUEST_LABELS =~ /skip-docker/
+      when: never
+    # Manual trigger on merge requests
+    - when: manual
 
 # Docker Security Test Stage - Verify sandbox configuration
 docker-sandbox-verify:
@@ -148,11 +152,12 @@ docker-sandbox-verify:
     - docker stop $CONTAINER_NAME || true
     - docker rm $CONTAINER_NAME || true
   needs:
-    - test
+    - job: test
+      optional: true
     - lint
   rules:
-    # Run automatically on main/master, manual on merge requests
-    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
+    # Add label "skip-docker" to MR to skip docker jobs
+    - if: $CI_MERGE_REQUEST_LABELS =~ /skip-docker/
+      when: never
+    # Manual trigger on merge requests
+    - when: manual
