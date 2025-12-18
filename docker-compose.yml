@@ -3,18 +3,18 @@ services:
   # Named volumes are root-owned by default on first create; this makes them writable
   # by the `nextjs` user (uid/gid 1001) before the app starts.
   workflow-init-perms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: alpine:3.20
     container_name: workflow-init-perms
     user: '0:0'
-    entrypoint: ['bash', '-lc']
+    entrypoint: ['sh', '-lc']
     command:
       [
-        'mkdir -p /home/nextjs/.claude && chown -R 1001:1001 /home/nextjs/.claude',
+        'mkdir -p /home/nextjs/.claude /app/workspaces /secrets && chown -R 1001:1001 /home/nextjs/.claude /app/workspaces /secrets',
       ]
     volumes:
       - workflow_claude_config:/home/nextjs/.claude
+      - workflow_workspaces:/app/workspaces
+      - next_auth_secret:/secrets
     restart: 'no'
 
   workflow-app:
@@ -55,7 +55,7 @@ services:
           '--no-verbose',
           '--tries=1',
           '--spider',
-          'http://localhost:3000/api/config/validate',
+          'http://localhost:3000/api/health',
         ]
       interval: 30s
       timeout: 10s
@@ -108,8 +108,11 @@ services:
 
 volumes:
   workflow_workspaces:
+    name: workflow_workspaces
     driver: local
   next_auth_secret:
+    name: workflow_next_auth_secret
   workflow_node_modules:
   workflow_next_cache:
   workflow_claude_config:
+    name: workflow_claude_config

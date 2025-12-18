@@ -117,3 +117,4 @@ export const authOptions: NextAuthOptions = {
 if (process.env.NEXTAUTH_SECRET) {
   authOptions.secret = process.env.NEXTAUTH_SECRET;
 }
+
