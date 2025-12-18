@@ -20,7 +20,8 @@
     "lint:all": "pnpm lint && pnpm prettier && pnpm depcheck",
     "lint:all:fix": "pnpm lint:fix && pnpm prettier:fix && pnpm depcheck",
     "clean:workspaces": "ts-node scripts/cleanup-workspaces.ts",
-    "debug:workspaces": "node -e \"const fs = require('fs'); const path = require('path'); const workspaceDir = path.resolve(process.cwd(), 'workspaces'); console.log('Workspace directory:', workspaceDir); try { const files = fs.readdirSync(workspaceDir, { withFileTypes: true }); console.log('Contents:', files.map(f => ({ name: f.name, isDirectory: f.isDirectory() }))); const indexPath = path.join(workspaceDir, '.workspace-index.json'); if (fs.existsSync(indexPath)) { const content = fs.readFileSync(indexPath, 'utf-8'); console.log('Index file content:', content); } else { console.log('No index file found'); } } catch (e) { console.log('Error or directory does not exist:', e.message); }\""
+    "debug:workspaces": "node -e \"const fs = require('fs'); const path = require('path'); const workspaceDir = path.resolve(process.cwd(), 'workspaces'); console.log('Workspace directory:', workspaceDir); try { const files = fs.readdirSync(workspaceDir, { withFileTypes: true }); console.log('Contents:', files.map(f => ({ name: f.name, isDirectory: f.isDirectory() }))); const indexPath = path.join(workspaceDir, '.workspace-index.json'); if (fs.existsSync(indexPath)) { const content = fs.readFileSync(indexPath, 'utf-8'); console.log('Index file content:', content); } else { console.log('No index file found'); } } catch (e) { console.log('Error or directory does not exist:', e.message); }\"",
+    "playwright:mcp": "npx @playwright/mcp@latest --browser chromium --port 8931"
   },
   "dependencies": {
     "@eslint/js": "^9.29.0",

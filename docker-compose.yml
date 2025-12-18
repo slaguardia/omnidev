@@ -4,8 +4,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: workflow-app
-    ports:
-      - '3000:3000'
+    # Production note:
+    # - If you're deploying behind a reverse proxy (Traefik/Caddy/nginx), do NOT publish 3000 to the host.
+    #   Let the reverse proxy publish 80/443 and route internally to this container on port 3000.
+    # - If you want to run the app directly (no reverse proxy), uncomment the ports section.
+    # ports:
+    #   - '3000:3000'
+    expose:
+      - '3000'
     environment:
       - NODE_ENV=production
       - NEXTAUTH_SECRET=NpFJbJe9X9mjBCvf2HhFfYnVdfa/AGf3iredF376t8M=

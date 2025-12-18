@@ -319,6 +319,19 @@ docker image prune
 
 ## Production Deployment
 
+### Plain Docker Compose (single host)
+
+If you're deploying to a single VM (no Swarm), and you have a reverse proxy (Traefik/Caddy/nginx) handling TLS:
+
+```bash
+docker compose up -d --build workflow-app
+```
+
+Notes:
+
+- When deploying behind a reverse proxy, `workflow-app` should **not publish** `3000` to the host. The repo `docker-compose.yml` is set up that way by default; your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in production.
+
 ### Docker Swarm
 
 Initialize swarm (if not already done):
@@ -332,6 +345,11 @@ Deploy stack:
 ```bash
 docker stack deploy -c docker-compose.yml workflow
 ```
+
+Notes:
+
+- If you are deploying behind **Traefik/Caddy**, `workflow-app` should **not publish** `3000` to the host. Your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in production.
 
 ### Kubernetes
 
@@ -368,12 +386,18 @@ spec:
 
 1. **Port already in use:**
 
-   Change the port mapping in docker-compose.yml:
+   If you are running the app **directly** (no reverse proxy), change the port mapping in `docker-compose.yml`:
 
    ```yaml
    ports:
      - '3001:3000'
    ```
+
+   If you are running behind a **reverse proxy (Traefik/Caddy/nginx)**, the recommended fix is to **not publish** the app port at all:
+
+   - Remove `ports:` from the app service
+   - Keep the app reachable only on an internal Docker network
+   - Have the reverse proxy publish `80/443` and route to `workflow-app:3000`
 
 2. **Permission issues with workspaces:**
 

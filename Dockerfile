@@ -1,14 +1,14 @@
 # Use pure Ubuntu for full Claude Code compatibility
 FROM ubuntu:22.04 AS base
 
-# Install Node.js 18 and essential build tools
+# Install Node.js 20 and essential build tools
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
     ca-certificates \
     gnupg \
     wget \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get update \
     && apt-get install -y \
     nodejs \
