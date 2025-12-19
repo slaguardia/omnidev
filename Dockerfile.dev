@@ -30,7 +30,7 @@ RUN mkdir -p /opt/internal/bin \
     && chmod 755 /usr/bin/git
 
 # Package manager + Claude Code CLI
-RUN npm install -g pnpm @anthropic-ai/claude-code@latest
+RUN npm install -g pnpm @anthropic-ai/claude-code
 
 # Create the same non-root user as prod so `docker exec --user nextjs ...` works in dev too.
 # We do NOT switch the default user here because dev bind mounts may require root for write access.
@@ -50,6 +50,6 @@ EXPOSE 3000
 
 # Source is bind-mounted in docker-compose; we install deps on container start there.
 # Use Next's supported flags (avoid invalid short flags like -H).
-CMD ["bash", "-lc", "mkdir -p /app/workspaces /home/nextjs/.claude; if [ -f /home/nextjs/.claude.json ] && [ ! -L /home/nextjs/.claude.json ] && [ ! -f /home/nextjs/.claude/.claude.json ]; then mv /home/nextjs/.claude.json /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; if [ ! -f /home/nextjs/.claude/.claude.json ]; then : > /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; ln -sf /home/nextjs/.claude/.claude.json /home/nextjs/.claude.json 2>/dev/null || true; if [ -f /home/nextjs/.claude.json.backup ] && [ ! -L /home/nextjs/.claude.json.backup ] && [ ! -f /home/nextjs/.claude/.claude.json.backup ]; then mv /home/nextjs/.claude.json.backup /home/nextjs/.claude/.claude.json.backup 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json.backup ]; then ln -sf /home/nextjs/.claude/.claude.json.backup /home/nextjs/.claude.json.backup 2>/dev/null || true; fi; chown -R nextjs:nodejs /app/workspaces /home/nextjs 2>/dev/null || true; pnpm install --frozen-lockfile && pnpm exec next dev --turbopack --hostname 0.0.0.0 --port 3000"]
+CMD ["bash", "-lc", "mkdir -p /app/workspaces; if [ -f /home/nextjs/.claude.json ] || [ -f /home/nextjs/.claude/.claude.json ]; then mkdir -p /home/nextjs/.claude; if [ -f /home/nextjs/.claude.json ] && [ ! -L /home/nextjs/.claude.json ] && [ ! -f /home/nextjs/.claude/.claude.json ]; then mv /home/nextjs/.claude.json /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json ]; then ln -sf /home/nextjs/.claude/.claude.json /home/nextjs/.claude.json 2>/dev/null || true; fi; fi; if [ -f /home/nextjs/.claude.json.backup ] && [ ! -L /home/nextjs/.claude.json.backup ] && [ ! -f /home/nextjs/.claude/.claude.json.backup ]; then mkdir -p /home/nextjs/.claude; mv /home/nextjs/.claude.json.backup /home/nextjs/.claude/.claude.json.backup 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json.backup ]; then ln -sf /home/nextjs/.claude/.claude.json.backup /home/nextjs/.claude.json.backup 2>/dev/null || true; fi; chown -R nextjs:nodejs /app/workspaces /home/nextjs 2>/dev/null || true; pnpm install --frozen-lockfile && pnpm exec next dev --turbopack --hostname 0.0.0.0 --port 3000"]
 
 

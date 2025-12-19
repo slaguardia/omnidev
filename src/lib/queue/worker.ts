@@ -40,12 +40,39 @@ let workerRunning = false;
 let workerIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
+ * Options for executeOrQueue
+ */
+export interface ExecuteOrQueueOptions {
+  /**
+   * If true, always queue the job and return immediately with a job ID.
+   * If false (default), execute immediately if no other job is processing.
+   */
+  forceQueue?: boolean;
+}
+
+/**
  * Main entry point for API routes - execute immediately or queue
  *
+ * @param type - The job type
+ * @param payload - The job payload
+ * @param options - Optional configuration
  * @returns { immediate: true, result } if executed immediately
  * @returns { immediate: false, jobId } if queued
  */
-export async function executeOrQueue<T>(type: JobType, payload: T): Promise<ExecutionResult> {
+export async function executeOrQueue<T>(
+  type: JobType,
+  payload: T,
+  options?: ExecuteOrQueueOptions
+): Promise<ExecutionResult> {
+  const { forceQueue = false } = options ?? {};
+
+  // If forceQueue is true, skip immediate execution and always queue
+  if (forceQueue) {
+    console.log(`[WORKER] Force queue enabled, enqueueing ${type} job`);
+    const jobId = await enqueueJob(type, payload);
+    return { immediate: false, jobId };
+  }
+
   // Acquire atomic processing lock to prevent concurrent "execute immediately" races.
   const lock = await acquireProcessingLock('api');
   if (lock.acquired) {

@@ -85,7 +85,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install pnpm and Claude Code in the runtime image
-RUN npm install -g pnpm @anthropic-ai/claude-code@latest
+RUN npm install -g pnpm @anthropic-ai/claude-code
 
 # Create system user and group for security
 RUN addgroup --system --gid 1001 nodejs

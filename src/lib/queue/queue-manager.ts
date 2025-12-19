@@ -85,17 +85,19 @@ export async function initializeQueue(): Promise<void> {
 }
 
 /**
- * Check if any job is currently being processed
+ * Check if any job is currently being processed.
+ *
+ * NOTE: This only checks if there are job files in the processing folder.
+ * It does NOT check for the lock file, because the lock is for preventing
+ * concurrent access (mutex), not for indicating processing state.
+ * The worker acquires the lock before checking isProcessing(), so checking
+ * the lock here would cause the worker to see its own lock and exit early.
  */
 export async function isProcessing(): Promise<boolean> {
   await ensureQueueInitialized();
   const processingPath = getQueueFolderPath('processing');
 
   try {
-    // If a lock exists, we consider the queue processing even if the folder is empty.
-    if (existsSync(getProcessingLockPath())) {
-      return true;
-    }
     const files = await readdir(processingPath);
     const jsonFiles = files.filter((f) => f.endsWith('.json'));
     return jsonFiles.length > 0;

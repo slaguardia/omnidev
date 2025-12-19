@@ -20,7 +20,13 @@ persist_claude_home_files() {
     return 0
   fi
 
-  # Ensure base dirs exist
+  # Only touch Claude's home files if they already exist.
+  # If nothing exists yet, Claude should create it during interactive login.
+  if [ ! -f "$USER_HOME/.claude.json" ] && [ ! -f "$USER_HOME/.claude/.claude.json" ]; then
+    return 0
+  fi
+
+  # Ensure base dirs exist (only when we actually need to migrate/symlink)
   mkdir -p "$USER_HOME/.claude" 2>/dev/null || true
 
   # Migrate + symlink ~/.claude.json
@@ -29,13 +35,10 @@ persist_claude_home_files() {
       mv "$USER_HOME/.claude.json" "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
     fi
   fi
-  if [ ! -f "$USER_HOME/.claude/.claude.json" ]; then
-    # Create an empty file so the symlink target always exists.
-    # Avoid shell redirection here: if the directory isn't writable, the shell prints
-    # "cannot create ..." before redirections (even with 2>/dev/null).
-    touch "$USER_HOME/.claude/.claude.json" 2>/dev/null || true
+  # Only create the symlink if we have a concrete target file.
+  if [ -f "$USER_HOME/.claude/.claude.json" ]; then
+    ln -sf "$USER_HOME/.claude/.claude.json" "$USER_HOME/.claude.json" 2>/dev/null || true
   fi
-  ln -sf "$USER_HOME/.claude/.claude.json" "$USER_HOME/.claude.json" 2>/dev/null || true
 
   # Migrate + symlink ~/.claude.json.backup
   if [ -f "$USER_HOME/.claude.json.backup" ] && [ ! -L "$USER_HOME/.claude.json.backup" ]; then

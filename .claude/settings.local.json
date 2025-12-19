@@ -16,7 +16,11 @@
       "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_close",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__linear-server__list_projects",
+      "mcp__linear-server__list_teams",
+      "mcp__linear-server__create_issue",
+      "WebSearch"
     ]
   }
 }
