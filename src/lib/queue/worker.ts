@@ -10,9 +10,6 @@
 
 import type { Job, JobType, ExecutionResult, ClaudeCodeJobPayload } from './types';
 import crypto from 'node:crypto';
-import { saveExecutionToHistory } from '@/lib/dashboard/execution-history';
-import { getProjectDisplayName } from '@/lib/dashboard/helpers';
-import type { ClaudeCodeJobResult } from './types';
 import {
   isProcessing,
   acquireProcessingLock,
@@ -85,7 +82,6 @@ export async function executeOrQueue<T>(
     try {
       const result = await processJob(job);
       await markJobComplete(job.id, result);
-      await saveJobToExecutionHistory(job, { status: 'completed', result });
       await notifyJobCallback(job, { status: 'completed', result });
 
       console.log(`[WORKER] Job ${job.id} completed immediately`);
@@ -93,7 +89,6 @@ export async function executeOrQueue<T>(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await markJobFailed(job.id, errorMessage);
-      await saveJobToExecutionHistory(job, { status: 'failed', error: errorMessage });
       await notifyJobCallback(job, { status: 'failed', error: errorMessage });
 
       console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
@@ -196,13 +191,11 @@ export function startWorker(): void {
         try {
           const result = await processJob(job);
           await markJobComplete(job.id, result);
-          await saveJobToExecutionHistory(job, { status: 'completed', result });
           await notifyJobCallback(job, { status: 'completed', result });
           console.log(`[WORKER] Job ${job.id} completed`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           await markJobFailed(job.id, errorMessage);
-          await saveJobToExecutionHistory(job, { status: 'failed', error: errorMessage });
           await notifyJobCallback(job, { status: 'failed', error: errorMessage });
           console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
         }
@@ -218,53 +211,6 @@ export function startWorker(): void {
 type CallbackNotification =
   | { status: 'completed'; result: unknown }
   | { status: 'failed'; error: string };
-
-type HistoryNotification =
-  | { status: 'completed'; result: unknown }
-  | { status: 'failed'; error: string };
-
-async function saveJobToExecutionHistory(
-  job: Job,
-  notification: HistoryNotification
-): Promise<void> {
-  // Best-effort only; never fail the job for history persistence.
-  try {
-    if (job.type !== 'claude-code') return;
-    const payload = job.payload as ClaudeCodeJobPayload;
-
-    const workspaceName = payload.repoUrl
-      ? getProjectDisplayName(payload.repoUrl)
-      : String(payload.workspaceId);
-
-    if (notification.status === 'completed') {
-      const result = notification.result as ClaudeCodeJobResult;
-      const entry: Parameters<typeof saveExecutionToHistory>[0] = {
-        workspaceId: String(payload.workspaceId),
-        workspaceName,
-        question: payload.question,
-        response: result.output || '',
-        status: 'success',
-        executionTimeMs: result.executionTimeMs,
-      };
-      if (result.jsonLogs) entry.jsonLogs = result.jsonLogs;
-      if (result.rawOutput) entry.rawOutput = result.rawOutput;
-
-      await saveExecutionToHistory(entry);
-      return;
-    }
-
-    await saveExecutionToHistory({
-      workspaceId: String(payload.workspaceId),
-      workspaceName,
-      question: payload.question,
-      response: '',
-      status: 'error',
-      errorMessage: `Claude Code execution failed: ${notification.error}`,
-    });
-  } catch (err) {
-    console.warn('[WORKER] Failed to save execution history entry:', err);
-  }
-}
 
 function isHttpUrl(url: string): boolean {
   try {

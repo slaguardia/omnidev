@@ -28,6 +28,7 @@ export interface ClaudeForm {
   question: string;
   context: string;
   sourceBranch: string;
+  createMR: boolean;
 }
 
 export interface AskForm {

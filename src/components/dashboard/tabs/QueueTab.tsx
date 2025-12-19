@@ -13,7 +13,9 @@ import {
   Loader2,
   Eye,
   Hourglass,
+  Info,
 } from 'lucide-react';
+import { Tooltip } from '@heroui/tooltip';
 import type { Job, JobStatus, JobType } from '@/lib/queue';
 
 interface QueueStatusResponse {
@@ -360,14 +362,190 @@ export default function QueueTab() {
                       </div>
                     </div>
                     {selectedJob.result !== undefined && selectedJob.result !== null && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-success-600 mb-1">Result</h4>
-                        <div className="p-3 bg-success-50 dark:bg-success-500/10 rounded-lg max-h-64 overflow-y-auto">
-                          <pre className="text-xs font-mono whitespace-pre-wrap">
-                            {JSON.stringify(selectedJob.result, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
+                      <>
+                        {/* Result Output */}
+                        {selectedJob.type === 'claude-code' &&
+                          selectedJob.result &&
+                          typeof selectedJob.result === 'object' &&
+                          'output' in selectedJob.result && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-default-700 mb-1">
+                                Output
+                              </h4>
+                              <div className="p-3 bg-default-100 rounded-lg max-h-64 overflow-y-auto">
+                                <p className="text-sm whitespace-pre-wrap font-mono">
+                                  {String(selectedJob.result.output)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Full Result JSON (for non-claude-code jobs or as fallback) */}
+                        {(!selectedJob.result ||
+                          typeof selectedJob.result !== 'object' ||
+                          (selectedJob.type === 'claude-code' &&
+                            !('output' in selectedJob.result))) && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-success-600 mb-1">Result</h4>
+                            <div className="p-3 bg-success-50 dark:bg-success-500/10 rounded-lg max-h-64 overflow-y-auto">
+                              <pre className="text-xs font-mono whitespace-pre-wrap">
+                                {JSON.stringify(selectedJob.result, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Usage Information - moved to bottom */}
+                        {selectedJob.type === 'claude-code' &&
+                          selectedJob.result &&
+                          typeof selectedJob.result === 'object' &&
+                          (() => {
+                            // Define usage type
+                            type UsageInfo = {
+                              costUsd?: number;
+                              inputTokens?: number;
+                              outputTokens?: number;
+                              cacheCreationInputTokens?: number;
+                              cacheReadInputTokens?: number;
+                            };
+
+                            // Try to get usage from result.usage first
+                            let usage: UsageInfo | null = null;
+
+                            if ('usage' in selectedJob.result && selectedJob.result.usage) {
+                              usage = selectedJob.result.usage as UsageInfo;
+                            } else if (
+                              'jsonLogs' in selectedJob.result &&
+                              selectedJob.result.jsonLogs
+                            ) {
+                              // Fallback: extract from JSON logs
+                              const jsonLogs = selectedJob.result.jsonLogs as Array<{
+                                type?: string;
+                                usage?: {
+                                  input_tokens?: number;
+                                  output_tokens?: number;
+                                  cache_creation_input_tokens?: number;
+                                  cache_read_input_tokens?: number;
+                                };
+                                total_cost_usd?: number;
+                              }>;
+                              const resultLog = jsonLogs.find((log) => log.type === 'result');
+                              if (resultLog?.usage) {
+                                const u = resultLog.usage;
+                                const usageObj: UsageInfo = {};
+                                if (u.input_tokens !== undefined)
+                                  usageObj.inputTokens = u.input_tokens;
+                                if (u.output_tokens !== undefined)
+                                  usageObj.outputTokens = u.output_tokens;
+                                if (u.cache_creation_input_tokens !== undefined)
+                                  usageObj.cacheCreationInputTokens = u.cache_creation_input_tokens;
+                                if (u.cache_read_input_tokens !== undefined)
+                                  usageObj.cacheReadInputTokens = u.cache_read_input_tokens;
+                                if (resultLog.total_cost_usd !== undefined)
+                                  usageObj.costUsd = resultLog.total_cost_usd;
+                                usage = usageObj;
+                              }
+                            }
+
+                            if (!usage) {
+                              return null;
+                            }
+
+                            return (
+                              <div>
+                                <h4 className="text-sm font-semibold text-default-700 mb-2">
+                                  Usage & Cost
+                                </h4>
+                                <div className="p-4 bg-primary-50 dark:bg-primary-500/10 rounded-lg border border-primary-200 dark:border-primary-500/20">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {usage.costUsd !== undefined && (
+                                      <div>
+                                        <p className="text-xs text-default-500 mb-1">Cost</p>
+                                        <p className="text-lg font-semibold text-primary-600 dark:text-primary-400">
+                                          ${usage.costUsd.toFixed(4)}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {usage.inputTokens !== undefined && (
+                                      <div>
+                                        <p className="text-xs text-default-500 mb-1">
+                                          Input Tokens
+                                        </p>
+                                        <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                          {usage.inputTokens.toLocaleString()}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {usage.outputTokens !== undefined && (
+                                      <div>
+                                        <p className="text-xs text-default-500 mb-1">
+                                          Output Tokens
+                                        </p>
+                                        <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                          {usage.outputTokens.toLocaleString()}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {(usage.inputTokens !== undefined ||
+                                      usage.outputTokens !== undefined) && (
+                                      <div>
+                                        <p className="text-xs text-default-500 mb-1">
+                                          Total Tokens
+                                        </p>
+                                        <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                          {(
+                                            (usage.inputTokens || 0) + (usage.outputTokens || 0)
+                                          ).toLocaleString()}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {(usage.cacheCreationInputTokens !== undefined ||
+                                    usage.cacheReadInputTokens !== undefined) && (
+                                    <div className="mt-3 pt-3 border-t border-primary-200 dark:border-primary-500/20">
+                                      <div className="flex items-center gap-1 mb-2">
+                                        <p className="text-xs text-default-500">Cache Usage</p>
+                                        <Tooltip
+                                          content="Cache tokens represent input tokens that were either read from a previously created cache (saving cost) or used to create a new cache entry. These are measured in tokens, same as input/output tokens."
+                                          placement="top"
+                                          showArrow
+                                        >
+                                          <button
+                                            type="button"
+                                            aria-label="Cache usage information"
+                                            className="flex items-center justify-center w-4 h-4 rounded hover:bg-default-200/60 transition-colors"
+                                          >
+                                            <Info className="w-3 h-3 text-default-400" />
+                                          </button>
+                                        </Tooltip>
+                                      </div>
+                                      <div className="flex gap-4 text-xs">
+                                        {usage.cacheCreationInputTokens !== undefined && (
+                                          <div>
+                                            <span className="text-default-500">Created: </span>
+                                            <span className="font-medium text-default-700 dark:text-default-300">
+                                              {usage.cacheCreationInputTokens.toLocaleString()}{' '}
+                                              <span className="text-default-400">tokens</span>
+                                            </span>
+                                          </div>
+                                        )}
+                                        {usage.cacheReadInputTokens !== undefined && (
+                                          <div>
+                                            <span className="text-default-500">Read: </span>
+                                            <span className="font-medium text-default-700 dark:text-default-300">
+                                              {usage.cacheReadInputTokens.toLocaleString()}{' '}
+                                              <span className="text-default-400">tokens</span>
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                      </>
                     )}
                     {selectedJob.error && (
                       <div>

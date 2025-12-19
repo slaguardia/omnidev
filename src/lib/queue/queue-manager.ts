@@ -17,7 +17,8 @@ import { createJobId, isJob } from './types';
 
 // Queue configuration
 const QUEUE_BASE_DIR = 'workspaces/queue';
-const QUEUE_FOLDERS: QueueFolder[] = ['pending', 'processing', 'done', 'failed'];
+const JOBS_BASE_DIR = 'workspaces/jobs';
+const QUEUE_FOLDERS: QueueFolder[] = ['pending', 'processing']; // Only active queue folders
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESSING_LOCK_FILENAME = 'processing.lock.json';
 const PROCESSING_LOCK_STALE_MS = 60 * 60 * 1000; // 1 hour
@@ -29,6 +30,27 @@ let initPromise: Promise<void> | null = null;
  */
 function getQueueBasePath(): string {
   return resolve(process.cwd(), QUEUE_BASE_DIR);
+}
+
+/**
+ * Get the base jobs directory path (canonical job store)
+ */
+function getJobsBasePath(): string {
+  return resolve(process.cwd(), JOBS_BASE_DIR);
+}
+
+/**
+ * Get the path for canonical job records
+ */
+function getJobStorePath(): string {
+  return resolve(getJobsBasePath(), 'by-id');
+}
+
+/**
+ * Get the path for finished job pointers
+ */
+function getFinishedPath(status: 'completed' | 'failed'): string {
+  return resolve(getJobsBasePath(), 'finished', status);
 }
 
 function getProcessingLockPath(): string {
@@ -50,44 +72,174 @@ function getQueueFolderPath(folder: QueueFolder): string {
 }
 
 /**
- * Generate a job filename with timestamp + UUID for proper ordering
- * Format: 2025-11-29T03-12-22Z-a1b2c3d4.json
+ * Generate a pointer filename with timestamp + UUID for proper ordering
+ * Format: 2025-11-29T03-12-22Z-a1b2c3d4.ref.json
  */
-function generateJobFilename(jobId: JobId): string {
+function generatePointerFilename(jobId: JobId): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${timestamp}-${jobId}.json`;
+  return `${timestamp}-${jobId}.ref.json`;
 }
 
 /**
- * Initialize queue directories if they don't exist
+ * Get the canonical job record path
+ */
+function getCanonicalJobPath(jobId: JobId): string {
+  return resolve(getJobStorePath(), `${jobId}.json`);
+}
+
+/**
+ * Get the finished pointer path
+ */
+function getFinishedPointerPath(jobId: JobId, status: 'completed' | 'failed'): string {
+  return resolve(getFinishedPath(status), `${jobId}.ref.json`);
+}
+
+/**
+ * Initialize queue directories and job store if they don't exist
  */
 export async function initializeQueue(): Promise<void> {
-  console.log('[QUEUE] Initializing queue directories...');
+  console.log('[QUEUE] Initializing queue directories and job store...');
 
-  const basePath = getQueueBasePath();
+  const queueBasePath = getQueueBasePath();
+  const jobsBasePath = getJobsBasePath();
 
-  // Create base directory
-  if (!existsSync(basePath)) {
-    await mkdir(basePath, { recursive: true });
-    console.log(`[QUEUE] Created base directory: ${basePath}`);
+  // Create queue base directory
+  if (!existsSync(queueBasePath)) {
+    await mkdir(queueBasePath, { recursive: true });
+    console.log(`[QUEUE] Created queue base directory: ${queueBasePath}`);
   }
 
-  // Create each queue folder
+  // Create each queue folder (only pending/processing)
   for (const folder of QUEUE_FOLDERS) {
     const folderPath = getQueueFolderPath(folder);
     if (!existsSync(folderPath)) {
       await mkdir(folderPath, { recursive: true });
-      console.log(`[QUEUE] Created folder: ${folderPath}`);
+      console.log(`[QUEUE] Created queue folder: ${folderPath}`);
     }
   }
 
-  console.log('[QUEUE] Queue directories initialized');
+  // Create job store directories
+  if (!existsSync(jobsBasePath)) {
+    await mkdir(jobsBasePath, { recursive: true });
+    console.log(`[QUEUE] Created jobs base directory: ${jobsBasePath}`);
+  }
+
+  const jobStorePath = getJobStorePath();
+  if (!existsSync(jobStorePath)) {
+    await mkdir(jobStorePath, { recursive: true });
+    console.log(`[QUEUE] Created job store directory: ${jobStorePath}`);
+  }
+
+  // Create finished pointer directories
+  for (const status of ['completed', 'failed'] as const) {
+    const finishedPath = getFinishedPath(status);
+    if (!existsSync(finishedPath)) {
+      await mkdir(finishedPath, { recursive: true });
+      console.log(`[QUEUE] Created finished directory: ${finishedPath}`);
+    }
+  }
+
+  console.log('[QUEUE] Queue directories and job store initialized');
+
+  // Run migration from legacy layout if needed
+  await migrateLegacyLayout();
+}
+
+/**
+ * Migrate from legacy queue layout (done/failed folders) to new normalized layout
+ * This is idempotent and safe to run multiple times
+ */
+async function migrateLegacyLayout(): Promise<void> {
+  const legacyDonePath = resolve(getQueueBasePath(), 'done');
+  const legacyFailedPath = resolve(getQueueBasePath(), 'failed');
+  const legacyHistoryPath = resolve(process.cwd(), 'workspaces', 'execution-history.json');
+
+  let migrated = 0;
+  let errors = 0;
+
+  // Migrate legacy done/failed folders
+  for (const [legacyFolder, status] of [
+    [legacyDonePath, 'completed'] as const,
+    [legacyFailedPath, 'failed'] as const,
+  ]) {
+    if (!existsSync(legacyFolder)) {
+      continue;
+    }
+
+    try {
+      const files = await readdir(legacyFolder);
+      const jsonFiles = files.filter((f) => f.endsWith('.json') && !f.endsWith('.ref.json'));
+
+      for (const filename of jsonFiles) {
+        try {
+          const legacyFilePath = resolve(legacyFolder, filename);
+          const content = await readFile(legacyFilePath, 'utf-8');
+          const job = JSON.parse(content);
+
+          if (!isJob(job)) {
+            console.warn(`[QUEUE MIGRATION] Skipping invalid job file: ${filename}`);
+            continue;
+          }
+
+          // Check if already migrated (canonical record exists)
+          const canonicalPath = getCanonicalJobPath(job.id);
+          if (existsSync(canonicalPath)) {
+            // Already migrated, just delete legacy file
+            await unlink(legacyFilePath);
+            continue;
+          }
+
+          // Write canonical job record
+          await writeJobRecord(job);
+
+          // Create finished pointer
+          await addFinishedPointer(job.id, status);
+
+          // Delete legacy file
+          await unlink(legacyFilePath);
+
+          migrated++;
+          console.log(`[QUEUE MIGRATION] Migrated job ${job.id} from ${legacyFolder}`);
+        } catch (error) {
+          errors++;
+          console.error(`[QUEUE MIGRATION] Error migrating file ${filename}:`, error);
+        }
+      }
+
+      // Try to remove empty legacy folder
+      try {
+        const remainingFiles = await readdir(legacyFolder);
+        if (remainingFiles.length === 0) {
+          // Folder is empty, but we'll leave it for now to avoid issues
+          // It can be manually removed later
+        }
+      } catch {
+        // Ignore errors
+      }
+    } catch (error) {
+      console.error(`[QUEUE MIGRATION] Error reading legacy folder ${legacyFolder}:`, error);
+    }
+  }
+
+  // Note: We don't migrate execution-history.json because:
+  // 1. It may contain entries that don't correspond to jobs
+  // 2. History is now derived from finished jobs, so old entries will naturally disappear
+  // 3. The file can be manually deleted if desired
+  if (existsSync(legacyHistoryPath)) {
+    console.log(
+      '[QUEUE MIGRATION] Legacy execution-history.json exists but will not be migrated. History is now derived from finished jobs.'
+    );
+  }
+
+  if (migrated > 0 || errors > 0) {
+    console.log(`[QUEUE MIGRATION] Migration complete: ${migrated} migrated, ${errors} errors`);
+  }
 }
 
 /**
  * Check if any job is currently being processed.
  *
- * NOTE: This only checks if there are job files in the processing folder.
+ * NOTE: This only checks if there are pointer files in the processing folder.
  * It does NOT check for the lock file, because the lock is for preventing
  * concurrent access (mutex), not for indicating processing state.
  * The worker acquires the lock before checking isProcessing(), so checking
@@ -99,8 +251,8 @@ export async function isProcessing(): Promise<boolean> {
 
   try {
     const files = await readdir(processingPath);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
-    return jsonFiles.length > 0;
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
+    return pointerFiles.length > 0;
   } catch {
     // Directory might not exist yet
     return false;
@@ -116,10 +268,78 @@ export async function hasPendingJobs(): Promise<boolean> {
 
   try {
     const files = await readdir(pendingPath);
-    const jsonFiles = files.filter((f) => f.endsWith('.json'));
-    return jsonFiles.length > 0;
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
+    return pointerFiles.length > 0;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Write canonical job record to job store
+ */
+async function writeJobRecord<T>(job: Job<T>): Promise<void> {
+  const canonicalPath = getCanonicalJobPath(job.id);
+  await writeFile(canonicalPath, JSON.stringify(job, null, 2), 'utf-8');
+}
+
+/**
+ * Read canonical job record from job store
+ */
+async function readJobRecord(jobId: JobId): Promise<Job | null> {
+  const canonicalPath = getCanonicalJobPath(jobId);
+  try {
+    if (!existsSync(canonicalPath)) {
+      return null;
+    }
+    const content = await readFile(canonicalPath, 'utf-8');
+    const job = JSON.parse(content);
+    if (isJob(job)) {
+      return job;
+    }
+    return null;
+  } catch (error) {
+    console.error(`[QUEUE] Error reading job record ${jobId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Update canonical job record with a partial update
+ */
+async function updateJobRecord(
+  jobId: JobId,
+  updates: Partial<Pick<Job, 'status' | 'startedAt' | 'completedAt' | 'result' | 'error'>>
+): Promise<boolean> {
+  const job = await readJobRecord(jobId);
+  if (!job) {
+    return false;
+  }
+  const updated = { ...job, ...updates };
+  await writeJobRecord(updated);
+  return true;
+}
+
+/**
+ * Create a finished pointer file
+ */
+async function addFinishedPointer(jobId: JobId, status: 'completed' | 'failed'): Promise<void> {
+  const pointerPath = getFinishedPointerPath(jobId, status);
+  const pointer = { jobId, status, createdAt: new Date().toISOString() };
+  await writeFile(pointerPath, JSON.stringify(pointer, null, 2), 'utf-8');
+}
+
+/**
+ * Remove a finished pointer file
+ */
+async function _removeFinishedPointer(jobId: JobId, status: 'completed' | 'failed'): Promise<void> {
+  const pointerPath = getFinishedPointerPath(jobId, status);
+  try {
+    if (existsSync(pointerPath)) {
+      await unlink(pointerPath);
+    }
+  } catch (error) {
+    console.error(`[QUEUE] Error removing finished pointer ${jobId}:`, error);
   }
 }
 
@@ -129,8 +349,6 @@ export async function hasPendingJobs(): Promise<boolean> {
 export async function enqueueJob<T>(type: JobType, payload: T): Promise<JobId> {
   await ensureQueueInitialized();
   const jobId = createJobId(crypto.randomUUID().substring(0, 8));
-  const filename = generateJobFilename(jobId);
-  const filePath = resolve(getQueueFolderPath('pending'), filename);
 
   const job: Job<T> = {
     id: jobId,
@@ -140,7 +358,15 @@ export async function enqueueJob<T>(type: JobType, payload: T): Promise<JobId> {
     createdAt: new Date().toISOString(),
   };
 
-  await writeFile(filePath, JSON.stringify(job, null, 2), 'utf-8');
+  // Write canonical job record
+  await writeJobRecord(job);
+
+  // Write pending pointer
+  const pointerFilename = generatePointerFilename(jobId);
+  const pointerPath = resolve(getQueueFolderPath('pending'), pointerFilename);
+  const pointer = { jobId, status: 'pending', createdAt: job.createdAt };
+  await writeFile(pointerPath, JSON.stringify(pointer, null, 2), 'utf-8');
+
   console.log(`[QUEUE] Enqueued job ${jobId} (${type})`);
 
   return jobId;
@@ -152,8 +378,6 @@ export async function enqueueJob<T>(type: JobType, payload: T): Promise<JobId> {
 export async function createProcessingJob<T>(type: JobType, payload: T): Promise<Job<T>> {
   await ensureQueueInitialized();
   const jobId = createJobId(crypto.randomUUID().substring(0, 8));
-  const filename = generateJobFilename(jobId);
-  const filePath = resolve(getQueueFolderPath('processing'), filename);
 
   const job: Job<T> = {
     id: jobId,
@@ -164,16 +388,24 @@ export async function createProcessingJob<T>(type: JobType, payload: T): Promise
     startedAt: new Date().toISOString(),
   };
 
-  await writeFile(filePath, JSON.stringify(job, null, 2), 'utf-8');
+  // Write canonical job record
+  await writeJobRecord(job);
+
+  // Write processing pointer
+  const pointerFilename = generatePointerFilename(jobId);
+  const pointerPath = resolve(getQueueFolderPath('processing'), pointerFilename);
+  const pointer = { jobId, status: 'processing', createdAt: job.createdAt };
+  await writeFile(pointerPath, JSON.stringify(pointer, null, 2), 'utf-8');
+
   console.log(`[QUEUE] Created processing job ${jobId} (${type})`);
 
   return job;
 }
 
 /**
- * Find a job file in a specific folder
+ * Find a pointer file in a specific queue folder
  */
-async function findJobFileInFolder(
+async function findPointerInQueueFolder(
   jobId: JobId,
   folder: QueueFolder
 ): Promise<{ path: string; filename: string } | null> {
@@ -182,10 +414,10 @@ async function findJobFileInFolder(
 
   try {
     const files = await readdir(folderPath);
-    const jobFile = files.find((f) => f.includes(jobId) && f.endsWith('.json'));
+    const pointerFile = files.find((f) => f.includes(jobId) && f.endsWith('.ref.json'));
 
-    if (jobFile) {
-      return { path: resolve(folderPath, jobFile), filename: jobFile };
+    if (pointerFile) {
+      return { path: resolve(folderPath, pointerFile), filename: pointerFile };
     }
   } catch {
     // Folder might not exist
@@ -195,29 +427,35 @@ async function findJobFileInFolder(
 }
 
 /**
- * Get a job by ID, searching all folders
+ * Find a finished pointer file
  */
-export async function getJob(jobId: JobId): Promise<Job | null> {
+async function findFinishedPointer(
+  jobId: JobId,
+  status: 'completed' | 'failed'
+): Promise<{ path: string; filename: string } | null> {
   await ensureQueueInitialized();
-  // Search all folders for the job
-  for (const folder of QUEUE_FOLDERS) {
-    const found = await findJobFileInFolder(jobId, folder);
+  const finishedPath = getFinishedPath(status);
 
-    if (found) {
-      try {
-        const content = await readFile(found.path, 'utf-8');
-        const job = JSON.parse(content);
+  try {
+    const files = await readdir(finishedPath);
+    const pointerFile = files.find((f) => f === `${jobId}.ref.json`);
 
-        if (isJob(job)) {
-          return job;
-        }
-      } catch (error) {
-        console.error(`[QUEUE] Error reading job file ${found.path}:`, error);
-      }
+    if (pointerFile) {
+      return { path: resolve(finishedPath, pointerFile), filename: pointerFile };
     }
+  } catch {
+    // Folder might not exist
   }
 
   return null;
+}
+
+/**
+ * Get a job by ID from canonical store
+ */
+export async function getJob(jobId: JobId): Promise<Job | null> {
+  await ensureQueueInitialized();
+  return await readJobRecord(jobId);
 }
 
 /**
@@ -229,24 +467,24 @@ export async function getNextPendingJob(): Promise<Job | null> {
 
   try {
     const files = await readdir(pendingPath);
-    const jsonFiles = files.filter((f) => f.endsWith('.json')).sort(); // Oldest first
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json')).sort(); // Oldest first
 
-    if (jsonFiles.length === 0) {
+    if (pointerFiles.length === 0) {
       return null;
     }
 
-    const firstFile = jsonFiles[0];
+    const firstFile = pointerFiles[0];
     if (!firstFile) {
       return null;
     }
 
-    const filePath = resolve(pendingPath, firstFile);
-    const content = await readFile(filePath, 'utf-8');
-    const job = JSON.parse(content);
+    // Read pointer to get jobId
+    const pointerPath = resolve(pendingPath, firstFile);
+    const pointerContent = await readFile(pointerPath, 'utf-8');
+    const pointer = JSON.parse(pointerContent) as { jobId: string };
 
-    if (isJob(job)) {
-      return job;
-    }
+    // Load canonical job record
+    return await readJobRecord(createJobId(pointer.jobId));
   } catch (error) {
     console.error('[QUEUE] Error getting next pending job:', error);
   }
@@ -255,7 +493,7 @@ export async function getNextPendingJob(): Promise<Job | null> {
 }
 
 /**
- * Move a job from one folder to another (atomic operation)
+ * Move a job from one queue folder to another (atomic operation via pointer rename)
  */
 export async function moveJob(
   jobId: JobId,
@@ -263,7 +501,7 @@ export async function moveJob(
   toFolder: QueueFolder
 ): Promise<boolean> {
   await ensureQueueInitialized();
-  const found = await findJobFileInFolder(jobId, fromFolder);
+  const found = await findPointerInQueueFolder(jobId, fromFolder);
 
   if (!found) {
     console.error(`[QUEUE] Job ${jobId} not found in ${fromFolder}`);
@@ -276,22 +514,13 @@ export async function moveJob(
     // Atomic move via rename
     await rename(found.path, toPath);
 
-    // Update job status in file
-    const content = await readFile(toPath, 'utf-8');
-    const job = JSON.parse(content);
-
+    // Update canonical job record
     if (toFolder === 'processing') {
-      job.status = 'processing';
-      job.startedAt = new Date().toISOString();
-    } else if (toFolder === 'done') {
-      job.status = 'completed';
-      job.completedAt = new Date().toISOString();
-    } else if (toFolder === 'failed') {
-      job.status = 'failed';
-      job.completedAt = new Date().toISOString();
+      await updateJobRecord(jobId, {
+        status: 'processing',
+        startedAt: new Date().toISOString(),
+      });
     }
-
-    await writeFile(toPath, JSON.stringify(job, null, 2), 'utf-8');
 
     console.log(`[QUEUE] Moved job ${jobId} from ${fromFolder} to ${toFolder}`);
     return true;
@@ -302,12 +531,12 @@ export async function moveJob(
 }
 
 /**
- * Mark a job as completed and move to done folder
+ * Mark a job as completed and create finished pointer
  */
 export async function markJobComplete(jobId: JobId, result: unknown): Promise<boolean> {
   await ensureQueueInitialized();
-  // Find the job in processing folder
-  const found = await findJobFileInFolder(jobId, 'processing');
+  // Find the processing pointer
+  const found = await findPointerInQueueFolder(jobId, 'processing');
 
   if (!found) {
     console.error(`[QUEUE] Job ${jobId} not found in processing folder`);
@@ -315,20 +544,23 @@ export async function markJobComplete(jobId: JobId, result: unknown): Promise<bo
   }
 
   try {
-    // Read and update job
-    const content = await readFile(found.path, 'utf-8');
-    const job = JSON.parse(content);
+    // Update canonical job record
+    const updated = await updateJobRecord(jobId, {
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      result,
+    });
 
-    job.status = 'completed';
-    job.completedAt = new Date().toISOString();
-    job.result = result;
+    if (!updated) {
+      console.error(`[QUEUE] Failed to update job record ${jobId}`);
+      return false;
+    }
 
-    // Write to done folder
-    const donePath = resolve(getQueueFolderPath('done'), found.filename);
-    await writeFile(donePath, JSON.stringify(job, null, 2), 'utf-8');
-
-    // Delete from processing
+    // Delete processing pointer
     await unlink(found.path);
+
+    // Create finished pointer
+    await addFinishedPointer(jobId, 'completed');
 
     console.log(`[QUEUE] Job ${jobId} completed successfully`);
     return true;
@@ -339,12 +571,12 @@ export async function markJobComplete(jobId: JobId, result: unknown): Promise<bo
 }
 
 /**
- * Mark a job as failed and move to failed folder
+ * Mark a job as failed and create finished pointer
  */
 export async function markJobFailed(jobId: JobId, errorMessage: string): Promise<boolean> {
   await ensureQueueInitialized();
-  // Find the job in processing folder
-  const found = await findJobFileInFolder(jobId, 'processing');
+  // Find the processing pointer
+  const found = await findPointerInQueueFolder(jobId, 'processing');
 
   if (!found) {
     console.error(`[QUEUE] Job ${jobId} not found in processing folder`);
@@ -352,20 +584,23 @@ export async function markJobFailed(jobId: JobId, errorMessage: string): Promise
   }
 
   try {
-    // Read and update job
-    const content = await readFile(found.path, 'utf-8');
-    const job = JSON.parse(content);
+    // Update canonical job record
+    const updated = await updateJobRecord(jobId, {
+      status: 'failed',
+      completedAt: new Date().toISOString(),
+      error: errorMessage,
+    });
 
-    job.status = 'failed';
-    job.completedAt = new Date().toISOString();
-    job.error = errorMessage;
+    if (!updated) {
+      console.error(`[QUEUE] Failed to update job record ${jobId}`);
+      return false;
+    }
 
-    // Write to failed folder
-    const failedPath = resolve(getQueueFolderPath('failed'), found.filename);
-    await writeFile(failedPath, JSON.stringify(job, null, 2), 'utf-8');
-
-    // Delete from processing
+    // Delete processing pointer
     await unlink(found.path);
+
+    // Create finished pointer
+    await addFinishedPointer(jobId, 'failed');
 
     console.log(`[QUEUE] Job ${jobId} failed: ${errorMessage}`);
     return true;
@@ -376,7 +611,7 @@ export async function markJobFailed(jobId: JobId, errorMessage: string): Promise
 }
 
 /**
- * Cleanup old jobs from done and failed folders (7-day retention)
+ * Cleanup old jobs from finished pointers and canonical store (7-day retention)
  */
 export async function cleanupOldJobs(): Promise<{ deleted: number; errors: number }> {
   await ensureQueueInitialized();
@@ -384,37 +619,48 @@ export async function cleanupOldJobs(): Promise<{ deleted: number; errors: numbe
   let errors = 0;
   const now = Date.now();
 
-  for (const folder of ['done', 'failed'] as QueueFolder[]) {
-    const folderPath = getQueueFolderPath(folder);
+  for (const status of ['completed', 'failed'] as const) {
+    const finishedPath = getFinishedPath(status);
 
     try {
-      const files = await readdir(folderPath);
-      const jsonFiles = files.filter((f) => f.endsWith('.json'));
+      const files = await readdir(finishedPath);
+      const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
 
-      for (const filename of jsonFiles) {
-        const filePath = resolve(folderPath, filename);
+      for (const pointerFilename of pointerFiles) {
+        const pointerPath = resolve(finishedPath, pointerFilename);
+        const jobId = pointerFilename.replace('.ref.json', '') as JobId;
 
         try {
-          const content = await readFile(filePath, 'utf-8');
-          const job = JSON.parse(content);
+          // Read job record to check completedAt
+          const job = await readJobRecord(jobId);
+          if (!job || !job.completedAt) {
+            // Skip if job record missing or no completedAt
+            continue;
+          }
 
-          if (job.completedAt) {
-            const completedTime = new Date(job.completedAt).getTime();
-            const age = now - completedTime;
+          const completedTime = new Date(job.completedAt).getTime();
+          const age = now - completedTime;
 
-            if (age > RETENTION_MS) {
-              await unlink(filePath);
-              deleted++;
-              console.log(`[QUEUE] Deleted old job: ${filename}`);
+          if (age > RETENTION_MS) {
+            // Delete finished pointer
+            await unlink(pointerPath);
+
+            // Delete canonical job record
+            const canonicalPath = getCanonicalJobPath(jobId);
+            if (existsSync(canonicalPath)) {
+              await unlink(canonicalPath);
             }
+
+            deleted++;
+            console.log(`[QUEUE] Deleted old job: ${jobId}`);
           }
         } catch (error) {
           errors++;
-          console.error(`[QUEUE] Error processing file ${filename}:`, error);
+          console.error(`[QUEUE] Error processing finished pointer ${pointerFilename}:`, error);
         }
       }
     } catch (error) {
-      console.error(`[QUEUE] Error reading folder ${folder}:`, error);
+      console.error(`[QUEUE] Error reading finished folder ${status}:`, error);
     }
   }
 
@@ -432,32 +678,59 @@ export async function listJobs(statusFilter?: JobStatus[]): Promise<Job[]> {
   await ensureQueueInitialized();
   const jobs: Job[] = [];
 
-  // Map status to folder
-  const foldersToSearch: QueueFolder[] = statusFilter
-    ? statusFilter.map((s) => (s === 'completed' ? 'done' : s) as QueueFolder)
-    : QUEUE_FOLDERS;
+  // If no filter, get all statuses
+  const statusesToSearch: JobStatus[] = statusFilter || [
+    'pending',
+    'processing',
+    'completed',
+    'failed',
+  ];
 
-  for (const folder of foldersToSearch) {
-    const folderPath = getQueueFolderPath(folder);
+  for (const status of statusesToSearch) {
+    if (status === 'pending' || status === 'processing') {
+      // Read from queue pointers
+      const folderPath = getQueueFolderPath(status);
+      try {
+        const files = await readdir(folderPath);
+        const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
 
-    try {
-      const files = await readdir(folderPath);
-      const jsonFiles = files.filter((f) => f.endsWith('.json'));
-
-      for (const filename of jsonFiles) {
-        try {
-          const content = await readFile(resolve(folderPath, filename), 'utf-8');
-          const job = JSON.parse(content);
-
-          if (isJob(job)) {
-            jobs.push(job);
+        for (const pointerFilename of pointerFiles) {
+          try {
+            const pointerPath = resolve(folderPath, pointerFilename);
+            const pointerContent = await readFile(pointerPath, 'utf-8');
+            const pointer = JSON.parse(pointerContent) as { jobId: string };
+            const job = await readJobRecord(createJobId(pointer.jobId));
+            if (job) {
+              jobs.push(job);
+            }
+          } catch (error) {
+            console.error(`[QUEUE] Error reading pointer ${pointerFilename}:`, error);
           }
-        } catch (error) {
-          console.error(`[QUEUE] Error reading job file ${filename}:`, error);
         }
+      } catch {
+        // Folder might not exist
       }
-    } catch {
-      // Folder might not exist
+    } else if (status === 'completed' || status === 'failed') {
+      // Read from finished pointers
+      const finishedPath = getFinishedPath(status);
+      try {
+        const files = await readdir(finishedPath);
+        const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
+
+        for (const pointerFilename of pointerFiles) {
+          try {
+            const jobId = pointerFilename.replace('.ref.json', '') as JobId;
+            const job = await readJobRecord(jobId);
+            if (job) {
+              jobs.push(job);
+            }
+          } catch (error) {
+            console.error(`[QUEUE] Error reading finished pointer ${pointerFilename}:`, error);
+          }
+        }
+      } catch {
+        // Folder might not exist
+      }
     }
   }
 
@@ -471,44 +744,50 @@ export async function listJobs(statusFilter?: JobStatus[]): Promise<Job[]> {
  * This is intended for external orchestrators (e.g. n8n) that have processed the result
  * and want to remove it early rather than waiting for retention cleanup.
  *
- * Safety: we only delete from the finished folders (done/failed) and never touch
- * pending/processing jobs.
+ * Safety: we only delete finished jobs and never touch pending/processing jobs.
  */
 export async function deleteFinishedJob(
   jobId: JobId
 ): Promise<
-  | { success: true; deletedFrom: 'done' | 'failed' }
+  | { success: true; deletedFrom: 'completed' | 'failed' }
   | { success: false; reason: 'not_found' | 'not_finished' | 'read_error' }
 > {
   await ensureQueueInitialized();
 
   // If it exists in pending/processing, refuse.
-  const inPending = await findJobFileInFolder(jobId, 'pending');
+  const inPending = await findPointerInQueueFolder(jobId, 'pending');
   if (inPending) {
     return { success: false, reason: 'not_finished' };
   }
-  const inProcessing = await findJobFileInFolder(jobId, 'processing');
+  const inProcessing = await findPointerInQueueFolder(jobId, 'processing');
   if (inProcessing) {
     return { success: false, reason: 'not_finished' };
   }
 
-  // Only allow deletion from finished folders.
-  for (const folder of ['done', 'failed'] as const) {
-    const found = await findJobFileInFolder(jobId, folder);
+  // Only allow deletion from finished pointers.
+  for (const status of ['completed', 'failed'] as const) {
+    const found = await findFinishedPointer(jobId, status);
     if (!found) continue;
 
     try {
-      // Best-effort validation: ensure the file is a valid job.
-      const content = await readFile(found.path, 'utf-8');
-      const parsed: unknown = JSON.parse(content);
-      if (!isJob(parsed)) {
+      // Best-effort validation: ensure the job record exists and is valid.
+      const job = await readJobRecord(jobId);
+      if (!job) {
         return { success: false, reason: 'read_error' };
       }
 
+      // Delete finished pointer
       await unlink(found.path);
-      return { success: true, deletedFrom: folder };
+
+      // Delete canonical job record
+      const canonicalPath = getCanonicalJobPath(jobId);
+      if (existsSync(canonicalPath)) {
+        await unlink(canonicalPath);
+      }
+
+      return { success: true, deletedFrom: status };
     } catch (error) {
-      console.error(`[QUEUE] Error deleting finished job ${jobId} from ${folder}:`, error);
+      console.error(`[QUEUE] Error deleting finished job ${jobId} from ${status}:`, error);
       return { success: false, reason: 'read_error' };
     }
   }

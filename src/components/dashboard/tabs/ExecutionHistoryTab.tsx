@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { Button } from '@heroui/button';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
-import { History, Trash2, Eye, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { History, Trash2, Eye, Clock, CheckCircle, XCircle, Info } from 'lucide-react';
+import { Tooltip } from '@heroui/tooltip';
 import { ExecutionHistoryEntry } from '@/lib/dashboard/types';
 
 interface ExecutionHistoryTabProps {
@@ -273,6 +274,121 @@ export default function ExecutionHistoryTab({
                         <p className="text-sm">
                           {formatDuration(selectedExecution.executionTimeMs)}
                         </p>
+                      </div>
+                    )}
+
+                    {/* Usage Information from JSON Logs - moved to bottom */}
+                    {selectedExecution.jsonLogs && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-default-700 mb-2">
+                          Usage & Cost
+                        </h4>
+                        {(() => {
+                          // Extract usage from JSON logs
+                          const resultLog = selectedExecution.jsonLogs.find(
+                            (log) => log.type === 'result'
+                          );
+                          const usage = resultLog?.usage as
+                            | {
+                                input_tokens?: number;
+                                output_tokens?: number;
+                                cache_creation_input_tokens?: number;
+                                cache_read_input_tokens?: number;
+                              }
+                            | undefined;
+                          const costUsd = resultLog?.total_cost_usd as number | undefined;
+
+                          if (!usage && costUsd === undefined) {
+                            return (
+                              <p className="text-sm text-default-500">
+                                Usage information not available
+                              </p>
+                            );
+                          }
+
+                          return (
+                            <div className="p-4 bg-primary-50 dark:bg-primary-500/10 rounded-lg border border-primary-200 dark:border-primary-500/20">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {costUsd !== undefined && (
+                                  <div>
+                                    <p className="text-xs text-default-500 mb-1">Cost</p>
+                                    <p className="text-lg font-semibold text-primary-600 dark:text-primary-400">
+                                      ${costUsd.toFixed(4)}
+                                    </p>
+                                  </div>
+                                )}
+                                {usage?.input_tokens !== undefined && (
+                                  <div>
+                                    <p className="text-xs text-default-500 mb-1">Input Tokens</p>
+                                    <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                      {usage.input_tokens.toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                {usage?.output_tokens !== undefined && (
+                                  <div>
+                                    <p className="text-xs text-default-500 mb-1">Output Tokens</p>
+                                    <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                      {usage.output_tokens.toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                {(usage?.input_tokens !== undefined ||
+                                  usage?.output_tokens !== undefined) && (
+                                  <div>
+                                    <p className="text-xs text-default-500 mb-1">Total Tokens</p>
+                                    <p className="text-sm font-medium text-default-700 dark:text-default-300">
+                                      {(
+                                        (usage.input_tokens || 0) + (usage.output_tokens || 0)
+                                      ).toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {(usage?.cache_creation_input_tokens !== undefined ||
+                                usage?.cache_read_input_tokens !== undefined) && (
+                                <div className="mt-3 pt-3 border-t border-primary-200 dark:border-primary-500/20">
+                                  <div className="flex items-center gap-1 mb-2">
+                                    <p className="text-xs text-default-500">Cache Usage</p>
+                                    <Tooltip
+                                      content="Cache tokens represent input tokens that were either read from a previously created cache (saving cost) or used to create a new cache entry. These are measured in tokens, same as input/output tokens."
+                                      placement="top"
+                                      showArrow
+                                    >
+                                      <button
+                                        type="button"
+                                        aria-label="Cache usage information"
+                                        className="flex items-center justify-center w-4 h-4 rounded hover:bg-default-200/60 transition-colors"
+                                      >
+                                        <Info className="w-3 h-3 text-default-400" />
+                                      </button>
+                                    </Tooltip>
+                                  </div>
+                                  <div className="flex gap-4 text-xs">
+                                    {usage.cache_creation_input_tokens !== undefined && (
+                                      <div>
+                                        <span className="text-default-500">Created: </span>
+                                        <span className="font-medium text-default-700 dark:text-default-300">
+                                          {usage.cache_creation_input_tokens.toLocaleString()}{' '}
+                                          <span className="text-default-400">tokens</span>
+                                        </span>
+                                      </div>
+                                    )}
+                                    {usage.cache_read_input_tokens !== undefined && (
+                                      <div>
+                                        <span className="text-default-500">Read: </span>
+                                        <span className="font-medium text-default-700 dark:text-default-300">
+                                          {usage.cache_read_input_tokens.toLocaleString()}{' '}
+                                          <span className="text-default-400">tokens</span>
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

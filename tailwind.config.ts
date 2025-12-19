@@ -79,6 +79,7 @@ const config = {
   },
   darkMode: 'class',
   plugins: [
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@tailwindcss/typography'),
     heroui({
       themes: {

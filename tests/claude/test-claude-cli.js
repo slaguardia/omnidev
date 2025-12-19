@@ -55,7 +55,7 @@ const testCases = [
 /**
  * Check if a request needs edit permissions (simplified version)
  */
-function isEditRequest(question) {
+function _isEditRequest(question) {
   if (!question) return false;
   const editKeywords = ['create', 'edit', 'modify', 'delete', 'write', 'update', 'add', 'remove'];
   return editKeywords.some((keyword) => question.toLowerCase().includes(keyword));
@@ -253,7 +253,7 @@ async function cleanupTestFiles() {
     try {
       await fs.unlink(file);
       console.log(`🧹 Cleaned up: ${file}`);
-    } catch (error) {
+    } catch {
       // File doesn't exist, ignore
     }
   }
@@ -267,7 +267,7 @@ async function verifyFileCreation(filename) {
     const content = await fs.readFile(filename, 'utf8');
     console.log(`✅ File verified: ${filename} (${content.length} chars)`);
     return true;
-  } catch (error) {
+  } catch {
     console.log(`❌ File verification failed: ${filename}`);
     return false;
   }
