@@ -66,7 +66,7 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
             <CheckCircle className="w-5 h-5" />
             <span className="font-medium">Configuration Complete</span>
           </div>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-default-600 mt-1">
             Your GitLab and Claude configuration is ready to use.
           </p>
         </CardBody>
@@ -81,8 +81,8 @@ export default function ConfigurationStatus({ onNavigateToSettings }: Configurat
           <AlertTriangle className="w-5 h-5 text-warning-500 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h3 className="font-medium text-warning-700">Configuration Required</h3>
-            <p className="text-sm text-gray-600 mt-1">{configStatus.message}</p>
-            <ul className="text-sm text-gray-600 mt-2 space-y-1">
+            <p className="text-sm text-default-600 mt-1">{configStatus.message}</p>
+            <ul className="text-sm text-default-600 mt-2 space-y-1">
               {configStatus.errors.map((error, index) => (
                 <li key={index} className="flex items-center gap-1">
                   <span className="w-1 h-1 bg-warning-500 rounded-full"></span>

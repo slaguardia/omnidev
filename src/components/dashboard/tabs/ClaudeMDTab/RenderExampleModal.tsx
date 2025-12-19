@@ -78,12 +78,12 @@ export default function RenderExampleModal({
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-default-600">
               This is an example configuration that demonstrates how to structure your CLAUDE.md
               file to guide Claude AI&#39;s behavior in your workspace.
             </p>
 
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+            <div className="border border-divider/60 rounded-xl p-4 bg-content2/60">
               <div className="prose prose-sm max-w-full dark:prose-invert">
                 <ReactMarkdown>{EXAMPLE_CLAUDE_CONTENT}</ReactMarkdown>
               </div>

@@ -204,7 +204,7 @@ export default function DashboardPage() {
   return (
     <>
       {/* Left Sidebar - Fixed */}
-      <aside className="fixed left-0 top-16 bottom-0 hidden w-64 overflow-y-auto bg-background/95 backdrop-blur lg:block xl:w-72">
+      <aside className="fixed left-0 top-16 bottom-0 hidden w-64 overflow-y-auto bg-background/70 backdrop-blur border-r border-divider/60 lg:block xl:w-72">
         <div className="p-6">
           <DashboardNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
