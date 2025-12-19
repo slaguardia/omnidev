@@ -36,16 +36,8 @@ body {
   color: rgb(var(--app-fg-rgb));
   background-color: rgb(var(--app-bg-0-rgb));
   background-image:
-    radial-gradient(
-      900px circle at 20% -10%,
-      rgba(var(--app-accent-rgb), 0.18),
-      transparent 55%
-    ),
-    radial-gradient(
-      700px circle at 80% 0%,
-      rgba(var(--app-accent-2-rgb), 0.12),
-      transparent 45%
-    ),
+    radial-gradient(900px circle at 20% -10%, rgba(var(--app-accent-rgb), 0.18), transparent 55%),
+    radial-gradient(700px circle at 80% 0%, rgba(var(--app-accent-2-rgb), 0.12), transparent 45%),
     linear-gradient(180deg, rgb(var(--app-bg-1-rgb)) 0%, rgb(var(--app-bg-0-rgb)) 100%);
   min-height: 100vh;
 }

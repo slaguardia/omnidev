@@ -107,10 +107,7 @@ export default function WorkspacesTab({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-default-500">Path:</span>
-                    <span
-                      className="text-default-700 font-mono truncate"
-                      title={workspace.path}
-                    >
+                    <span className="text-default-700 font-mono truncate" title={workspace.path}>
                       {workspace.path}
                     </span>
                   </div>
@@ -141,8 +138,7 @@ export default function WorkspacesTab({
                     hideSymbol
                     size="sm"
                     variant="flat"
-                    className="w-full"
-                    classNames={{ pre: 'whitespace-pre-wrap break-all text-xs' }}
+                    classNames={{ pre: 'text-xs' }}
                     onCopy={() => {
                       void copyWorkspaceId(workspace.id);
                     }}

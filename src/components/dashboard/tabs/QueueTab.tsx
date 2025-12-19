@@ -261,7 +261,7 @@ export default function QueueTab() {
             <Hourglass className="w-5 h-5 text-warning-500" />
             Pending Jobs ({queueStatus.pendingJobs.length})
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-4">
             {queueStatus.pendingJobs.map((job) => (
               <JobCard key={job.id} job={job} />
             ))}
@@ -276,7 +276,7 @@ export default function QueueTab() {
             <Clock className="w-5 h-5 text-default-500" />
             Recent Jobs
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-4">
             {queueStatus.recentJobs.map((job) => (
               <JobCard key={job.id} job={job} />
             ))}

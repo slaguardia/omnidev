@@ -95,7 +95,10 @@ export default function OperationsTab({
                 isDisabled={!claudeForm.workspaceId}
                 size="sm"
                 label={
-                  <LabelWithTooltip label="Source Branch (optional)" tooltip={sourceBranchTooltip} />
+                  <LabelWithTooltip
+                    label="Source Branch (optional)"
+                    tooltip={sourceBranchTooltip}
+                  />
                 }
                 labelPlacement="outside"
                 placeholder={
@@ -105,7 +108,9 @@ export default function OperationsTab({
                       ? 'Loading branches...'
                       : 'Select source branch'
                 }
-                selectedKeys={claudeForm.workspaceId ? [claudeForm.sourceBranch || '__default__'] : []}
+                selectedKeys={
+                  claudeForm.workspaceId ? [claudeForm.sourceBranch || '__default__'] : []
+                }
                 onSelectionChange={
                   claudeForm.workspaceId
                     ? (keys: React.Key | Set<React.Key>) => {

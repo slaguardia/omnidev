@@ -32,10 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html suppressHydrationWarning lang="en">
       <head />
       <body
-        className={clsx(
-          'min-h-screen text-foreground font-sans antialiased',
-          fontSans.variable
-        )}
+        className={clsx('min-h-screen text-foreground font-sans antialiased', fontSans.variable)}
       >
         <Providers themeProps={{ attribute: 'class', defaultTheme: 'dark' }}>
           <div className="relative flex flex-col min-h-screen">
