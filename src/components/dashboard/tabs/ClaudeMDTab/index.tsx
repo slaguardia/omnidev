@@ -176,7 +176,7 @@ export default function ClaudeMDTab() {
           <div className="space-y-4 max-w-full overflow-hidden box-border">
             <div className="space-y-3">
               <div className="max-w-full">
-                <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                <p className="text-sm text-default-600 break-words">
                   Configure the CLAUDE.md file that provides instructions to Claude AI when working
                   within your project workspaces. This file helps guide Claude&#39;s behavior and
                   capabilities within your development environment.

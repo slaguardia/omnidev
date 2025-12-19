@@ -36,76 +36,74 @@ export default function CloneRepositoryModal({
       size="2xl"
       scrollBehavior="inside"
       classNames={{
-        base: 'dark:bg-slate-800/80 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
-        backdrop: '',
-        header: '',
-        body: '',
-        footer: '',
-        closeButton: '',
+        base: 'bg-background/85 backdrop-blur-lg border border-divider/60',
       }}
     >
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex flex-col gap-1">
+            <ModalHeader className="flex flex-col gap-1 px-6 pt-6 pb-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <GitBranch className="w-5 h-5 text-green-500" />
+                <GitBranch className="w-5 h-5 text-default-500" />
                 Clone Repository
               </h3>
             </ModalHeader>
-            <ModalBody>
-              <div className="space-y-4">
-                <Input
-                  label="Repository URL"
-                  labelPlacement="outside"
-                  placeholder="https://gitlab.com/user/repo.git"
-                  value={cloneForm.repoUrl}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCloneForm((prev) => ({ ...prev, repoUrl: e.target.value }))
-                  }
-                  variant="bordered"
-                />
-                <Input
-                  label="Branch (optional)"
-                  labelPlacement="outside"
-                  placeholder="main"
-                  value={cloneForm.branch}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCloneForm((prev) => ({ ...prev, branch: e.target.value }))
-                  }
-                  variant="bordered"
-                />
-                <div className="flex gap-4">
+            <ModalBody className="px-6 py-4">
+              <div className="space-y-5">
+                <div className="flex flex-col gap-1.5">
                   <Input
-                    label="Depth"
+                    label="Repository URL"
                     labelPlacement="outside"
-                    type="number"
-                    value={cloneForm.depth}
+                    placeholder="https://gitlab.com/user/repo.git"
+                    value={cloneForm.repoUrl}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setCloneForm((prev) => ({ ...prev, depth: e.target.value }))
+                      setCloneForm((prev) => ({ ...prev, repoUrl: e.target.value }))
                     }
                     variant="bordered"
-                    className="flex-1"
                   />
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        isSelected={cloneForm.singleBranch}
-                        onValueChange={(checked: boolean) =>
-                          setCloneForm((prev) => ({ ...prev, singleBranch: checked }))
-                        }
-                      />
-                      <span className="text-sm">Single Branch</span>
-                      <Tooltip
-                        content="Only clone the specified branch instead of all branches. This creates a faster, lighter clone."
-                        placement="top"
-                        showArrow
-                      >
-                        <button className="flex items-center justify-center w-5 h-5 rounded-full bg-default-200 hover:bg-default-300 transition-colors">
-                          <Info className="w-4 h-4 text-default-600" />
-                        </button>
-                      </Tooltip>
-                    </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Input
+                    label="Branch (optional)"
+                    labelPlacement="outside"
+                    placeholder="main"
+                    value={cloneForm.branch}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setCloneForm((prev) => ({ ...prev, branch: e.target.value }))
+                    }
+                    variant="bordered"
+                  />
+                </div>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col gap-1.5 flex-1">
+                    <Input
+                      label="Depth"
+                      labelPlacement="outside"
+                      type="number"
+                      value={cloneForm.depth}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setCloneForm((prev) => ({ ...prev, depth: e.target.value }))
+                      }
+                      variant="bordered"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pb-2">
+                    <Switch
+                      isSelected={cloneForm.singleBranch}
+                      onValueChange={(checked: boolean) =>
+                        setCloneForm((prev) => ({ ...prev, singleBranch: checked }))
+                      }
+                    />
+                    <span className="text-sm">Single Branch</span>
+                    <Tooltip
+                      content="Only clone the specified branch instead of all branches. This creates a faster, lighter clone."
+                      placement="top"
+                      showArrow
+                    >
+                      <button className="flex items-center justify-center w-5 h-5 rounded-full bg-default-200 hover:bg-default-300 transition-colors">
+                        <Info className="w-4 h-4 text-default-600" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -128,12 +126,12 @@ export default function CloneRepositoryModal({
                 )}
               </div>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="px-6 pb-6 pt-4">
               <Button color="default" variant="flat" onClick={onClose}>
                 Cancel
               </Button>
               <Button
-                color="success"
+                color="primary"
                 onClick={onClone}
                 isLoading={loading}
                 isDisabled={!cloneForm.repoUrl}

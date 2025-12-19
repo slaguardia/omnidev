@@ -155,14 +155,14 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <Code className="w-6 h-6 text-primary-600" />
+          <Code className="w-6 h-6 text-default-500" />
           Snippets (n8n, curl, scripts)
         </h2>
       </div>
 
       <section className="space-y-5">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-primary-600">Inputs</h3>
+          <h3 className="text-lg font-semibold text-default-700">Inputs</h3>
           <p className="text-sm text-default-600">
             Pick a workspace, fill the request fields, then copy the generated snippets below.
           </p>
@@ -170,12 +170,12 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
         <Divider />
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          <Card className="glass-card overflow-hidden border-primary-500/20">
-            <CardHeader className="bg-primary-50/30 dark:bg-primary-50/10 px-4 py-3">
+          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+            <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-default-800">Connection</h4>
-                  <Chip size="sm" variant="dot" color="primary" classNames={{ dot: 'bg-primary' }}>
+                  <h4 className="font-semibold text-foreground">Connection</h4>
+                  <Chip size="sm" variant="flat" color="primary">
                     API
                   </Chip>
                 </div>
@@ -214,12 +214,12 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="glass-card overflow-hidden border-success-500/20">
-            <CardHeader className="bg-success-50/30 dark:bg-success-50/10 px-4 py-3">
+          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+            <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-default-800">Target</h4>
-                  <Chip size="sm" variant="dot" color="success" classNames={{ dot: 'bg-success' }}>
+                  <h4 className="font-semibold text-foreground">Target</h4>
+                  <Chip size="sm" variant="flat" color="success">
                     Workspace
                   </Chip>
                 </div>
@@ -295,17 +295,12 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="glass-card overflow-hidden border-secondary-500/20">
-            <CardHeader className="bg-secondary-50/30 dark:bg-secondary-50/10 px-4 py-3">
+          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+            <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-default-800">Request</h4>
-                  <Chip
-                    size="sm"
-                    variant="dot"
-                    color="secondary"
-                    classNames={{ dot: 'bg-secondary' }}
-                  >
+                  <h4 className="font-semibold text-foreground">Request</h4>
+                  <Chip size="sm" variant="flat" color="secondary">
                     Payload
                   </Chip>
                 </div>
@@ -388,7 +383,7 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
           </Card>
         </div>
 
-        <div className="rounded-lg border border-default-200 bg-default-50/50 px-4 py-3 text-sm text-default-600">
+        <div className="rounded-xl border border-divider/60 bg-content2/60 px-4 py-3 text-sm text-default-600">
           <div className="flex flex-wrap items-center gap-2">
             <Chip size="sm" variant="flat">
               Tips
@@ -405,7 +400,7 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
 
       <section className="space-y-6">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-primary-600">Generated snippets</h3>
+          <h3 className="text-lg font-semibold text-default-700">Generated snippets</h3>
           <p className="text-sm text-default-600">
             Copy only what you need — Ask and Edit are split to reduce visual overload.
           </p>
@@ -413,17 +408,17 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
         <Divider />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="flex items-center justify-between">
+          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+            <CardHeader className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-default-800">Ask</span>
+                <span className="font-semibold text-foreground">Ask</span>
                 <Chip size="sm" variant="flat" color="primary">
                   POST
                 </Chip>
                 <span className="text-sm text-default-500 font-mono">/api/ask</span>
               </div>
             </CardHeader>
-            <CardBody>
+            <CardBody className="px-4 py-5">
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -483,17 +478,17 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="glass-card overflow-hidden">
-            <CardHeader className="flex items-center justify-between">
+          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+            <CardHeader className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-default-800">Edit</span>
+                <span className="font-semibold text-foreground">Edit</span>
                 <Chip size="sm" variant="flat" color="warning">
                   POST
                 </Chip>
                 <span className="text-sm text-default-500 font-mono">/api/edit</span>
               </div>
             </CardHeader>
-            <CardBody>
+            <CardBody className="px-4 py-5">
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">

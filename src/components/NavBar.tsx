@@ -13,7 +13,7 @@ import {
 import { Kbd } from '@heroui/kbd';
 import { Link } from '@heroui/link';
 import { Button } from '@heroui/button';
-import { link as linkStyles } from '@heroui/theme';
+import Image from 'next/image';
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -23,6 +23,7 @@ import { siteConfig } from '@/lib/config/site';
 import { ThemeSwitch } from '@/components/ThemeSwitch';
 import { SearchIcon } from '@/components/Icons';
 import { SearchModal } from '@/components/SearchModal';
+import SpiderLogo from '@assets/assets_task_01jv5p5111evc9bcdck2nw68ac_1747168975_img_2-removebg-preview.png';
 
 export const Navbar = () => {
   const { data: session, status } = useSession();
@@ -61,7 +62,7 @@ export const Navbar = () => {
   const searchButton = (
     <button
       onClick={() => setIsSearchOpen(true)}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-default-100 hover:bg-default-200 transition-colors text-sm text-default-500"
+      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-content2/60 hover:bg-content2 border border-divider/60 transition-colors text-sm text-default-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <SearchIcon className="text-base text-default-400 flex-shrink-0" />
       <span>Search...</span>
@@ -72,34 +73,46 @@ export const Navbar = () => {
   );
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 w-full border-b border-divider/40 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="fixed top-0 left-0 right-0 z-50 w-full border-b border-divider/60 bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/55 shadow-sm shadow-black/5 dark:shadow-black/30">
       <HeroUINavbar
         maxWidth="xl"
         position="static"
         isBordered={false}
         classNames={{
-          base: 'shadow-none border-0 bg-transparent px-4 sm:px-6 lg:px-8',
+          base: 'shadow-none border-0 bg-transparent px-4 sm:px-6',
         }}
       >
-        <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
-          <NavbarBrand as="li" className="gap-3 max-w-fit">
-            <NextLink className="flex justify-start items-center gap-2" href="/">
-              <div className="text-2xl">🕷️</div>
-              <p className="font-bold text-inherit bg-gradient-to-r from-red-600 to-blue-800 bg-clip-text text-transparent">
+        <NavbarBrand className="gap-3 max-w-fit flex-shrink-0">
+          <NextLink className="flex justify-start items-center gap-2" href="/">
+            <div className="h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center">
+              <Image
+                src={SpiderLogo}
+                alt="CodeSpider"
+                width={36}
+                height={36}
+                priority
+                className="h-9 w-9 object-contain"
+              />
+            </div>
+            <p className="font-semibold tracking-tight text-foreground text-xl">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
                 CodeSpider
-              </p>
-            </NextLink>
-          </NavbarBrand>
-          <ul className="hidden lg:flex gap-4 justify-start ml-2">
+              </span>
+            </p>
+          </NextLink>
+        </NavbarBrand>
+
+        {/* Centered nav tabs (desktop) */}
+        <NavbarContent className="hidden lg:flex flex-1 justify-center" justify="center">
+          <ul className="flex gap-2 justify-center">
             {siteConfig.navItems.map((item) => (
               <NavbarItem key={item.href} isActive={isActive(item.href)}>
                 <NextLink
                   className={clsx(
-                    linkStyles({ color: 'foreground' }),
-                    'transition-colors',
+                    'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
                     isActive(item.href)
-                      ? 'text-primary font-medium'
-                      : 'text-foreground hover:text-primary'
+                      ? 'bg-content2 text-foreground shadow-sm'
+                      : 'text-default-600 hover:text-foreground hover:bg-content2/60'
                   )}
                   href={item.href}
                 >
@@ -110,7 +123,7 @@ export const Navbar = () => {
           </ul>
         </NavbarContent>
 
-        <NavbarContent className="hidden sm:flex basis-1/5 sm:basis-full" justify="end">
+        <NavbarContent className="hidden sm:flex flex-shrink-0" justify="end">
           <NavbarItem className="hidden sm:flex gap-2">
             {/* <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
             <TwitterIcon className="text-default-500" />
@@ -131,7 +144,7 @@ export const Navbar = () => {
               <div className="w-20 h-8" />
             ) : session ? (
               <>
-                <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
+                <span className="text-sm text-default-600 flex items-center">
                   {session.user?.name}
                 </span>
                 <Button size="sm" variant="flat" color="danger" onPress={handleSignOut}>
@@ -139,7 +152,7 @@ export const Navbar = () => {
                 </Button>
               </>
             ) : (
-              <Button as={NextLink} href="/signin" size="sm" variant="flat">
+              <Button as={NextLink} href="/signin" size="sm" variant="flat" color="primary">
                 Sign In
               </Button>
             )}

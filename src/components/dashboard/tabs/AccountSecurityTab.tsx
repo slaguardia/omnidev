@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@heroui/button';
 import { Chip } from '@heroui/chip';
-import { Lock, Info, Shield, ShieldCheck, ShieldOff } from 'lucide-react';
-import { Divider } from '@heroui/divider';
+import { Card, CardBody, CardHeader } from '@heroui/card';
+import { Lock, Info, Shield, ShieldCheck, ShieldOff, KeyRound } from 'lucide-react';
 import Enable2FAModal from '../Enable2FAModal';
 import Disable2FAModal from '../Disable2FAModal';
 
@@ -46,117 +46,142 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <h2 className="text-2xl font-semibold flex items-center gap-2">
-        <Lock className="w-6 h-6 text-warning-500" />
+        <Lock className="w-6 h-6 text-default-500" />
         Account Security
       </h2>
 
-      {/* Two-Factor Authentication */}
-      <section className="flex flex-col gap-4">
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-success-500">Two-Factor Authentication</h3>
-          <Divider />
-        </div>
-
-        {isLoadingStatus ? (
-          <div className="flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-            <span className="text-sm text-default-500">Loading 2FA status...</span>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-              <div className="flex items-center gap-2">
-                {twoFactorStatus?.enabled ? (
-                  <>
-                    <ShieldCheck className="w-5 h-5 text-success-500" />
-                    <Chip color="success" variant="flat" size="sm">
-                      Enabled
-                    </Chip>
-                  </>
-                ) : (
-                  <>
-                    <ShieldOff className="w-5 h-5 text-default-400" />
-                    <Chip color="default" variant="flat" size="sm">
-                      Disabled
-                    </Chip>
-                  </>
-                )}
-              </div>
-
+      {/* Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Two-Factor Authentication Card */}
+        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <CardHeader className="px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-default-500" />
+              <h3 className="font-semibold text-foreground">Two-Factor Authentication</h3>
               {twoFactorStatus?.enabled ? (
-                <Button
-                  color="danger"
-                  variant="flat"
-                  onClick={() => setIsDisableModalOpen(true)}
-                  startContent={<ShieldOff className="w-4 h-4" />}
-                >
-                  Disable 2FA
-                </Button>
+                <Chip size="sm" variant="flat" color="success">
+                  Enabled
+                </Chip>
               ) : (
-                <Button
-                  color="success"
-                  variant="flat"
-                  onClick={() => setIsEnableModalOpen(true)}
-                  startContent={<Shield className="w-4 h-4" />}
-                >
-                  Enable 2FA
-                </Button>
+                <Chip size="sm" variant="flat">
+                  Disabled
+                </Chip>
               )}
             </div>
+          </CardHeader>
+          <CardBody className="px-4 py-5">
+            {isLoadingStatus ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                <span className="text-sm text-default-500">Loading 2FA status...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+                  <div className="flex items-center gap-2">
+                    {twoFactorStatus?.enabled ? (
+                      <ShieldCheck className="w-5 h-5 text-success-500" />
+                    ) : (
+                      <ShieldOff className="w-5 h-5 text-default-400" />
+                    )}
+                    <span className="text-sm text-default-700">
+                      {twoFactorStatus?.enabled
+                        ? 'Your account is protected with 2FA'
+                        : '2FA is not enabled'}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="p-4 bg-default-50 rounded-lg flex items-start gap-3">
-              <Info className="w-4 h-4 text-default-500 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-default-600">
-                {twoFactorStatus?.enabled
-                  ? 'Two-factor authentication adds an extra layer of security to your account. You will need to enter a code from your authenticator app when signing in.'
-                  : 'Enable two-factor authentication to add an extra layer of security to your account. You will need an authenticator app like Google Authenticator, Authy, or Apple Passwords.'}
-              </p>
-            </div>
+                {twoFactorStatus?.enabled ? (
+                  <Button
+                    color="danger"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => setIsDisableModalOpen(true)}
+                    startContent={<ShieldOff className="w-4 h-4" />}
+                  >
+                    Disable 2FA
+                  </Button>
+                ) : (
+                  <Button
+                    color="primary"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => setIsEnableModalOpen(true)}
+                    startContent={<Shield className="w-4 h-4" />}
+                  >
+                    Enable 2FA
+                  </Button>
+                )}
 
-            {twoFactorStatus?.enabled && !twoFactorStatus.hasRecoveryCodes && (
-              <div className="p-4 bg-warning-50 border border-warning-200 rounded-lg flex items-start gap-3">
-                <Info className="w-4 h-4 text-warning-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-warning-700">
-                  All your recovery codes have been used. Consider disabling and re-enabling 2FA to
-                  generate new recovery codes.
-                </p>
+                <div className="p-3 bg-content2/60 border border-divider/50 rounded-xl flex items-start gap-2">
+                  <Info className="w-4 h-4 text-default-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-default-500">
+                    {twoFactorStatus?.enabled
+                      ? 'You will need to enter a code from your authenticator app when signing in.'
+                      : 'Enable 2FA to add an extra layer of security. You will need an authenticator app like Google Authenticator or Authy.'}
+                  </p>
+                </div>
+
+                {twoFactorStatus?.enabled && !twoFactorStatus.hasRecoveryCodes && (
+                  <div className="p-3 bg-warning-50 dark:bg-warning-500/10 border border-warning-200 dark:border-warning-500/20 rounded-lg flex items-start gap-2">
+                    <Info className="w-4 h-4 text-warning-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-warning-700 dark:text-warning-400">
+                      All your recovery codes have been used. Consider disabling and re-enabling 2FA
+                      to generate new recovery codes.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-          </>
-        )}
-      </section>
+          </CardBody>
+        </Card>
 
-      {/* Change Password */}
-      <section className="flex flex-col gap-4">
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-warning-500">Password</h3>
-          <Divider />
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-          <Button
-            color="warning"
-            variant="flat"
-            onClick={onOpenChangePassword ?? (() => {})}
-            startContent={<Lock className="w-4 h-4" />}
-          >
-            Change Password
-          </Button>
-          <p className="text-sm text-default-600">
-            Update your account password. You will need your current password.
-          </p>
-        </div>
-        <div className="p-4 bg-default-50 rounded-lg flex items-start gap-3">
-          <Info className="w-4 h-4 text-default-500 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-default-600">
-            Forgot your password? Since this system does not use email recovery, you can reset by
-            deleting <code className="bg-default-200 px-1 rounded">/workspaces/users.json</code> and
-            creating a new account. See the docs for details.
-          </p>
-        </div>
-      </section>
+        {/* Password Card */}
+        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <CardHeader className="px-4 py-3">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-default-500" />
+              <h3 className="font-semibold text-foreground">Password</h3>
+              <Chip size="sm" variant="flat" color="warning">
+                Credentials
+              </Chip>
+            </div>
+          </CardHeader>
+          <CardBody className="px-4 py-5">
+            <div className="space-y-4">
+              <p className="text-sm text-default-600">
+                Update your account password. You will need your current password.
+              </p>
+
+              <Button
+                color="primary"
+                variant="flat"
+                size="sm"
+                onClick={onOpenChangePassword ?? (() => {})}
+                startContent={<Lock className="w-4 h-4" />}
+              >
+                Change Password
+              </Button>
+
+              <div className="p-3 bg-content2/60 border border-divider/50 rounded-xl flex items-start gap-2">
+                <Info className="w-4 h-4 text-default-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-default-500">
+                  Forgot your password? Since this system does not use email recovery, you can reset
+                  by deleting{' '}
+                  <code className="bg-default-200 px-1 rounded text-xs">
+                    /workspaces/users.json
+                  </code>{' '}
+                  and creating a new account.
+                </p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
 
       {/* Modals */}
       <Enable2FAModal

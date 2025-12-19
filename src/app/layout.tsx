@@ -3,6 +3,7 @@ import { Metadata, Viewport } from 'next';
 import clsx from 'clsx';
 
 import { Providers } from '@/app/providers';
+import { RouteTransition } from '@/app/RouteTransition';
 
 import { siteConfig } from '@/lib/config/site';
 import { fontSans } from '@/lib/config/fonts';
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.png',
   },
 };
 
@@ -32,16 +33,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html suppressHydrationWarning lang="en">
       <head />
       <body
-        className={clsx(
-          'min-h-screen text-foreground font-sans antialiased',
-          'bg-gradient-to-br from-red-50 via-white to-red-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900',
-          fontSans.variable
-        )}
+        className={clsx('min-h-screen text-foreground font-sans antialiased', fontSans.variable)}
       >
         <Providers themeProps={{ attribute: 'class', defaultTheme: 'dark' }}>
           <div className="relative flex flex-col min-h-screen">
             <Navbar />
-            <main className="flex-1 pt-16">{children}</main>
+            <main className="flex-1 pt-16">
+              <RouteTransition>{children}</RouteTransition>
+            </main>
             <Footer />
           </div>
         </Providers>

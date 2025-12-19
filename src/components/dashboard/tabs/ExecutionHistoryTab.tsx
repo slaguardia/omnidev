@@ -1,10 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@heroui/button';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
-import { History, Trash2, Eye, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Switch } from '@heroui/switch';
+import {
+  History,
+  Trash2,
+  Eye,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Zap,
+  MessageSquare,
+  Wrench,
+  RefreshCw,
+} from 'lucide-react';
 import { ExecutionHistoryEntry } from '@/lib/dashboard/types';
+import { extractUsageMetrics, UsageMetrics } from '@/lib/dashboard/usage-metrics';
 
 interface ExecutionHistoryTabProps {
   history: ExecutionHistoryEntry[];
@@ -26,6 +39,25 @@ export default function ExecutionHistoryTab({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [showJsonLogs, setShowJsonLogs] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  const AUTO_REFRESH_INTERVAL = 3000; // 3 seconds
+
+  // Memoize onRefresh to avoid unnecessary effect re-runs
+  const stableOnRefresh = useCallback(() => {
+    onRefresh();
+  }, [onRefresh]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const intervalId = setInterval(() => {
+      stableOnRefresh();
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [autoRefresh, stableOnRefresh]);
 
   const handleViewDetails = (execution: ExecutionHistoryEntry) => {
     setSelectedExecution(execution);
@@ -50,16 +82,38 @@ export default function ExecutionHistoryTab({
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
+  const formatTokens = (tokens: number) => {
+    if (tokens >= 1000) {
+      return `${(tokens / 1000).toFixed(1)}k`;
+    }
+    return tokens.toString();
+  };
+
+  const getUsageMetrics = (execution: ExecutionHistoryEntry): UsageMetrics => {
+    return extractUsageMetrics(execution.jsonLogs, execution.question, execution.response);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <History className="w-6 h-6 text-purple-500" />
+          <History className="w-6 h-6 text-default-500" />
           Execution History
         </h2>
-        <div className="flex items-center gap-2">
-          <Button color="primary" size="sm" variant="flat" onClick={onRefresh} isLoading={loading}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch size="sm" isSelected={autoRefresh} onValueChange={setAutoRefresh} />
+            <span className="text-sm text-default-600">Auto-refresh</span>
+          </div>
+          <Button
+            color="primary"
+            size="sm"
+            variant="flat"
+            onClick={onRefresh}
+            isLoading={loading}
+            startContent={<RefreshCw className="w-4 h-4" />}
+          >
             Refresh
           </Button>
           {history.length > 0 && (
@@ -81,7 +135,7 @@ export default function ExecutionHistoryTab({
         {history.map((execution) => (
           <div
             key={execution.id}
-            className="p-4 border border-default-200 rounded-lg hover:border-default-300 transition-colors"
+            className="p-4 bg-content1/50 border border-divider/60 rounded-xl hover:border-divider transition-colors"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
@@ -94,7 +148,7 @@ export default function ExecutionHistoryTab({
                   <span className="font-medium text-sm truncate">{execution.workspaceName}</span>
                 </div>
                 <p className="text-sm text-default-600 line-clamp-2 mb-2">{execution.question}</p>
-                <div className="flex items-center gap-4 text-xs text-default-500">
+                <div className="flex items-center gap-4 text-xs text-default-500 flex-wrap">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {formatDate(execution.executedAt)}
@@ -102,6 +156,29 @@ export default function ExecutionHistoryTab({
                   {execution.executionTimeMs && (
                     <span>Duration: {formatDuration(execution.executionTimeMs)}</span>
                   )}
+                  {(() => {
+                    const usage = getUsageMetrics(execution);
+                    return (
+                      <>
+                        <span className="flex items-center gap-1" title="Estimated tokens">
+                          <Zap className="w-3 h-3" />~{formatTokens(usage.totalTokensEstimate)}{' '}
+                          tokens
+                        </span>
+                        {usage.toolUseCount > 0 && (
+                          <span className="flex items-center gap-1" title="Tool uses">
+                            <Wrench className="w-3 h-3" />
+                            {usage.toolUseCount} tools
+                          </span>
+                        )}
+                        {usage.conversationTurns > 1 && (
+                          <span className="flex items-center gap-1" title="Conversation turns">
+                            <MessageSquare className="w-3 h-3" />
+                            {usage.conversationTurns} turns
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -150,7 +227,7 @@ export default function ExecutionHistoryTab({
         size="3xl"
         scrollBehavior="inside"
         classNames={{
-          base: 'dark:bg-slate-800/95 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+          base: 'bg-background/85 backdrop-blur-lg border border-divider/60',
         }}
       >
         <ModalContent>
@@ -265,14 +342,54 @@ export default function ExecutionHistoryTab({
                         </div>
                       </div>
                     )}
-                    {selectedExecution.executionTimeMs && (
+                    {selectedExecution && (
                       <div>
-                        <h4 className="text-sm font-semibold text-default-700 mb-1">
-                          Execution Time
-                        </h4>
-                        <p className="text-sm">
-                          {formatDuration(selectedExecution.executionTimeMs)}
-                        </p>
+                        <h4 className="text-sm font-semibold text-default-700 mb-2">Usage</h4>
+                        {(() => {
+                          const usage = getUsageMetrics(selectedExecution);
+                          return (
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div className="p-2 bg-default-100 rounded-lg">
+                                <span className="text-default-500 text-xs">Wall Clock Time</span>
+                                <p className="font-medium">
+                                  {formatDuration(selectedExecution.executionTimeMs)}
+                                </p>
+                              </div>
+                              {usage.claudeExecutionMs && (
+                                <div className="p-2 bg-default-100 rounded-lg">
+                                  <span className="text-default-500 text-xs">Claude Execution</span>
+                                  <p className="font-medium">
+                                    {formatDuration(usage.claudeExecutionMs)}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="p-2 bg-default-100 rounded-lg">
+                                <span className="text-default-500 text-xs">
+                                  Input Tokens (est.)
+                                </span>
+                                <p className="font-medium">
+                                  ~{formatTokens(usage.inputTokensEstimate)}
+                                </p>
+                              </div>
+                              <div className="p-2 bg-default-100 rounded-lg">
+                                <span className="text-default-500 text-xs">
+                                  Output Tokens (est.)
+                                </span>
+                                <p className="font-medium">
+                                  ~{formatTokens(usage.outputTokensEstimate)}
+                                </p>
+                              </div>
+                              <div className="p-2 bg-default-100 rounded-lg">
+                                <span className="text-default-500 text-xs">Tool Uses</span>
+                                <p className="font-medium">{usage.toolUseCount}</p>
+                              </div>
+                              <div className="p-2 bg-default-100 rounded-lg">
+                                <span className="text-default-500 text-xs">Conversation Turns</span>
+                                <p className="font-medium">{usage.conversationTurns}</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -294,7 +411,7 @@ export default function ExecutionHistoryTab({
         onOpenChange={setIsClearConfirmOpen}
         size="sm"
         classNames={{
-          base: 'dark:bg-slate-800/95 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+          base: 'bg-background/85 backdrop-blur-lg border border-divider/60',
         }}
       >
         <ModalContent>
