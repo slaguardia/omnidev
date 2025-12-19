@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.png',
   },
 };
 
@@ -34,7 +34,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={clsx(
           'min-h-screen text-foreground font-sans antialiased',
-          'bg-gradient-to-br from-red-50 via-white to-red-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900',
           fontSans.variable
         )}
       >

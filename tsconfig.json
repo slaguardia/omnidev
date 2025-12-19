@@ -28,6 +28,7 @@
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"],
+      "@assets/*": ["../assets/*"],
       "@/types/*": ["types/*"],
       "@/managers/*": ["managers/*"],
       "@/utils/*": ["utils/*"],

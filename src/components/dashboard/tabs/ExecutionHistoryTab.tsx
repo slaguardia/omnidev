@@ -55,7 +55,7 @@ export default function ExecutionHistoryTab({
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <History className="w-6 h-6 text-purple-500" />
+          <History className="w-6 h-6 text-default-500" />
           Execution History
         </h2>
         <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export default function ExecutionHistoryTab({
         {history.map((execution) => (
           <div
             key={execution.id}
-            className="p-4 border border-default-200 rounded-lg hover:border-default-300 transition-colors"
+            className="p-4 bg-content1/50 border border-divider/60 rounded-xl hover:border-divider transition-colors"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
@@ -150,7 +150,7 @@ export default function ExecutionHistoryTab({
         size="3xl"
         scrollBehavior="inside"
         classNames={{
-          base: 'dark:bg-slate-800/95 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+          base: 'bg-background/85 backdrop-blur-lg border border-divider/60',
         }}
       >
         <ModalContent>
@@ -294,7 +294,7 @@ export default function ExecutionHistoryTab({
         onOpenChange={setIsClearConfirmOpen}
         size="sm"
         classNames={{
-          base: 'dark:bg-slate-800/95 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+          base: 'bg-background/85 backdrop-blur-lg border border-divider/60',
         }}
       >
         <ModalContent>

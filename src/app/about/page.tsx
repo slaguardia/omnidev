@@ -18,7 +18,7 @@ export default function AboutPage() {
 
       {/* Purpose Section */}
       <section className="mb-16">
-        <Card className="bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 border-none">
+        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
           <CardBody className="p-8 md:p-10">
             <h2 className="text-2xl font-bold mb-6">Why CodeSpider?</h2>
             <div className="space-y-6 text-default-700">
@@ -29,8 +29,8 @@ export default function AboutPage() {
               </p>
 
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
                       className="w-5 h-5 text-primary"
                       fill="none"
@@ -52,10 +52,10 @@ export default function AboutPage() {
                   </p>
                 </div>
 
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
-                      className="w-5 h-5 text-secondary"
+                      className="w-5 h-5 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -75,10 +75,10 @@ export default function AboutPage() {
                   </p>
                 </div>
 
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
-                      className="w-5 h-5 text-success"
+                      className="w-5 h-5 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -98,10 +98,10 @@ export default function AboutPage() {
                   </p>
                 </div>
 
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
-                      className="w-5 h-5 text-warning"
+                      className="w-5 h-5 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -121,10 +121,10 @@ export default function AboutPage() {
                   </p>
                 </div>
 
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-danger/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
-                      className="w-5 h-5 text-danger"
+                      className="w-5 h-5 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -144,10 +144,10 @@ export default function AboutPage() {
                   </p>
                 </div>
 
-                <div className="bg-background/50 rounded-xl p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:bg-background/80">
-                  <div className="w-10 h-10 rounded-lg bg-default/10 flex items-center justify-center mb-3">
+                <div className="bg-content2/30 border border-divider/60 rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 hover:bg-content2/50">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <svg
-                      className="w-5 h-5 text-default-600"
+                      className="w-5 h-5 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -181,9 +181,9 @@ export default function AboutPage() {
           Everything you need for AI-powered code operations in one platform.
         </p>
         <div className="grid gap-6 md:grid-cols-2">
-          <Card className="border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/50">
+          <Card className="bg-content1/60 border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
             <CardHeader className="pb-0 pt-5 px-5 flex-col items-start">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                 <svg
                   className="w-5 h-5 text-primary"
                   fill="none"
@@ -208,11 +208,11 @@ export default function AboutPage() {
             </CardBody>
           </Card>
 
-          <Card className="border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-secondary/50">
+          <Card className="bg-content1/60 border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
             <CardHeader className="pb-0 pt-5 px-5 flex-col items-start">
-              <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                 <svg
-                  className="w-5 h-5 text-secondary"
+                  className="w-5 h-5 text-primary"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -235,11 +235,11 @@ export default function AboutPage() {
             </CardBody>
           </Card>
 
-          <Card className="border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-warning/50">
+          <Card className="bg-content1/60 border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
             <CardHeader className="pb-0 pt-5 px-5 flex-col items-start">
-              <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                 <svg
-                  className="w-5 h-5 text-warning"
+                  className="w-5 h-5 text-primary"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -262,11 +262,11 @@ export default function AboutPage() {
             </CardBody>
           </Card>
 
-          <Card className="border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-success/50">
+          <Card className="bg-content1/60 border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
             <CardHeader className="pb-0 pt-5 px-5 flex-col items-start">
-              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                 <svg
-                  className="w-5 h-5 text-success"
+                  className="w-5 h-5 text-primary"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -353,7 +353,7 @@ export default function AboutPage() {
 
         <div className="grid gap-6 md:grid-cols-3">
           {/* Completed */}
-          <Card className="border-l-4 border-l-success border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
+          <Card className="bg-content1/60 border-l-4 border-l-success border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-success" />
@@ -377,7 +377,7 @@ export default function AboutPage() {
           </Card>
 
           {/* In Progress */}
-          <Card className="border-l-4 border-l-warning border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
+          <Card className="bg-content1/60 border-l-4 border-l-warning border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-warning" />
@@ -395,7 +395,7 @@ export default function AboutPage() {
           </Card>
 
           {/* Planned */}
-          <Card className="border-l-4 border-l-default-400 border border-default-200 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
+          <Card className="bg-content1/60 border-l-4 border-l-default-400 border border-divider/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-default-400" />

@@ -123,7 +123,7 @@ export default function Home() {
             height="100%"
             fill="url(#web)"
             filter="url(#glow)"
-            className="text-red-500/20 dark:text-red-400/30"
+            className="text-primary/15 dark:text-primary/20"
           />
         </svg>
       </div>
@@ -132,36 +132,17 @@ export default function Home() {
       <section className="flex flex-col items-center justify-center py-12 md:py-16 text-center relative px-6">
         <div className="relative z-10 max-w-4xl mx-auto">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <span className="px-4 py-2 bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-300/30 rounded-full text-sm font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
+            <span className="px-4 py-2 bg-content2/60 border border-divider/60 rounded-full text-sm font-medium text-default-700 dark:text-default-200 flex items-center gap-2">
               <Zap className="w-4 h-4" /> Powered by{' '}
-              <span className="font-semibold text-blue-600 dark:text-blue-400">Claude Code</span>{' '}
+              <span className="font-semibold text-primary">Claude Code</span>{' '}
               <Zap className="w-4 h-4" />
             </span>
           </div>
 
           <h1 className="mb-8">
             <span className={title({ size: 'lg' })}>Welcome to&nbsp;</span>
-            <span
-              className={title({ size: 'lg' })}
-              style={{
-                background: 'linear-gradient(to right, #dc2626, #1e40af)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              Code
-            </span>
-            <span
-              className={title({ size: 'lg' })}
-              style={{
-                background: 'linear-gradient(to right, #1e40af, #dc2626)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
-              Spider
+            <span className={title({ size: 'lg' }) + ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'}>
+              CodeSpider
             </span>
           </h1>
 
@@ -177,7 +158,7 @@ export default function Home() {
               size="lg"
               color="primary"
               variant="shadow"
-              className="bg-gradient-to-r from-red-600 to-red-700 font-semibold px-6 text-white hover:scale-105 transition-transform flex items-center gap-2"
+              className="font-semibold px-7 hover:scale-[1.02] transition-transform flex items-center gap-2"
             >
               Get Started
             </Button>
@@ -186,7 +167,7 @@ export default function Home() {
               href="/docs"
               size="lg"
               variant="bordered"
-              className="border-red-300 text-red-600 dark:border-red-400 dark:text-red-400 font-semibold px-6 hover:bg-red-50 dark:hover:bg-red-950/20 hover:scale-105 transition-transform flex items-center gap-2"
+              className="border-divider/70 text-foreground font-semibold px-7 hover:bg-content2/60 hover:scale-[1.02] transition-transform flex items-center gap-2"
             >
               Learn More <BookOpen className="w-4 h-4" />
             </Button>
@@ -198,39 +179,33 @@ export default function Home() {
       <section className="py-12 px-6 relative">
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-red-300/50 dark:hover:border-red-400/50 hover:bg-background/80">
+            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <Clock className="w-12 h-12 text-red-500" />
+                <Clock className="w-12 h-12 text-primary" />
               </div>
-              <h3 className="font-bold text-xl mb-4 text-red-700 dark:text-red-300">
-                Async Job Queue
-              </h3>
+              <h3 className="font-bold text-xl mb-4 text-foreground">Async Job Queue</h3>
               <p className="text-default-600 text-sm leading-relaxed">
                 Queue code changes and let them run in the background. Check back when it&apos;s
                 done, or get notified via webhook.
               </p>
             </div>
 
-            <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-orange-300/50 dark:hover:border-orange-400/50 hover:bg-background/80">
+            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <Plug className="w-12 h-12 text-orange-500" />
+                <Plug className="w-12 h-12 text-primary" />
               </div>
-              <h3 className="font-bold text-xl mb-4 text-orange-700 dark:text-orange-300">
-                API-First Design
-              </h3>
+              <h3 className="font-bold text-xl mb-4 text-foreground">API-First Design</h3>
               <p className="text-default-600 text-sm leading-relaxed">
                 REST endpoints for everything. Integrate with n8n, CI/CD pipelines, or build your
                 own automations.
               </p>
             </div>
 
-            <div className="group p-8 bg-background/60 backdrop-blur-sm border border-default-200/50 dark:border-default-700/50 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-blue-300/50 dark:hover:border-blue-400/50 hover:bg-background/80">
+            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
-                <ListChecks className="w-12 h-12 text-blue-500" />
+                <ListChecks className="w-12 h-12 text-primary" />
               </div>
-              <h3 className="font-bold text-xl mb-4 text-blue-700 dark:text-blue-300">
-                Faster Backlog Triage
-              </h3>
+              <h3 className="font-bold text-xl mb-4 text-foreground">Faster Backlog Triage</h3>
               <p className="text-default-600 text-sm leading-relaxed">
                 Analyze issues, estimate complexity, and plan features with AI assistance. Turn your
                 backlog into actionable tasks.
