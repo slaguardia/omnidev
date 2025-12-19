@@ -17,8 +17,9 @@ export type JobType = 'claude-code' | 'git-push' | 'git-mr' | 'workspace-cleanup
 // Job lifecycle states
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
-// Queue folder names (match JobStatus for pending/processing, plus done/failed)
-export type QueueFolder = 'pending' | 'processing' | 'done' | 'failed';
+// Queue folder names (only active queue folders - pending/processing)
+// Finished jobs are stored in workspaces/jobs/finished/{completed|failed}/
+export type QueueFolder = 'pending' | 'processing';
 
 /**
  * Generic job structure stored as JSON files

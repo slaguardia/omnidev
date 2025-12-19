@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { NextRequest } from 'next/server';
 
 // Mock next-auth to avoid "headers called outside request scope" error
 vi.mock('next-auth', () => ({

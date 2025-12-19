@@ -79,6 +79,8 @@ export default function DashboardPage() {
     claudeResponse,
     loading: claudeLoading,
     handleAskClaude,
+    handleEditClaude,
+    setClaudeResponse,
   } = useClaudeOperations();
   const {
     form: changePasswordForm,
@@ -93,7 +95,6 @@ export default function DashboardPage() {
     history: executionHistory,
     loading: historyLoading,
     loadHistory,
-    addExecution,
     deleteExecution,
     clearHistory,
   } = useExecutionHistory();
@@ -109,29 +110,11 @@ export default function DashboardPage() {
     }
   };
 
-  const handleClaudeWithToast = async () => {
-    const startTime = Date.now();
-    const result = await handleAskClaude();
+  const handleClaudeWithToast = async (mode: 'ask' | 'edit') => {
+    const result = mode === 'edit' ? await handleEditClaude() : await handleAskClaude();
 
-    // Find the workspace name for history
-    const workspace = workspaces.find((w) => w.id === claudeForm.workspaceId);
-    const workspaceName = workspace
-      ? getProjectDisplayName(workspace.repoUrl)
-      : claudeForm.workspaceId;
-
-    // Save to execution history
-    const executionEntry: Parameters<typeof addExecution>[0] = {
-      workspaceId: claudeForm.workspaceId,
-      workspaceName,
-      question: claudeForm.question,
-      response: result.response || result.message,
-      status: result.success ? 'success' : 'error',
-      executionTimeMs: Date.now() - startTime,
-    };
-    if (!result.success) {
-      executionEntry.errorMessage = result.message;
-    }
-    await addExecution(executionEntry);
+    // History is now derived from finished jobs automatically
+    // No need to manually save execution history here
 
     if (result.success) {
       toast.success(result.message);
@@ -211,8 +194,8 @@ export default function DashboardPage() {
       </aside>
 
       {/* Main Content Area - scrolls independently */}
-      <div className="lg:pl-64 xl:pl-72">
-        <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="lg:pl-64 xl:pl-72 h-[calc(100vh-4rem)] overflow-hidden">
+        <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 h-full overflow-y-auto">
           {activeTab === 'workspaces' && (
             <WorkspacesTab
               workspaces={workspaces}
@@ -230,8 +213,9 @@ export default function DashboardPage() {
               claudeForm={claudeForm}
               setClaudeForm={setClaudeForm}
               claudeResponse={claudeResponse}
+              setClaudeResponse={setClaudeResponse}
               loading={loading}
-              onAskClaude={handleClaudeWithToast}
+              onRunClaude={handleClaudeWithToast}
               getProjectDisplayName={getProjectDisplayName}
             />
           )}

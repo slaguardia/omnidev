@@ -25,7 +25,10 @@
       "mcp__linear-server__list_comments",
       "mcp__linear-server__list_issues",
       "Bash(pnpm lint:*)",
-      "Bash(pnpm prettier:*)"
+      "Bash(pnpm prettier:*)",
+      "Bash(pnpm eslint:*)",
+      "Bash(pnpm lint:fix:*)",
+      "Bash(pnpm config:*)"
     ]
   }
 }

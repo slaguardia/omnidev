@@ -101,26 +101,34 @@ export default function WorkspacesTab({
                 </Button>
               </div>
             </CardHeader>
-            <CardBody className="px-4 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Left column - details */}
-                <div className="space-y-3">
+            <CardBody className="px-4 pt-1 pb-4">
+              <div className="space-y-3">
+                {workspace.metadata?.commitHash && (
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="text-default-500">Path:</span>
-                    <span className="text-default-700 font-mono truncate" title={workspace.path}>
-                      {workspace.path}
+                    <Hash className="w-3.5 h-3.5 text-default-400" />
+                    <span className="text-default-500">Commit:</span>
+                    <span className="text-default-700 font-mono">
+                      {workspace.metadata.commitHash.slice(0, 8)}
                     </span>
                   </div>
+                )}
 
-                  {workspace.metadata?.commitHash && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Hash className="w-3.5 h-3.5 text-default-400" />
-                      <span className="text-default-500">Commit:</span>
-                      <span className="text-default-700 font-mono">
-                        {workspace.metadata.commitHash.slice(0, 8)}
-                      </span>
-                    </div>
-                  )}
+                {/* Bottom row - workspace ID left, last accessed right */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-default-500">ID:</span>
+                    <Snippet
+                      hideSymbol
+                      size="sm"
+                      variant="flat"
+                      classNames={{ pre: 'text-xs' }}
+                      onCopy={() => {
+                        void copyWorkspaceId(workspace.id);
+                      }}
+                    >
+                      {workspace.id}
+                    </Snippet>
+                  </div>
 
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-3.5 h-3.5 text-default-400" />
@@ -129,22 +137,6 @@ export default function WorkspacesTab({
                       {new Date(workspace.lastAccessed).toLocaleString()}
                     </span>
                   </div>
-                </div>
-
-                {/* Right column - workspace ID */}
-                <div className="space-y-2">
-                  <span className="text-xs text-default-500">Workspace ID</span>
-                  <Snippet
-                    hideSymbol
-                    size="sm"
-                    variant="flat"
-                    classNames={{ pre: 'text-xs' }}
-                    onCopy={() => {
-                      void copyWorkspaceId(workspace.id);
-                    }}
-                  >
-                    {workspace.id}
-                  </Snippet>
                 </div>
               </div>
             </CardBody>

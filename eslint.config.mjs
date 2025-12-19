@@ -9,7 +9,15 @@ import nextPlugin from '@next/eslint-plugin-next';
 
 export default [
   {
-    ignores: ['emails/', 'prompt-engineering/', 'supabase/'],
+    ignores: [
+      '.next/',
+      'node_modules/',
+      'workspaces/',
+      'emails/',
+      'prompt-engineering/',
+      'supabase/',
+      'next-env.d.ts',
+    ],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],

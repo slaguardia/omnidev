@@ -6,6 +6,7 @@ const initialClaudeForm: ClaudeForm = {
   question: '',
   context: '',
   sourceBranch: '',
+  createMR: false,
 };
 
 interface JobResult {
@@ -78,6 +79,96 @@ export const useClaudeOperations = () => {
   const [claudeResponse, setClaudeResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const handleEditClaude = async () => {
+    try {
+      setLoading(true);
+      setClaudeResponse(null);
+
+      // Omit optional fields when empty so the API can apply defaults.
+      const payload: Record<string, unknown> = {
+        workspaceId: claudeForm.workspaceId,
+        question: claudeForm.question,
+        context: claudeForm.context,
+        createMR: claudeForm.createMR,
+      };
+      if (claudeForm.sourceBranch && claudeForm.sourceBranch.trim().length > 0) {
+        payload.sourceBranch = claudeForm.sourceBranch.trim();
+      }
+
+      const response = await fetch('/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const errorMessage =
+          typeof data === 'object' && data !== null && 'error' in data
+            ? String((data as { error?: unknown }).error ?? 'Claude edit request failed')
+            : 'Claude edit request failed';
+        throw new Error(errorMessage);
+      }
+
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'queued' in data &&
+        'jobId' in data &&
+        (data as { queued?: unknown }).queued === true &&
+        typeof (data as { jobId?: unknown }).jobId === 'string'
+      ) {
+        const job = await pollForJobResult((data as { jobId: string }).jobId);
+        if (job.status === 'failed') {
+          throw new Error(job.error || 'Job execution failed');
+        }
+
+        const output = job.result?.output || '';
+        setClaudeResponse(output);
+
+        const usageInfo = formatUsageInfo(job.result?.usage);
+        return {
+          success: true,
+          message: `Claude Code edit completed successfully!${usageInfo}`,
+          response: output,
+          usage: job.result?.usage,
+        };
+      }
+
+      // Fallback for immediate response (legacy/direct mode)
+      if (typeof data === 'object' && data !== null && 'response' in data) {
+        const responseText = String((data as { response?: unknown }).response ?? '');
+        setClaudeResponse(responseText);
+        const usageInfo = formatUsageInfo(
+          (data as { usage?: JobResult['usage'] | undefined }).usage
+        );
+        return {
+          success: true,
+          message: `Claude Code edit completed successfully!${usageInfo}`,
+          response: responseText,
+          usage: (data as { usage?: JobResult['usage'] | undefined }).usage,
+        };
+      }
+
+      setClaudeResponse(null);
+      return {
+        success: true,
+        message: 'Claude Code edit queued successfully!',
+        response: '',
+        usage: undefined,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        success: false,
+        message: `Claude edit request failed: ${errorMessage}`,
+        error,
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAskClaude = async () => {
     try {
       setLoading(true);
@@ -99,15 +190,26 @@ export const useClaudeOperations = () => {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data: unknown = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Claude request failed');
+        const errorMessage =
+          typeof data === 'object' && data !== null && 'error' in data
+            ? String((data as { error?: unknown }).error ?? 'Claude request failed')
+            : 'Claude request failed';
+        throw new Error(errorMessage);
       }
 
       // API returns queued job - poll for result
-      if (data.queued && data.jobId) {
-        const job = await pollForJobResult(data.jobId);
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'queued' in data &&
+        'jobId' in data &&
+        (data as { queued?: unknown }).queued === true &&
+        typeof (data as { jobId?: unknown }).jobId === 'string'
+      ) {
+        const job = await pollForJobResult((data as { jobId: string }).jobId);
 
         if (job.status === 'failed') {
           throw new Error(job.error || 'Job execution failed');
@@ -126,13 +228,26 @@ export const useClaudeOperations = () => {
       }
 
       // Fallback for immediate response (legacy/direct mode)
-      setClaudeResponse(data.response);
-      const usageInfo = formatUsageInfo(data.usage);
+      if (typeof data === 'object' && data !== null && 'response' in data) {
+        const responseText = String((data as { response?: unknown }).response ?? '');
+        setClaudeResponse(responseText);
+        const usageInfo = formatUsageInfo(
+          (data as { usage?: JobResult['usage'] | undefined }).usage
+        );
+        return {
+          success: true,
+          message: `Claude Code responded successfully!${usageInfo}`,
+          response: responseText,
+          usage: (data as { usage?: JobResult['usage'] | undefined }).usage,
+        };
+      }
+
+      setClaudeResponse(null);
       return {
         success: true,
-        message: `Claude Code responded successfully!${usageInfo}`,
-        response: data.response,
-        usage: data.usage,
+        message: 'Claude Code request queued successfully!',
+        response: '',
+        usage: undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -158,6 +273,7 @@ export const useClaudeOperations = () => {
     setClaudeResponse,
     loading,
     handleAskClaude,
+    handleEditClaude,
     resetClaudeForm,
   };
 };

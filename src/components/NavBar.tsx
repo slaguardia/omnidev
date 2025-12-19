@@ -84,7 +84,7 @@ export const Navbar = () => {
       >
         <NavbarBrand className="gap-3 max-w-fit flex-shrink-0">
           <NextLink className="flex justify-start items-center gap-2" href="/">
-            <div className="h-9 w-9 rounded-xl bg-content2/60 border border-divider/60 overflow-hidden shadow-sm flex items-center justify-center">
+            <div className="h-9 w-9 overflow-hidden flex items-center justify-center">
               <Image
                 src={SpiderLogo}
                 alt="CodeSpider"
@@ -111,7 +111,7 @@ export const Navbar = () => {
                   className={clsx(
                     'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
                     isActive(item.href)
-                      ? 'bg-content2 text-foreground shadow-sm'
+                      ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 shadow-sm'
                       : 'text-default-600 hover:text-foreground hover:bg-content2/60'
                   )}
                   href={item.href}
