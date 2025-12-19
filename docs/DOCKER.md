@@ -32,6 +32,59 @@
 3. **Access the application:**
    Open http://localhost:3000 in your browser
 
+## Coolify Deployment (Docker Compose)
+
+If you deploy this repo via **Coolify → Docker Compose**, Coolify runs the same Docker Compose commands you would run locally — but it routes traffic through its proxy (Traefik/Caddy) instead of exposing host ports.
+
+### Coolify Commands (Build + Start)
+
+Set these in Coolify if it asks for custom commands (or use them when deploying manually on the server):
+
+**Build command**
+
+```bash
+docker compose -f ./docker-compose.yml build workflow-app
+```
+
+**Start command**
+
+```bash
+docker compose -f ./docker-compose.yml up -d workflow-app
+```
+
+Notes:
+
+- `workflow-app` depends on `workflow-init-perms`, so Compose will run the init container automatically.
+- When using Coolify’s proxy, you generally should **not** publish `ports:` to the host (Coolify docs warn it can reduce features like rolling updates).
+
+### Coolify Domain “:PORT” (very important)
+
+This app listens on **port 3000 inside the container**. If Coolify/proxy guesses the wrong upstream port (common default is `80`), you’ll get **502 Bad Gateway** even though the container is healthy.
+
+In Coolify’s **Domains** field you can bind the domain to the container port, e.g.:
+
+- `https://codespider.playdate.events:3000`
+
+This tells Coolify’s proxy: “route this domain to **port 3000 inside the container**”.
+
+For a visual explanation, see `docs/COOLIFY_PORTS_FLOW.md`.
+
+### Required Coolify Environment Variables
+
+- **`NEXTAUTH_SECRET`**: must be set (Coolify env var)
+- **`NEXTAUTH_URL`**: must be your public URL (no `:3000`)
+
+Example:
+
+```bash
+NEXTAUTH_URL=https://codespider.playdate.events
+```
+
+### Health checks (Coolify / proxy)
+
+- `GET /api/health` always returns `200` (used for container health checks / routing).
+- `GET /api/config/validate` returns a JSON status object and also returns `200` even when config is incomplete (used by the UI).
+
 ### Development Setup
 
 You have two dev-friendly options:
@@ -175,6 +228,12 @@ Claude Code stores its auth + settings under `~/.claude` inside the container.
 **Important:** Claude also writes a `~/.claude.json` file in the user's home directory.
 The container startup scripts migrate this file into `~/.claude/.claude.json` and symlink it back,
 so it persists in the same named volume across restarts.
+
+#### MCP server authentication (OAuth not supported)
+
+This project currently supports **only token/API-key based MCP auth** (for example, setting an `Authorization: Bearer <token>` header on the MCP server entry).
+
+**OAuth-based MCP servers are not supported yet** (i.e. flows that require a browser login + redirect/callback to exchange codes for tokens). If you need an MCP integration, prefer providers that support **static tokens** (or manually issued API keys).
 
 If you want a single consistent location, log in as `nextjs` (recommended):
 

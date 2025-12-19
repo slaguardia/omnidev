@@ -225,12 +225,12 @@ export default function AboutPage() {
                   />
                 </svg>
               </div>
-              <h3 className="font-semibold text-lg">Claude Code Integration</h3>
+              <h3 className="font-semibold text-lg">Claude Code + MCP Integration</h3>
             </CardHeader>
             <CardBody className="pt-2 px-5 pb-5">
               <p className="text-default-500 text-sm">
-                Ask questions about your codebase or request AI-assisted edits. Claude Code runs in
-                a sandboxed environment with full context of your repository.
+                Ask questions or request AI-assisted edits with full codebase context. Connect to
+                external MCP servers (Linear, GitHub, Slack) to extend Claude&apos;s capabilities.
               </p>
             </CardBody>
           </Card>
@@ -386,9 +386,9 @@ export default function AboutPage() {
             </CardHeader>
             <CardBody className="pt-0">
               <ul className="space-y-2 text-default-600 text-sm">
-                <li>n8n workflow templates</li>
+                <li>MCP server proxy infrastructure</li>
+                <li>Remote MCP server support (token-based)</li>
                 <li>Enhanced execution history</li>
-                <li>Improved error handling</li>
                 <li>Performance optimizations</li>
               </ul>
             </CardBody>
@@ -404,10 +404,10 @@ export default function AboutPage() {
             </CardHeader>
             <CardBody className="pt-0">
               <ul className="space-y-2 text-default-600 text-sm">
-                <li>Bug mode</li>
+                <li>OAuth-based MCP server support</li>
+                <li>MCP connections dashboard</li>
                 <li>GitHub integration</li>
                 <li>Multi-user teams</li>
-                <li>Advanced caching</li>
               </ul>
             </CardBody>
           </Card>

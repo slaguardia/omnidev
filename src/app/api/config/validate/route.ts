@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { DEFAULT_CONFIG, isConfigurationComplete, validateConfig } from '@/lib/config/client-settings';
+import {
+  DEFAULT_CONFIG,
+  isConfigurationComplete,
+  validateConfig,
+} from '@/lib/config/client-settings';
 import type { AppConfig } from '@/lib/types/index';
 
 function getConfigFilePath(): string {
@@ -67,5 +71,3 @@ export function GET() {
     { status: 200 }
   );
 }
-
-

@@ -9,5 +9,3 @@ export function GET() {
     { status: 200 }
   );
 }
-
-

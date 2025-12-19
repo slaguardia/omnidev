@@ -315,7 +315,7 @@ time docker build -t workflow-app-test .
 
    # Manually test Claude Code installation
    docker run --rm -it workflow-app bash
-   npm install -g @anthropic-ai/claude-code@latest
+   npm install -g @anthropic-ai/claude-code
    ```
 
 2. **Permission issues:**
@@ -366,6 +366,13 @@ docker-compose exec workflow-app sh -c "free -h && df -h"
 ```
 
 For detailed Docker documentation, see [DOCKER.md](docs/DOCKER.md).
+
+### Coolify (Docker Compose)
+
+If you deploy via **Coolify** using **Docker Compose**, see:
+
+- `docs/DOCKER.md` → **Coolify Deployment (Docker Compose)** (build/start commands + `domain:3000` upstream port binding)
+- `docs/COOLIFY_PORTS_FLOW.md` (flowcharts explaining browser vs proxy vs container ports)
 
 ## 🎯 Usage
 

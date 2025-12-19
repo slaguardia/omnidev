@@ -19,7 +19,13 @@ export {
 } from './queue-manager';
 
 // Worker functions
-export { executeOrQueue, startWorker, stopWorker, isWorkerRunning } from './worker';
+export {
+  executeOrQueue,
+  startWorker,
+  stopWorker,
+  isWorkerRunning,
+  type ExecuteOrQueueOptions,
+} from './worker';
 
 // Types
 export type {

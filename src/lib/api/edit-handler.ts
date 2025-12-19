@@ -3,7 +3,7 @@ import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { validateAndLoadWorkspace } from './workspace-validation';
 import { EditRouteParams } from './types';
-import { executeOrQueue, type ClaudeCodeJobPayload, type ClaudeCodeJobResult } from '@/lib/queue';
+import { executeOrQueue, type ClaudeCodeJobPayload } from '@/lib/queue';
 
 /**
  * API handler for edit operations
@@ -79,11 +79,11 @@ export async function handleEditClaudeCodeRequest(
     }
 
     // ============================================================================
-    // STEP 5: CLAUDE CODE EXECUTION VIA JOB QUEUE
+    // STEP 5: QUEUE CLAUDE CODE JOB
     // ============================================================================
 
-    // Execute Claude Code via job queue (execute-or-queue pattern)
-    console.log(`[${logPrefix}] 🚀 Using Claude Code with execution parameters:`, {
+    // Queue the job for background processing (always returns immediately)
+    console.log(`[${logPrefix}] 🚀 Queueing Claude Code job with parameters:`, {
       createMR: createMR,
       questionLength: question.length,
       workingDirectory: workspace?.path,
@@ -92,9 +92,6 @@ export async function handleEditClaudeCodeRequest(
       workspaceId: workspace?.id,
       mode: 'edit',
     });
-
-    console.log(`[${logPrefix}] ⏱️ Starting Claude Code execution at ${new Date().toISOString()}`);
-    const claudeStart = Date.now();
 
     try {
       // Check if workspace is defined and if not, return a 500 error
@@ -119,77 +116,38 @@ export async function handleEditClaudeCodeRequest(
         jobPayload.callback = callback;
       }
 
-      // Execute or queue the job
-      const execution = await executeOrQueue('claude-code', jobPayload);
+      // Always queue the job (forceQueue: true) - returns immediately
+      const execution = await executeOrQueue('claude-code', jobPayload, { forceQueue: true });
 
+      // forceQueue guarantees immediate: false, but TypeScript needs the check
       if (execution.immediate) {
-        // Job ran immediately - return result
-        const claudeExecutionTime = Date.now() - claudeStart;
-        const totalTime = Date.now() - startTime;
-        const result = execution.result as ClaudeCodeJobResult;
-
-        console.log(
-          `[${logPrefix}] ✅ Claude Code execution completed immediately in ${claudeExecutionTime}ms`
-        );
-
-        return NextResponse.json({
-          success: true,
-          response: result.output,
-          queued: false,
-          method: 'claude-code',
-          ...(result.postExecution ? { postExecution: result.postExecution } : {}),
-          workspace: {
-            id: workspace.id,
-            path: workspace.path,
-            repoUrl: workspace.repoUrl,
-            targetBranch: workspace.targetBranch,
-          },
-          timing: {
-            total: totalTime,
-            claudeExecution: result.executionTimeMs,
-          },
-        });
-      } else {
-        // Job was queued - return job ID for polling
-        console.log(`[${logPrefix}] 📋 Job queued with ID: ${execution.jobId}`);
-
-        return NextResponse.json({
-          success: true,
-          queued: true,
-          jobId: execution.jobId,
-          message: 'Job queued - poll /api/jobs/:jobId for results',
-          workspace: {
-            id: workspace.id,
-            path: workspace.path,
-            repoUrl: workspace.repoUrl,
-            targetBranch: workspace.targetBranch,
-          },
-        });
+        // This branch should never execute with forceQueue: true
+        throw new Error('Unexpected immediate execution with forceQueue enabled');
       }
-    } catch (claudeError) {
-      // ============================================================================
-      // CLAUDE CODE EXECUTION ERROR HANDLING
-      // ============================================================================
-      // This catch block handles errors that occur during Claude Code execution
-      // It logs detailed error information and returns a 500 error response
-      // This is separate from the outer catch block which handles general request errors
 
-      const claudeExecutionTime = Date.now() - claudeStart;
-      const _totalTime = Date.now() - startTime;
-      const errorMessage = claudeError instanceof Error ? claudeError.message : String(claudeError);
-      console.error(
-        `[${logPrefix}] ❌ Claude Code execution threw error after ${claudeExecutionTime}ms:`,
-        claudeError
-      );
-      console.error(`[${logPrefix}] Error details:`, {
-        name: claudeError instanceof Error ? claudeError.name : 'Unknown',
-        message: errorMessage,
-        stack: claudeError instanceof Error ? claudeError.stack : undefined,
+      const totalTime = Date.now() - startTime;
+      console.log(`[${logPrefix}] 📋 Job queued with ID: ${execution.jobId} in ${totalTime}ms`);
+
+      return NextResponse.json({
+        success: true,
+        queued: true,
+        jobId: execution.jobId,
+        message: 'Job queued - poll /api/jobs/:jobId for results',
+        workspace: {
+          id: workspace.id,
+          path: workspace.path,
+          repoUrl: workspace.repoUrl,
+          targetBranch: workspace.targetBranch,
+        },
       });
+    } catch (queueError) {
+      const totalTime = Date.now() - startTime;
+      const errorMessage = queueError instanceof Error ? queueError.message : String(queueError);
+      console.error(`[${logPrefix}] ❌ Failed to queue job after ${totalTime}ms:`, queueError);
 
       return NextResponse.json(
         {
-          error: 'Claude Code execution failed',
+          error: 'Failed to queue job',
           details: errorMessage,
         },
         { status: 500 }

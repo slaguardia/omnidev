@@ -5,7 +5,7 @@ import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { access } from 'node:fs/promises';
 import type { WorkspaceId } from '@/lib/types/index';
-import { executeOrQueue, type ClaudeCodeJobPayload, type ClaudeCodeJobResult } from '@/lib/queue';
+import { executeOrQueue, type ClaudeCodeJobPayload } from '@/lib/queue';
 import { validateAndParseAskRouteParams } from '@/lib/api/route-validation';
 
 // This api route needs either next-auth or api key authentication
@@ -112,17 +112,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Claude Code via job queue (execute-or-queue pattern)
-    console.log(`[ASK API] 🚀 Using Claude Code for enhanced repository analysis`);
-    console.log(`[ASK API] Claude Code execution parameters:`, {
+    // Queue the job for background processing (always returns immediately)
+    console.log(`[ASK API] 🚀 Queueing Claude Code job for repository analysis`);
+    console.log(`[ASK API] Job parameters:`, {
       questionLength: question.length,
       contextLength: context?.length || 0,
       sourceBranch: sourceBranch || workspace.targetBranch || 'default',
       workspaceId: workspace.id,
     });
-
-    console.log(`[ASK API] ⏱️ Starting Claude Code execution at ${new Date().toISOString()}`);
-    const claudeStart = Date.now();
 
     try {
       // Build job payload
@@ -143,66 +140,36 @@ export async function POST(request: NextRequest) {
         jobPayload.callback = callback;
       }
 
-      // Execute or queue the job
-      const execution = await executeOrQueue('claude-code', jobPayload);
+      // Always queue the job (forceQueue: true) - returns immediately
+      const execution = await executeOrQueue('claude-code', jobPayload, { forceQueue: true });
 
+      // forceQueue guarantees immediate: false, but TypeScript needs the check
       if (execution.immediate) {
-        // Job ran immediately - return result
-        const claudeExecutionTime = Date.now() - claudeStart;
-        const totalTime = Date.now() - startTime;
-        const result = execution.result as ClaudeCodeJobResult;
-
-        console.log(
-          `[ASK API] ✅ Claude Code execution completed immediately in ${claudeExecutionTime}ms`
-        );
-
-        return NextResponse.json({
-          success: true,
-          response: result.output,
-          queued: false,
-          method: 'claude-code',
-          ...(result.postExecution ? { postExecution: result.postExecution } : {}),
-          workspace: {
-            id: workspace.id,
-            targetBranch: workspace.targetBranch,
-          },
-          timing: {
-            total: totalTime,
-            claudeExecution: result.executionTimeMs,
-          },
-        });
-      } else {
-        // Job was queued - return job ID for polling
-        console.log(`[ASK API] 📋 Job queued with ID: ${execution.jobId}`);
-
-        return NextResponse.json({
-          success: true,
-          queued: true,
-          jobId: execution.jobId,
-          message: 'Job queued - poll /api/jobs/:jobId for results',
-          workspace: {
-            id: workspace.id,
-            targetBranch: workspace.targetBranch,
-          },
-        });
+        // This branch should never execute with forceQueue: true
+        throw new Error('Unexpected immediate execution with forceQueue enabled');
       }
-    } catch (claudeError) {
-      const claudeExecutionTime = Date.now() - claudeStart;
-      const _totalTime = Date.now() - startTime;
-      const errorMessage = claudeError instanceof Error ? claudeError.message : String(claudeError);
-      console.error(
-        `[ASK API] ❌ Claude Code execution threw error after ${claudeExecutionTime}ms:`,
-        claudeError
-      );
-      console.error(`[ASK API] Error details:`, {
-        name: claudeError instanceof Error ? claudeError.name : 'Unknown',
-        message: errorMessage,
-        stack: claudeError instanceof Error ? claudeError.stack : undefined,
+
+      const totalTime = Date.now() - startTime;
+      console.log(`[ASK API] 📋 Job queued with ID: ${execution.jobId} in ${totalTime}ms`);
+
+      return NextResponse.json({
+        success: true,
+        queued: true,
+        jobId: execution.jobId,
+        message: 'Job queued - poll /api/jobs/:jobId for results',
+        workspace: {
+          id: workspace.id,
+          targetBranch: workspace.targetBranch,
+        },
       });
+    } catch (queueError) {
+      const totalTime = Date.now() - startTime;
+      const errorMessage = queueError instanceof Error ? queueError.message : String(queueError);
+      console.error(`[ASK API] ❌ Failed to queue job after ${totalTime}ms:`, queueError);
 
       return NextResponse.json(
         {
-          error: 'Claude Code execution failed',
+          error: 'Failed to queue job',
           details: errorMessage,
         },
         { status: 500 }
