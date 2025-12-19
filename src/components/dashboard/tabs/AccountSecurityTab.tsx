@@ -172,7 +172,9 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
                 <p className="text-xs text-default-500">
                   Forgot your password? Since this system does not use email recovery, you can reset
                   by deleting{' '}
-                  <code className="bg-default-200 px-1 rounded text-xs">/workspaces/users.json</code>{' '}
+                  <code className="bg-default-200 px-1 rounded text-xs">
+                    /workspaces/users.json
+                  </code>{' '}
                   and creating a new account.
                 </p>
               </div>

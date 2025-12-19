@@ -117,6 +117,17 @@ export interface ClaudeCodeJsonLog {
 }
 
 /**
+ * Token usage and cost information from Claude Code execution
+ */
+export interface ClaudeCodeUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  costUsd?: number;
+}
+
+/**
  * Result from Claude Code job execution
  */
 export interface ClaudeCodeJobResult {
@@ -133,6 +144,8 @@ export interface ClaudeCodeJobResult {
     mergeRequestUrl?: string;
     pushedBranch?: string;
   };
+  /** Token usage and cost information aggregated from Claude Code execution */
+  usage?: ClaudeCodeUsage;
   /** Raw JSON stream logs from Claude Code execution */
   jsonLogs?: ClaudeCodeJsonLog[];
   /** Raw stdout output (includes all output before parsing) */

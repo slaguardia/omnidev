@@ -16,7 +16,7 @@
     "lint:fix": "next lint --fix",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
-    "depcheck": "depcheck --ignores=highlight.js,@react-types/shared,@vitest/coverage-v8,autoprefixer,postcss,tsx",
+    "depcheck": "depcheck --ignores=highlight.js,@react-types/shared,@vitest/coverage-v8,autoprefixer,postcss,tsx,@assets/*",
     "lint:all": "pnpm lint && pnpm prettier && pnpm depcheck",
     "lint:all:fix": "pnpm lint:fix && pnpm prettier:fix && pnpm depcheck",
     "clean:workspaces": "ts-node scripts/cleanup-workspaces.ts",

@@ -77,7 +77,7 @@ export default function ExecutionHistoryTab({
       </div>
 
       {/* History List */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {history.map((execution) => (
           <div
             key={execution.id}

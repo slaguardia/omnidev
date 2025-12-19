@@ -141,7 +141,12 @@ export default function Home() {
 
           <h1 className="mb-8">
             <span className={title({ size: 'lg' })}>Welcome to&nbsp;</span>
-            <span className={title({ size: 'lg' }) + ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'}>
+            <span
+              className={
+                title({ size: 'lg' }) +
+                ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'
+              }
+            >
               CodeSpider
             </span>
           </h1>

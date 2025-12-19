@@ -14,11 +14,54 @@ import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type {
   ClaudeCodeJobPayload,
   ClaudeCodeJobResult,
+  ClaudeCodeUsage,
+  ClaudeCodeJsonLog,
   GitPushJobPayload,
   GitMRJobPayload,
   WorkspaceCleanupJobPayload,
 } from './types';
 import type { FilePath, GitUrl } from '@/lib/types/index';
+
+/**
+ * Extract usage information from the final 'result' type JSON log.
+ * The result log contains:
+ * - total_cost_usd: total cost in USD
+ * - usage: { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens }
+ */
+function extractUsageFromJsonLogs(jsonLogs: ClaudeCodeJsonLog[]): ClaudeCodeUsage | undefined {
+  // Find the final result log which contains aggregated usage
+  const resultLog = jsonLogs.find((log) => log.type === 'result');
+  if (!resultLog) {
+    return undefined;
+  }
+
+  const usage = resultLog.usage as Record<string, unknown> | undefined;
+  if (!usage) {
+    return undefined;
+  }
+
+  const result: ClaudeCodeUsage = {
+    inputTokens: (usage.input_tokens as number) || 0,
+    outputTokens: (usage.output_tokens as number) || 0,
+  };
+
+  if (
+    typeof usage.cache_creation_input_tokens === 'number' &&
+    usage.cache_creation_input_tokens > 0
+  ) {
+    result.cacheCreationInputTokens = usage.cache_creation_input_tokens;
+  }
+  if (typeof usage.cache_read_input_tokens === 'number' && usage.cache_read_input_tokens > 0) {
+    result.cacheReadInputTokens = usage.cache_read_input_tokens;
+  }
+
+  // Get total cost from the result log
+  if (typeof resultLog.total_cost_usd === 'number') {
+    result.costUsd = resultLog.total_cost_usd;
+  }
+
+  return result;
+}
 
 /**
  * Execute a Claude Code job
@@ -147,6 +190,18 @@ export async function executeClaudeCodeJob(
   }
   if (result.data?.jsonLogs) {
     jobResult.jsonLogs = result.data.jsonLogs;
+    // Extract usage from JSON logs
+    const usage = extractUsageFromJsonLogs(result.data.jsonLogs);
+    if (usage) {
+      jobResult.usage = usage;
+      console.log(`[JOB] ✅ Extracted usage:`, {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cacheCreation: usage.cacheCreationInputTokens,
+        cacheRead: usage.cacheReadInputTokens,
+        costUsd: usage.costUsd,
+      });
+    }
   }
   if (result.data?.rawOutput) {
     jobResult.rawOutput = result.data.rawOutput;
