@@ -170,11 +170,13 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
         <Divider />
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <Card className="glass-card-static">
             <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-foreground">Connection</h4>
+                  <h4 className="font-semibold text-default-700 dark:text-default-500">
+                    Connection
+                  </h4>
                   <Chip size="sm" variant="flat" color="primary">
                     API
                   </Chip>
@@ -214,11 +216,11 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <Card className="glass-card-static">
             <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-foreground">Target</h4>
+                  <h4 className="font-semibold text-default-700 dark:text-default-500">Target</h4>
                   <Chip size="sm" variant="flat" color="success">
                     Workspace
                   </Chip>
@@ -295,11 +297,11 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <Card className="glass-card-static">
             <CardHeader className="px-4 py-3">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-foreground">Request</h4>
+                  <h4 className="font-semibold text-default-700 dark:text-default-500">Request</h4>
                   <Chip size="sm" variant="flat" color="secondary">
                     Payload
                   </Chip>
@@ -408,7 +410,7 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
         <Divider />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <Card className="glass-card-static">
             <CardHeader className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-foreground">Ask</span>
@@ -478,7 +480,7 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
             </CardBody>
           </Card>
 
-          <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+          <Card className="glass-card-static">
             <CardHeader className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-foreground">Edit</span>
@@ -548,31 +550,38 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
                     <code className="bg-default-200 px-1 rounded">jobId</code>.
                   </p>
                 </div>
+              </div>
+            </CardBody>
+          </Card>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Chip size="sm" variant="flat" color="danger">
-                      Job delete
-                    </Chip>
-                    <span className="text-sm text-default-500 font-mono">
-                      DELETE /api/jobs/:jobId
-                    </span>
-                  </div>
-                  <Snippet
-                    className="w-full max-w-full"
-                    classNames={{
-                      base: 'w-full max-w-full',
-                      pre: 'whitespace-pre-wrap break-words text-base',
-                    }}
-                    hideSymbol
-                  >
-                    {curlDeleteJob}
-                  </Snippet>
-                  <p className="text-sm text-default-500">
-                    Only finished jobs can be deleted (completed/failed). Pending/processing returns{' '}
-                    <code className="bg-default-200 px-1 rounded">409</code>.
-                  </p>
-                </div>
+          <Card className="glass-card-static xl:col-span-2">
+            <CardHeader className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-default-700 dark:text-default-500">
+                  Delete Job
+                </span>
+                <Chip size="sm" variant="flat" color="danger">
+                  DELETE
+                </Chip>
+                <span className="text-sm text-default-500 font-mono">/api/jobs/:jobId</span>
+              </div>
+            </CardHeader>
+            <CardBody className="px-4 py-5">
+              <div className="space-y-4">
+                <Snippet
+                  className="w-full max-w-full"
+                  classNames={{
+                    base: 'w-full max-w-full',
+                    pre: 'whitespace-pre-wrap break-words text-base',
+                  }}
+                  hideSymbol
+                >
+                  {curlDeleteJob}
+                </Snippet>
+                <p className="text-sm text-default-500">
+                  Only finished jobs can be deleted (completed/failed). Pending/processing returns{' '}
+                  <code className="bg-default-200 px-1 rounded">409</code>.
+                </p>
               </div>
             </CardBody>
           </Card>

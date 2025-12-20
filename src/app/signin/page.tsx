@@ -9,6 +9,7 @@ import { Chip } from '@heroui/chip';
 
 import { title } from '@/components/Primitives';
 import { hasUser } from '@/lib/auth/user-store';
+import { ScaleIn, FadeIn } from '@/components/motion';
 
 interface TwoFactorState {
   required: boolean;
@@ -274,35 +275,153 @@ export default function SigninPage() {
   if (twoFactor.required) {
     return (
       <div className="w-full max-w-md mx-auto">
-        <h1 className={`${title()} text-center mb-16 text-2xl`}>Two-Factor Authentication</h1>
+        <FadeIn>
+          <h1 className={`${title()} text-center mb-16 text-2xl`}>Two-Factor Authentication</h1>
+        </FadeIn>
 
-        <Card className="w-full mt-10">
+        <ScaleIn delay={0.1}>
+          <Card className="glass-card w-full mt-10">
+            <CardBody className="p-6">
+              <form onSubmit={handleTotpSubmit} className="flex flex-col gap-4">
+                <p className="text-default-600 text-center mb-2">
+                  {twoFactor.useRecoveryCode
+                    ? 'Enter one of your recovery codes'
+                    : 'Enter the 6-digit code from your authenticator app'}
+                </p>
+
+                <Input
+                  name="totpCode"
+                  type="text"
+                  label={twoFactor.useRecoveryCode ? 'Recovery Code' : 'Verification Code'}
+                  placeholder={twoFactor.useRecoveryCode ? 'XXXX-XXXX' : '000000'}
+                  value={totpCode}
+                  onChange={(e) => {
+                    setTotpCode(e.target.value);
+                    setError('');
+                  }}
+                  isRequired
+                  variant="bordered"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  classNames={{
+                    input: twoFactor.useRecoveryCode ? '' : 'text-center text-xl tracking-widest',
+                  }}
+                />
+
+                {error && (
+                  <Chip
+                    color="danger"
+                    variant="flat"
+                    className="w-full p-3 h-auto whitespace-normal"
+                  >
+                    {error}
+                  </Chip>
+                )}
+
+                <Button
+                  type="submit"
+                  color="primary"
+                  size="lg"
+                  isLoading={isLoading}
+                  className="w-full mt-2"
+                >
+                  Verify
+                </Button>
+
+                <div className="flex flex-col gap-2 mt-2">
+                  {twoFactor.hasRecoveryCodes && (
+                    <Button
+                      type="button"
+                      variant="light"
+                      size="sm"
+                      onClick={toggleRecoveryCode}
+                      className="w-full"
+                    >
+                      {twoFactor.useRecoveryCode
+                        ? 'Use authenticator app instead'
+                        : 'Use a recovery code'}
+                    </Button>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="light"
+                    color="default"
+                    size="sm"
+                    onClick={handleBackToPassword}
+                    className="w-full"
+                  >
+                    Back to sign in
+                  </Button>
+                </div>
+              </form>
+            </CardBody>
+          </Card>
+        </ScaleIn>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md mx-auto">
+      <FadeIn>
+        <h1 className={`${title()} text-center mb-16 text-2xl`}>
+          {isSignup ? 'Create Account' : 'Sign In'}
+        </h1>
+      </FadeIn>
+
+      <ScaleIn delay={0.1}>
+        <Card className="glass-card w-full mt-10">
           <CardBody className="p-6">
-            <form onSubmit={handleTotpSubmit} className="flex flex-col gap-4">
-              <p className="text-default-600 text-center mb-2">
-                {twoFactor.useRecoveryCode
-                  ? 'Enter one of your recovery codes'
-                  : 'Enter the 6-digit code from your authenticator app'}
-              </p>
-
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <Input
-                name="totpCode"
+                name="username"
                 type="text"
-                label={twoFactor.useRecoveryCode ? 'Recovery Code' : 'Verification Code'}
-                placeholder={twoFactor.useRecoveryCode ? 'XXXX-XXXX' : '000000'}
-                value={totpCode}
-                onChange={(e) => {
-                  setTotpCode(e.target.value);
-                  setError('');
-                }}
+                label="Username"
+                placeholder="Enter your username"
+                value={formData.username}
+                onChange={handleInputChange}
                 isRequired
                 variant="bordered"
-                autoComplete="one-time-code"
-                autoFocus
-                classNames={{
-                  input: twoFactor.useRecoveryCode ? '' : 'text-center text-xl tracking-widest',
-                }}
               />
+
+              <Input
+                name="password"
+                type="password"
+                label="Password"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleInputChange}
+                isRequired
+                variant="bordered"
+              />
+
+              {isSignup && (
+                <Input
+                  name="confirmPassword"
+                  type="password"
+                  label="Confirm Password"
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  isRequired
+                  variant="bordered"
+                />
+              )}
+
+              {isSignup && requiresSetupToken && (
+                <Input
+                  name="setupToken"
+                  type="password"
+                  label="Setup Token"
+                  placeholder="Enter setup token"
+                  value={formData.setupToken}
+                  onChange={handleInputChange}
+                  isRequired
+                  variant="bordered"
+                  autoComplete="off"
+                />
+              )}
 
               {error && (
                 <Chip color="danger" variant="flat" className="w-full p-3 h-auto whitespace-normal">
@@ -317,146 +436,42 @@ export default function SigninPage() {
                 isLoading={isLoading}
                 className="w-full mt-2"
               >
-                Verify
+                {isSignup ? 'Create Account' : 'Sign In'}
               </Button>
-
-              <div className="flex flex-col gap-2 mt-2">
-                {twoFactor.hasRecoveryCodes && (
-                  <Button
-                    type="button"
-                    variant="light"
-                    size="sm"
-                    onClick={toggleRecoveryCode}
-                    className="w-full"
-                  >
-                    {twoFactor.useRecoveryCode
-                      ? 'Use authenticator app instead'
-                      : 'Use a recovery code'}
-                  </Button>
-                )}
-
-                <Button
-                  type="button"
-                  variant="light"
-                  color="default"
-                  size="sm"
-                  onClick={handleBackToPassword}
-                  className="w-full"
-                >
-                  Back to sign in
-                </Button>
-              </div>
             </form>
           </CardBody>
         </Card>
-      </div>
-    );
-  }
+      </ScaleIn>
 
-  return (
-    <div className="w-full max-w-md mx-auto">
-      <h1 className={`${title()} text-center mb-16 text-2xl`}>
-        {isSignup ? 'Create Account' : 'Sign In'}
-      </h1>
+      <FadeIn delay={0.2}>
+        {isSignup && (
+          <Card className="glass-card mt-6">
+            <CardBody className="p-4">
+              <div className="flex items-start gap-3">
+                <Chip color="warning" variant="flat" size="sm">
+                  Warning
+                </Chip>
+                <p className="text-md text-default-600">
+                  No account exists yet. Create the first and <strong>only</strong> account for this
+                  system.
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
-      <Card className="w-full mt-10">
-        <CardBody className="p-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input
-              name="username"
-              type="text"
-              label="Username"
-              placeholder="Enter your username"
-              value={formData.username}
-              onChange={handleInputChange}
-              isRequired
-              variant="bordered"
-            />
-
-            <Input
-              name="password"
-              type="password"
-              label="Password"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleInputChange}
-              isRequired
-              variant="bordered"
-            />
-
-            {isSignup && (
-              <Input
-                name="confirmPassword"
-                type="password"
-                label="Confirm Password"
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                isRequired
-                variant="bordered"
-              />
-            )}
-
-            {isSignup && requiresSetupToken && (
-              <Input
-                name="setupToken"
-                type="password"
-                label="Setup Token"
-                placeholder="Enter setup token"
-                value={formData.setupToken}
-                onChange={handleInputChange}
-                isRequired
-                variant="bordered"
-                autoComplete="off"
-              />
-            )}
-
-            {error && (
-              <Chip color="danger" variant="flat" className="w-full p-3 h-auto whitespace-normal">
-                {error}
-              </Chip>
-            )}
-
-            <Button
-              type="submit"
-              color="primary"
-              size="lg"
-              isLoading={isLoading}
-              className="w-full mt-2"
-            >
-              {isSignup ? 'Create Account' : 'Sign In'}
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
-
-      {isSignup && (
-        <Card className="mt-6" shadow="sm">
-          <CardBody className="p-4">
-            <div className="flex items-start gap-3">
-              <Chip color="warning" variant="flat" size="sm">
-                Warning
-              </Chip>
-              <p className="text-md text-default-600">
-                No account exists yet. Create the first and <strong>only</strong> account for this
-                system.
-              </p>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {!isSignup && (
-        <Card className="mt-6" shadow="sm">
-          <CardBody className="p-4">
-            <div className="flex items-start gap-3">
-              <p className="text-sm text-default-600">
-                An account already exists. Please sign in with your credentials.
-              </p>
-            </div>
-          </CardBody>
-        </Card>
-      )}
+        {!isSignup && (
+          <Card className="glass-card mt-6">
+            <CardBody className="p-4">
+              <div className="flex items-start gap-3">
+                <p className="text-sm text-default-600">
+                  An account already exists. Please sign in with your credentials.
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+      </FadeIn>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { GitBranch, ExternalLink, Globe, User, BookOpen } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@heroui/card';
-import { Chip } from '@heroui/chip';
 import { ClientSafeAppConfig } from '@/lib/types/index';
 import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
@@ -44,14 +43,13 @@ export default function GitSourceConfigTab({
       {/* Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* GitLab Connection Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+        <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">GitLab Connection</h3>
-              <Chip size="sm" variant="flat" color="primary">
-                API
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">
+                GitLab Connection
+              </h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -147,14 +145,11 @@ export default function GitSourceConfigTab({
         </Card>
 
         {/* Git Identity Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+        <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Git Identity</h3>
-              <Chip size="sm" variant="flat">
-                Commits
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">Git Identity</h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -202,14 +197,13 @@ export default function GitSourceConfigTab({
         </Card>
 
         {/* Bot User Setup Guide Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm lg:col-span-2">
+        <Card className="glass-card-static lg:col-span-2">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Bot User Setup Guide</h3>
-              <Chip size="sm" variant="flat" color="secondary">
-                Documentation
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">
+                Bot User Setup Guide
+              </h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5">

@@ -1,8 +1,11 @@
+'use client';
+
 import { Link } from '@heroui/link';
 import { Button } from '@heroui/button';
 import { Zap, BookOpen, Clock, Plug, ListChecks } from 'lucide-react';
 
 import { title, subtitle } from '@/components/Primitives';
+import { FadeIn, FadeInUp, StaggerContainer, StaggerItem } from '@/components/motion';
 
 export default function Home() {
   return (
@@ -131,60 +134,68 @@ export default function Home() {
       {/* Main Landing Content */}
       <section className="flex flex-col items-center justify-center py-12 md:py-16 text-center relative px-6">
         <div className="relative z-10 max-w-4xl mx-auto">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <span className="px-4 py-2 bg-content2/60 border border-divider/60 rounded-full text-sm font-medium text-default-700 dark:text-default-200 flex items-center gap-2">
-              <Zap className="w-4 h-4" /> Powered by{' '}
-              <span className="font-semibold text-primary">Claude Code</span>{' '}
-              <Zap className="w-4 h-4" />
-            </span>
-          </div>
+          <FadeIn delay={0.1}>
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <span className="px-4 py-2 bg-content2/60 border border-divider/60 rounded-full text-sm font-medium text-default-700 dark:text-default-200 flex items-center gap-2">
+                <Zap className="w-4 h-4" /> Powered by{' '}
+                <span className="font-semibold text-primary">Claude Code</span>{' '}
+                <Zap className="w-4 h-4" />
+              </span>
+            </div>
+          </FadeIn>
 
-          <h1 className="mb-8">
-            <span className={title({ size: 'lg' })}>Welcome to&nbsp;</span>
-            <span
-              className={
-                title({ size: 'lg' }) +
-                ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'
-              }
-            >
-              CodeSpider
-            </span>
-          </h1>
+          <FadeInUp delay={0.2}>
+            <h1 className="mb-8">
+              <span className={title({ size: 'lg' })}>Welcome to&nbsp;</span>
+              <span
+                className={
+                  title({ size: 'lg' }) +
+                  ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'
+                }
+              >
+                CodeSpider
+              </span>
+            </h1>
+          </FadeInUp>
 
-          <div className={subtitle({ class: 'mb-12 max-w-2xl mx-auto' })}>
-            Turn your Claude subscription into a 24/7 development assistant. Queue tasks from your
-            phone, wake up to merge requests.
-          </div>
+          <FadeInUp delay={0.3}>
+            <div className={subtitle({ class: 'mb-12 max-w-2xl mx-auto' })}>
+              Turn your Claude subscription into a 24/7 development assistant. Queue tasks from your
+              phone, wake up to merge requests.
+            </div>
+          </FadeInUp>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button
-              as={Link}
-              href="/dashboard"
-              size="lg"
-              color="primary"
-              variant="shadow"
-              className="font-semibold px-7 hover:scale-[1.02] transition-transform flex items-center gap-2"
-            >
-              Get Started
-            </Button>
-            <Button
-              as={Link}
-              href="/docs"
-              size="lg"
-              variant="bordered"
-              className="border-divider/70 text-foreground font-semibold px-7 hover:bg-content2/60 hover:scale-[1.02] transition-transform flex items-center gap-2"
-            >
-              Learn More <BookOpen className="w-4 h-4" />
-            </Button>
-          </div>
+          <FadeInUp delay={0.4}>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Button
+                as={Link}
+                href="/dashboard"
+                size="lg"
+                color="primary"
+                variant="shadow"
+                className="font-semibold px-7 hover:scale-[1.02] transition-transform flex items-center gap-2"
+              >
+                Get Started
+              </Button>
+              <Button
+                as={Link}
+                href="/docs/quickstart"
+                size="lg"
+                variant="bordered"
+                className="border-divider/70 text-foreground font-semibold px-7 hover:bg-content2/60 hover:scale-[1.02] transition-transform flex items-center gap-2"
+              >
+                Learn More <BookOpen className="w-4 h-4" />
+              </Button>
+            </div>
+          </FadeInUp>
         </div>
       </section>
 
       {/* Feature highlights with better spacing */}
       <section className="py-12 px-6 relative">
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-8" delay={0.5}>
+            <StaggerItem className="group p-8 glass-card">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
                 <Clock className="w-12 h-12 text-primary" />
               </div>
@@ -193,9 +204,9 @@ export default function Home() {
                 Queue code changes and let them run in the background. Check back when it&apos;s
                 done, or get notified via webhook.
               </p>
-            </div>
+            </StaggerItem>
 
-            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
+            <StaggerItem className="group p-8 glass-card">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
                 <Plug className="w-12 h-12 text-primary" />
               </div>
@@ -204,9 +215,9 @@ export default function Home() {
                 REST endpoints for everything. Integrate with n8n, CI/CD pipelines, or build your
                 own automations.
               </p>
-            </div>
+            </StaggerItem>
 
-            <div className="group p-8 bg-content1/60 backdrop-blur-sm border border-divider/60 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30">
+            <StaggerItem className="group p-8 glass-card">
               <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
                 <ListChecks className="w-12 h-12 text-primary" />
               </div>
@@ -215,8 +226,8 @@ export default function Home() {
                 Analyze issues, estimate complexity, and plan features with AI assistance. Turn your
                 backlog into actionable tasks.
               </p>
-            </div>
-          </div>
+            </StaggerItem>
+          </StaggerContainer>
         </div>
       </section>
     </div>

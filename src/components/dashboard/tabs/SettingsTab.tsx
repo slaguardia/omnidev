@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
-import { Settings, Bot, Cog, Key } from 'lucide-react';
+import { Settings, Bot, Cog } from 'lucide-react';
 import { Select, SelectItem } from '@heroui/select';
 import { ClientSafeAppConfig } from '@/lib/types/index';
 import { Card, CardBody, CardHeader } from '@heroui/card';
-import { Chip } from '@heroui/chip';
-import { Snippet } from '@heroui/snippet';
 import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 interface SettingsTabProps {
@@ -32,26 +30,6 @@ export default function SettingsTab({
   onSaveConfig,
   onResetToDefaults,
 }: SettingsTabProps) {
-  const [apiKey, setApiKey] = useState('');
-  useEffect(() => {
-    // Reserved for future initialization needs in this tab
-  }, []);
-
-  async function generateApiKey() {
-    const res = await fetch('/api/generate-key', {
-      method: 'POST',
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      console.error(err.error || 'Failed to generate key');
-      return;
-    }
-
-    const data = await res.json();
-    setApiKey(data.apiKey);
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -73,14 +51,13 @@ export default function SettingsTab({
       {/* Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Claude Configuration Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+        <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Claude Configuration</h3>
-              <Chip size="sm" variant="flat" color="primary">
-                AI
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">
+                Claude Configuration
+              </h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -149,14 +126,13 @@ export default function SettingsTab({
         </Card>
 
         {/* Application Settings Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm">
+        <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Cog className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Application Settings</h3>
-              <Chip size="sm" variant="flat">
-                System
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">
+                Application Settings
+              </h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -199,64 +175,6 @@ export default function SettingsTab({
                 <SelectItem key="info">Info</SelectItem>
                 <SelectItem key="debug">Debug</SelectItem>
               </Select>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* API Key Generation Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm lg:col-span-2">
-          <CardHeader className="px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Key className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">API Key Management</h3>
-              <Chip size="sm" variant="flat" color="warning">
-                Security
-              </Chip>
-            </div>
-          </CardHeader>
-          <CardBody className="px-4 py-5">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                <Button
-                  color="primary"
-                  onClick={generateApiKey}
-                  isLoading={loading}
-                  variant="flat"
-                  size="sm"
-                >
-                  Generate New API Key
-                </Button>
-                <p className="text-sm text-default-600">
-                  Generate a new API key for external access to this application.
-                </p>
-              </div>
-
-              {apiKey && (
-                <div className="p-4 bg-success-50 dark:bg-success-500/10 border border-success-200 dark:border-success-500/20 rounded-lg space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Chip size="sm" color="success" variant="flat">
-                      Success
-                    </Chip>
-                    <span className="text-success-700 dark:text-success-400 font-medium text-sm">
-                      API Key Generated
-                    </span>
-                  </div>
-                  <Snippet
-                    hideSymbol
-                    variant="flat"
-                    className="text-sm font-mono w-full overflow-hidden"
-                    onCopy={() => navigator.clipboard.writeText(apiKey)}
-                  >
-                    <span className="truncate block">
-                      {apiKey.slice(0, 8) + '••••••••••••••••••••••••••••••••'}
-                    </span>
-                  </Snippet>
-                  <p className="text-sm text-success-700 dark:text-success-400">
-                    <strong>Important:</strong> Copy this key now — you won&apos;t be able to see it
-                    again for security reasons.
-                  </p>
-                </div>
-              )}
             </div>
           </CardBody>
         </Card>

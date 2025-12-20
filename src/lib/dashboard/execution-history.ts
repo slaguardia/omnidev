@@ -32,6 +32,7 @@ export async function loadExecutionHistory(): Promise<ExecutionHistoryEntry[]> {
         response: '',
         status: job.status === 'completed' ? 'success' : 'error',
         executedAt: job.completedAt || job.createdAt,
+        ...(payload.editRequest !== undefined && { editRequest: payload.editRequest }),
       };
 
       if (job.status === 'completed' && job.result) {

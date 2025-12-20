@@ -71,6 +71,8 @@ export interface ExecutionHistoryEntry {
   errorMessage?: string;
   executedAt: string;
   executionTimeMs?: number;
+  /** Whether this was an edit request (true) or ask request (false/undefined) */
+  editRequest?: boolean;
   /** Raw JSON stream logs from Claude Code execution */
   jsonLogs?: ClaudeCodeJsonLogEntry[];
   /** Raw stdout output (includes all output before parsing) */

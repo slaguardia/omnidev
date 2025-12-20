@@ -3,6 +3,7 @@ import { getDocContent, extractHeadings } from '@/lib/docs/markdown';
 import { getAdjacentDocs } from '@/lib/docs/config';
 import { MarkdownRenderer } from '@/components/docs/MarkdownRenderer';
 import { TableOfContents } from '@/components/docs/TableOfContents';
+import { DocContentWrapper } from '@/components/docs/DocContentWrapper';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -25,7 +26,7 @@ export async function DocContent({ slug }: DocContentProps) {
   const hasToc = headings.length > 0;
 
   return (
-    <>
+    <DocContentWrapper>
       {/* Main Content - Column 2 */}
       <main className="min-w-0">
         <div className="sticky top-16">
@@ -112,6 +113,6 @@ export async function DocContent({ slug }: DocContentProps) {
       ) : (
         <div className="hidden xl:block" />
       )}
-    </>
+    </DocContentWrapper>
   );
 }

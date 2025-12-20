@@ -28,7 +28,7 @@ const staticPages: SearchItem[] = [
   { label: 'Dashboard', href: '/dashboard', description: 'View your dashboard', category: 'page' },
   {
     label: 'Documentation',
-    href: '/docs',
+    href: '/docs/quickstart',
     description: 'Browse all documentation',
     category: 'page',
   },
