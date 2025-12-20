@@ -1,9 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@heroui/button';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
-import { History, Trash2, Eye, Clock, CheckCircle, XCircle, Info } from 'lucide-react';
+import { Switch } from '@heroui/switch';
+import {
+  History,
+  Trash2,
+  Eye,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Info,
+  MessageSquare,
+  Pencil,
+  RefreshCw,
+} from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import { ExecutionHistoryEntry } from '@/lib/dashboard/types';
 
@@ -27,6 +39,28 @@ export default function ExecutionHistoryTab({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [showJsonLogs, setShowJsonLogs] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [isManuallyRefreshing, setIsManuallyRefreshing] = useState(false);
+
+  // Auto-refresh every 3 seconds when enabled
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(onRefresh, 3000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, onRefresh]);
+
+  // Reset manual refresh state when loading completes
+  useEffect(() => {
+    if (!loading) {
+      setIsManuallyRefreshing(false);
+    }
+  }, [loading]);
+
+  const handleManualRefresh = () => {
+    setIsManuallyRefreshing(true);
+    onRefresh();
+  };
 
   const handleViewDetails = (execution: ExecutionHistoryEntry) => {
     setSelectedExecution(execution);
@@ -59,8 +93,19 @@ export default function ExecutionHistoryTab({
           <History className="w-6 h-6 text-default-500" />
           Execution History
         </h2>
-        <div className="flex items-center gap-2">
-          <Button color="primary" size="sm" variant="flat" onClick={onRefresh} isLoading={loading}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch size="sm" isSelected={autoRefresh} onValueChange={setAutoRefresh} />
+            <span className="text-sm text-default-600">Auto-refresh</span>
+          </div>
+          <Button
+            color="primary"
+            size="sm"
+            variant="flat"
+            onClick={handleManualRefresh}
+            isLoading={isManuallyRefreshing}
+            startContent={<RefreshCw className="w-4 h-4" />}
+          >
             Refresh
           </Button>
           {history.length > 0 && (
@@ -80,10 +125,7 @@ export default function ExecutionHistoryTab({
       {/* History List */}
       <div className="space-y-4">
         {history.map((execution) => (
-          <div
-            key={execution.id}
-            className="p-4 bg-content1/50 border border-divider/60 rounded-xl hover:border-divider transition-colors"
-          >
+          <div key={execution.id} className="p-4 glass-card">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -93,6 +135,20 @@ export default function ExecutionHistoryTab({
                     <XCircle className="w-4 h-4 text-danger-500 flex-shrink-0" />
                   )}
                   <span className="font-medium text-sm truncate">{execution.workspaceName}</span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border flex-shrink-0 ${
+                      execution.editRequest
+                        ? 'bg-warning-100 text-warning-800 border-warning-300 dark:bg-warning-500/20 dark:text-warning-300 dark:border-warning-500/40'
+                        : 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-500/20 dark:text-primary-300 dark:border-primary-500/40'
+                    }`}
+                  >
+                    {execution.editRequest ? (
+                      <Pencil className="w-3 h-3" />
+                    ) : (
+                      <MessageSquare className="w-3 h-3" />
+                    )}
+                    {execution.editRequest ? 'Edit' : 'Ask'}
+                  </span>
                 </div>
                 <p className="text-sm text-default-600 line-clamp-2 mb-2">{execution.question}</p>
                 <div className="flex items-center gap-4 text-xs text-default-500">
@@ -165,6 +221,22 @@ export default function ExecutionHistoryTab({
                     <XCircle className="w-5 h-5 text-danger-500" />
                   )}
                   <span>Execution Details</span>
+                  {selectedExecution && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border ${
+                        selectedExecution.editRequest
+                          ? 'bg-warning-100 text-warning-800 border-warning-300 dark:bg-warning-500/20 dark:text-warning-300 dark:border-warning-500/40'
+                          : 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-500/20 dark:text-primary-300 dark:border-primary-500/40'
+                      }`}
+                    >
+                      {selectedExecution.editRequest ? (
+                        <Pencil className="w-3 h-3" />
+                      ) : (
+                        <MessageSquare className="w-3 h-3" />
+                      )}
+                      {selectedExecution.editRequest ? 'Edit' : 'Ask'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-normal text-default-500">
                   {selectedExecution && formatDate(selectedExecution.executedAt)}

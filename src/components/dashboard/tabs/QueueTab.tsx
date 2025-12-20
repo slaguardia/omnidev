@@ -14,9 +14,11 @@ import {
   Eye,
   Hourglass,
   Info,
+  MessageSquare,
+  Pencil,
 } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
-import type { Job, JobStatus, JobType } from '@/lib/queue';
+import type { Job, JobStatus, JobType, ClaudeCodeJobPayload } from '@/lib/queue';
 
 interface QueueStatusResponse {
   isProcessing: boolean;
@@ -126,13 +128,32 @@ export default function QueueTab() {
     );
   };
 
+  const getOperationBadge = (job: Job) => {
+    if (job.type !== 'claude-code') return null;
+    const payload = job.payload as ClaudeCodeJobPayload;
+    const isEdit = payload.editRequest === true;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border ${
+          isEdit
+            ? 'bg-warning-100 text-warning-800 border-warning-300 dark:bg-warning-500/20 dark:text-warning-300 dark:border-warning-500/40'
+            : 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-500/20 dark:text-primary-300 dark:border-primary-500/40'
+        }`}
+      >
+        {isEdit ? <Pencil className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+        {isEdit ? 'Edit' : 'Ask'}
+      </span>
+    );
+  };
+
   const JobCard = ({ job, showActions = true }: { job: Job; showActions?: boolean }) => (
-    <div className="p-4 bg-content1/50 border border-divider/60 rounded-xl hover:border-divider transition-colors">
+    <div className="p-4 glass-card">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             {getStatusIcon(job.status)}
             <span className="font-medium text-sm">{getJobTypeLabel(job.type)}</span>
+            {getOperationBadge(job)}
             {getStatusBadge(job.status)}
           </div>
           <p className="text-xs text-default-500 font-mono mb-2 truncate">ID: {job.id}</p>

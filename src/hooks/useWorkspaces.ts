@@ -5,7 +5,7 @@ import type { WorkspaceId } from '@/lib/types/index';
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start true to show loading on initial render
 
   const loadWorkspaces = async () => {
     console.log('[USE WORKSPACES] Starting loadWorkspaces');

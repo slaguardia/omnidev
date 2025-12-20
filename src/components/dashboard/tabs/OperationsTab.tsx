@@ -108,14 +108,11 @@ export default function OperationsTab({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 items-stretch">
         {/* Query Form Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm h-full flex flex-col">
+        <Card className="glass-card-static h-full flex flex-col">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Query</h3>
-              <Chip size="sm" variant="flat" color="primary">
-                Input
-              </Chip>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">Input</h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 flex-1 min-h-0 flex flex-col gap-5">
@@ -255,11 +252,11 @@ export default function OperationsTab({
         </Card>
 
         {/* Response Card */}
-        <Card className="bg-content1/60 border border-divider/60 shadow-sm h-full flex flex-col">
+        <Card className="glass-card-static h-full flex flex-col">
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-foreground">Response</h3>
+              <h3 className="font-semibold text-default-700 dark:text-default-500">Response</h3>
               {claudeResponse && (
                 <Chip size="sm" variant="flat" color="success">
                   Ready

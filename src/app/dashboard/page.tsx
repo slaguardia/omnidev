@@ -17,6 +17,7 @@ import {
   ExecutionHistoryTab,
   QueueTab,
 } from '@/components/dashboard';
+import { motion, AnimatePresence } from '@/components/motion';
 
 // Hooks
 import {
@@ -196,72 +197,87 @@ export default function DashboardPage() {
       {/* Main Content Area - scrolls independently */}
       <div className="lg:pl-64 xl:pl-72 h-[calc(100vh-4rem)] overflow-hidden">
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 h-full overflow-y-auto">
-          {activeTab === 'workspaces' && (
-            <WorkspacesTab
-              workspaces={workspaces}
-              loading={loading}
-              onRefreshWorkspaces={loadWorkspaces}
-              onOpenCloneModal={() => setIsCloneModalOpen(true)}
-              onDeleteWorkspace={handleCleanupWithToast}
-              getProjectDisplayName={getProjectDisplayName}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              {activeTab === 'workspaces' && (
+                <WorkspacesTab
+                  workspaces={workspaces}
+                  loading={loading}
+                  onRefreshWorkspaces={loadWorkspaces}
+                  onOpenCloneModal={() => setIsCloneModalOpen(true)}
+                  onDeleteWorkspace={handleCleanupWithToast}
+                  getProjectDisplayName={getProjectDisplayName}
+                />
+              )}
 
-          {activeTab === 'operations' && (
-            <OperationsTab
-              workspaces={workspaces}
-              claudeForm={claudeForm}
-              setClaudeForm={setClaudeForm}
-              claudeResponse={claudeResponse}
-              setClaudeResponse={setClaudeResponse}
-              loading={loading}
-              onRunClaude={handleClaudeWithToast}
-              getProjectDisplayName={getProjectDisplayName}
-            />
-          )}
+              {activeTab === 'operations' && (
+                <OperationsTab
+                  workspaces={workspaces}
+                  claudeForm={claudeForm}
+                  setClaudeForm={setClaudeForm}
+                  claudeResponse={claudeResponse}
+                  setClaudeResponse={setClaudeResponse}
+                  loading={loading}
+                  onRunClaude={handleClaudeWithToast}
+                  getProjectDisplayName={getProjectDisplayName}
+                />
+              )}
 
-          {activeTab === 'queue' && <QueueTab />}
+              {activeTab === 'queue' && <QueueTab />}
 
-          {activeTab === 'history' && (
-            <ExecutionHistoryTab
-              history={executionHistory}
-              loading={historyLoading}
-              onRefresh={loadHistory}
-              onDelete={deleteExecution}
-              onClearAll={clearHistory}
-            />
-          )}
+              {activeTab === 'history' && (
+                <ExecutionHistoryTab
+                  history={executionHistory}
+                  loading={historyLoading}
+                  onRefresh={loadHistory}
+                  onDelete={deleteExecution}
+                  onClearAll={clearHistory}
+                />
+              )}
 
-          {activeTab === 'git-source' && (
-            <GitSourceConfigTab
-              envConfig={envConfig}
-              setEnvConfig={setEnvConfig}
-              pendingSensitiveData={pendingSensitiveData}
-              updateSensitiveData={updateSensitiveData}
-              loading={loading}
-              onSaveConfig={handleSaveEnvConfigWithToast}
-            />
-          )}
+              {activeTab === 'git-source' && (
+                <GitSourceConfigTab
+                  envConfig={envConfig}
+                  setEnvConfig={setEnvConfig}
+                  pendingSensitiveData={pendingSensitiveData}
+                  updateSensitiveData={updateSensitiveData}
+                  loading={loading}
+                  onSaveConfig={handleSaveEnvConfigWithToast}
+                />
+              )}
 
-          {activeTab === 'snippets' && (
-            <SnippetsTab workspaces={workspaces} getProjectDisplayName={getProjectDisplayName} />
-          )}
+              {activeTab === 'snippets' && (
+                <SnippetsTab
+                  workspaces={workspaces}
+                  getProjectDisplayName={getProjectDisplayName}
+                />
+              )}
 
-          {activeTab === 'settings' && (
-            <SettingsTab
-              envConfig={envConfig}
-              setEnvConfig={setEnvConfig}
-              pendingSensitiveData={pendingSensitiveData}
-              updateSensitiveData={updateSensitiveData}
-              loading={loading}
-              onSaveConfig={handleSaveEnvConfigWithToast}
-              onResetToDefaults={resetToDefaults}
-            />
-          )}
+              {activeTab === 'settings' && (
+                <SettingsTab
+                  envConfig={envConfig}
+                  setEnvConfig={setEnvConfig}
+                  pendingSensitiveData={pendingSensitiveData}
+                  updateSensitiveData={updateSensitiveData}
+                  loading={loading}
+                  onSaveConfig={handleSaveEnvConfigWithToast}
+                  onResetToDefaults={resetToDefaults}
+                />
+              )}
 
-          {activeTab === 'security' && (
-            <AccountSecurityTab onOpenChangePassword={() => setIsChangePasswordModalOpen(true)} />
-          )}
+              {activeTab === 'security' && (
+                <AccountSecurityTab
+                  onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

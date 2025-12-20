@@ -6,7 +6,7 @@ export const siteConfig = {
   navItems: [
     {
       label: 'Docs',
-      href: '/docs',
+      href: '/docs/quickstart',
     },
     {
       label: 'Dashboard',

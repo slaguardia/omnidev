@@ -28,7 +28,8 @@
       "Bash(pnpm prettier:*)",
       "Bash(pnpm eslint:*)",
       "Bash(pnpm lint:fix:*)",
-      "Bash(pnpm config:*)"
+      "Bash(pnpm config:*)",
+      "Bash(pnpm lint:all:fix:*)"
     ]
   }
 }
