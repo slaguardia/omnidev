@@ -79,6 +79,90 @@ export async function executeClaudeCodeJob(
   let effectiveSourceBranch = payload.sourceBranch;
 
   const isEditJob = payload.editRequest ?? false;
+
+  // For non-edit (ask) jobs, switch to the default/target branch (unless a specific branch
+  // is specified) and pull latest changes to ensure we're querying up-to-date code
+  if (!isEditJob) {
+    console.log(`[JOB] 🔄 Preparing workspace for ask job - switching to target branch and pulling latest...`);
+    const prepStart = Date.now();
+
+    try {
+      const { switchBranch, pullChanges, loadAllWorkspacesFromStorage } = await import(
+        '@/lib/managers/repository-manager'
+      );
+      const { loadWorkspace } = await import('@/lib/managers/workspace-manager');
+      const { getAllRemoteBranches } = await import('@/lib/git/branches');
+
+      // Ensure workspaces are loaded into memory
+      await loadAllWorkspacesFromStorage();
+
+      // Determine the target branch: use sourceBranch if specified, otherwise use workspace's target branch
+      let targetBranch = payload.sourceBranch;
+      if (!targetBranch) {
+        const workspaceResult = await loadWorkspace(payload.workspaceId);
+        if (workspaceResult.success && workspaceResult.data.targetBranch) {
+          targetBranch = workspaceResult.data.targetBranch;
+          console.log(`[JOB] 📌 Using workspace target branch: ${targetBranch}`);
+        }
+      }
+
+      // Validate the branch exists before attempting to switch
+      if (targetBranch) {
+        console.log(`[JOB] 🔍 Validating branch exists: ${targetBranch}`);
+        const branchesResult = await getAllRemoteBranches(payload.workspacePath as FilePath);
+
+        if (branchesResult.success) {
+          const availableBranches = branchesResult.data;
+          const branchExists = availableBranches.some(
+            (b) => b === targetBranch || b === `origin/${targetBranch}`
+          );
+
+          if (!branchExists) {
+            const prepTime = Date.now() - prepStart;
+            console.error(
+              `[JOB] ❌ Branch '${targetBranch}' does not exist. Available branches: ${availableBranches.slice(0, 10).join(', ')}${availableBranches.length > 10 ? '...' : ''}`
+            );
+            throw new Error(
+              `Branch '${targetBranch}' does not exist in the repository. Available branches: ${availableBranches.slice(0, 5).join(', ')}${availableBranches.length > 5 ? ` and ${availableBranches.length - 5} more` : ''}`
+            );
+          }
+          console.log(`[JOB] ✅ Branch '${targetBranch}' exists`);
+        } else {
+          console.warn(`[JOB] ⚠️ Could not validate branch existence:`, branchesResult.error?.message);
+          // Continue anyway - switchBranch will fail if branch doesn't exist
+        }
+
+        // Switch to the target branch
+        console.log(`[JOB] 📌 Switching to branch: ${targetBranch}`);
+        const switchResult = await switchBranch(payload.workspaceId, targetBranch);
+        if (!switchResult.success) {
+          throw new Error(`Failed to switch to branch '${targetBranch}': ${switchResult.error?.message}`);
+        }
+      }
+
+      // Pull latest changes using existing repository-manager function
+      console.log(`[JOB] 🔄 Pulling latest changes...`);
+      const pullResult = await pullChanges(payload.workspaceId);
+      const prepTime = Date.now() - prepStart;
+
+      if (!pullResult.success) {
+        console.warn(`[JOB] ⚠️ Failed to pull latest changes in ${prepTime}ms:`, pullResult.error?.message);
+        // Continue anyway - we'll work with whatever code is there
+      } else {
+        console.log(`[JOB] ✅ Workspace prepared in ${prepTime}ms`);
+      }
+    } catch (error) {
+      const prepTime = Date.now() - prepStart;
+      // Re-throw branch validation errors - these should fail the job
+      if (error instanceof Error && (error.message.includes('does not exist') || error.message.includes('Failed to switch'))) {
+        console.error(`[JOB] ❌ Branch error in ${prepTime}ms:`, error.message);
+        throw error;
+      }
+      console.warn(`[JOB] ⚠️ Failed to prepare workspace in ${prepTime}ms:`, error);
+      // Continue anyway for other errors - we'll work with whatever code is there
+    }
+  }
+
   if (isEditJob) {
     console.log(`[JOB] 🔄 Initializing git workflow for edit job...`);
     const gitInitStart = Date.now();
