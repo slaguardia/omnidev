@@ -54,10 +54,7 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [
-        208,
-        16
-      ],
+      "position": [208, 16],
       "id": "422d7f2f-41f2-4570-aa38-07dff7b3e473",
       "name": "If"
     },
@@ -104,10 +101,7 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        656,
-        0
-      ],
+      "position": [656, 0],
       "id": "362e6e15-b192-45ee-b79e-1a7cc9a85f57",
       "name": "HTTP Request",
       "credentials": {
@@ -133,10 +127,7 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        448,
-        0
-      ],
+      "position": [448, 0],
       "id": "30caa444-669f-417b-b8de-1de94c436bf4",
       "name": "Edit Fields1"
     },
@@ -151,10 +142,7 @@
       },
       "type": "n8n-nodes-base.linear",
       "typeVersion": 1.1,
-      "position": [
-        864,
-        0
-      ],
+      "position": [864, 0],
       "id": "191bf595-8275-43eb-9e4e-c0cd4b802e97",
       "name": "Update an issue",
       "credentials": {
@@ -199,10 +187,7 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [
-        240,
-        -320
-      ],
+      "position": [240, -320],
       "id": "a29671c0-9b52-455a-a00e-7868d67c7172",
       "name": "If1"
     },
@@ -249,10 +234,7 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        640,
-        -336
-      ],
+      "position": [640, -336],
       "id": "d0bea2c6-0285-42d3-988b-00b56aa0fbb2",
       "name": "HTTP Request1",
       "credentials": {
@@ -278,10 +260,7 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [
-        448,
-        -336
-      ],
+      "position": [448, -336],
       "id": "0af7fd42-9df2-4238-ae0c-6830b8ea25be",
       "name": "Edit Fields"
     },
@@ -292,10 +271,7 @@
       },
       "type": "n8n-nodes-base.linearTrigger",
       "typeVersion": 1,
-      "position": [
-        0,
-        -320
-      ],
+      "position": [0, -320],
       "id": "4e725fa1-7d01-49e8-8a70-8146fcb151b0",
       "name": "Comment Flow",
       "webhookId": "YOUR_WEBHOOK_ID",
@@ -309,16 +285,11 @@
     {
       "parameters": {
         "teamId": "YOUR_TEAM_ID",
-        "resources": [
-          "issue"
-        ]
+        "resources": ["issue"]
       },
       "type": "n8n-nodes-base.linearTrigger",
       "typeVersion": 1,
-      "position": [
-        0,
-        16
-      ],
+      "position": [0, 16],
       "id": "10839963-ecb7-4f99-84ac-50f76bdb88ba",
       "name": "Assign Flow",
       "webhookId": "YOUR_WEBHOOK_ID",
@@ -346,10 +317,7 @@
       },
       "type": "n8n-nodes-base.graphql",
       "typeVersion": 1.1,
-      "position": [
-        448,
-        -496
-      ],
+      "position": [448, -496],
       "id": "385a7796-69b1-4987-9d16-8acca04dfe19",
       "name": "GraphQL",
       "credentials": {

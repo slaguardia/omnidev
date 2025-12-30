@@ -8,10 +8,10 @@ For integration concepts, see [n8n Workflows](/docs/n8n-workflows). For async pa
 
 ## Available Templates
 
-| Template | Description | Download |
-|----------|-------------|----------|
-| Ask Flow | Linear-triggered planning workflow with MCP updates | [n8n-ask-flow.json](/docs/templates/n8n-ask-flow.json) |
-| Edit Flow | Implementation workflow with branch/MR creation | [n8n-edit-flow.json](/docs/templates/n8n-edit-flow.json) |
+| Template  | Description                                         | Download                                                 |
+| --------- | --------------------------------------------------- | -------------------------------------------------------- |
+| Ask Flow  | Linear-triggered planning workflow with MCP updates | [n8n-ask-flow.json](/docs/templates/n8n-ask-flow.json)   |
+| Edit Flow | Implementation workflow with branch/MR creation     | [n8n-edit-flow.json](/docs/templates/n8n-edit-flow.json) |
 
 ---
 
@@ -22,6 +22,7 @@ A complete workflow that triggers on Linear events and uses Claude to plan tasks
 ### What It Does
 
 1. **Assign Flow**: Triggers when an issue is assigned to the bot and moved to "Codespider In Progress"
+
    - Builds a prompt asking Claude to research and update the Linear issue description
    - Submits to Workflow API
    - Reassigns the issue when complete
@@ -35,14 +36,14 @@ A complete workflow that triggers on Linear events and uses Claude to plan tasks
 
 After importing, update these values:
 
-| Field | Location | Description |
-|-------|----------|-------------|
-| `your-bot@example.com` | If nodes | Your bot's email address |
-| `YOUR_WORKSPACE_ID` | HTTP Request nodes | Your Workflow workspace ID |
-| `YOUR_TEAM_ID` | Linear Trigger nodes | Your Linear team ID |
-| `YOUR_ASSIGNEE_ID` | Update Issue node | User ID to reassign to after planning |
-| `YOUR_STATE_ID` | Update Issue node | State ID to move issue to after planning |
-| Workflow URL | HTTP Request nodes | Your Workflow instance URL |
+| Field                  | Location             | Description                              |
+| ---------------------- | -------------------- | ---------------------------------------- |
+| `your-bot@example.com` | If nodes             | Your bot's email address                 |
+| `YOUR_WORKSPACE_ID`    | HTTP Request nodes   | Your Workflow workspace ID               |
+| `YOUR_TEAM_ID`         | Linear Trigger nodes | Your Linear team ID                      |
+| `YOUR_ASSIGNEE_ID`     | Update Issue node    | User ID to reassign to after planning    |
+| `YOUR_STATE_ID`        | Update Issue node    | State ID to move issue to after planning |
+| Workflow URL           | HTTP Request nodes   | Your Workflow instance URL               |
 
 ### Credentials Needed
 
@@ -54,7 +55,7 @@ After importing, update these values:
 
 ## Edit Flow
 
-*(Coming soon - drop your edit flow JSON into `docs/templates/n8n-edit-flow.json`)*
+_(Coming soon - drop your edit flow JSON into `docs/templates/n8n-edit-flow.json`)_
 
 ---
 
@@ -71,14 +72,17 @@ After importing, update these values:
 Create these credentials in n8n before activating:
 
 **Bearer Auth (for Workflow API)**
+
 - Name: `Workflow API`
 - Token: Your Workflow API key
 
 **Linear API**
+
 - Name: `Linear account`
 - API Key: Your Linear personal API key
 
 **Header Auth (for Linear GraphQL)**
+
 - Name: `Linear GraphQL`
 - Header Name: `Authorization`
 - Header Value: `Bearer YOUR_LINEAR_API_KEY`
@@ -91,11 +95,11 @@ Search for `YOUR_` in the workflow and replace all placeholder values with your 
 
 For cleaner workflows, configure these in **Settings** → **Variables**:
 
-| Variable | Example | Purpose |
-|----------|---------|---------|
-| `workflowBaseUrl` | `https://workflow.example.com` | Your Workflow instance |
-| `defaultWorkspaceId` | `ws_abc123` | Default workspace ID |
-| `botEmail` | `bot@example.com` | Bot's email for filtering |
+| Variable             | Example                        | Purpose                   |
+| -------------------- | ------------------------------ | ------------------------- |
+| `workflowBaseUrl`    | `https://workflow.example.com` | Your Workflow instance    |
+| `defaultWorkspaceId` | `ws_abc123`                    | Default workspace ID      |
+| `botEmail`           | `bot@example.com`              | Bot's email for filtering |
 
 ---
 
@@ -104,9 +108,11 @@ For cleaner workflows, configure these in **Settings** → **Variables**:
 The Ask Flow uses prompts that leverage Claude's Linear MCP access:
 
 **Assign Flow Prompt:**
+
 > You have access to a Linear MCP. Open the Linear issue at this URL: `{issue.url}` and do the requested research to create a robust plan for the work being requested and update ONLY the issue description in Linear.
 
 **Comment Flow Prompt:**
+
 > You have access to a Linear MCP. Review my latest comment on this issue: `{issue.url}` and do the requested research to address my comment and update the issue description with any changes to the plan. When you are done, leave a brief reply to my comment.
 
 This approach means Claude handles the Linear updates directly - your n8n workflow just needs to trigger Claude and optionally reassign the issue afterward.

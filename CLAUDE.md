@@ -89,15 +89,15 @@ docker compose watch      # Dev mode with hot reload
 
 ### Core Subsystems
 
-| Subsystem                | Location                             | Purpose                       |
-| ------------------------ | ------------------------------------ | ----------------------------- |
-| Workspace Manager        | `lib/managers/workspace-manager.ts`  | CRUD for git workspaces       |
-| Repository Manager       | `lib/managers/repository-manager.ts` | Git clone/branch operations   |
-| Claude Code Orchestrator | `lib/claudeCode/orchestrator.ts`     | Execute Claude Code CLI       |
-| Job Queue                | `lib/queue/`                         | Async job execution           |
-| Git Operations           | `lib/git/`                           | simple-git wrapper            |
-| GitHub Integration       | `lib/github/`                        | PR creation, repository API   |
-| GitLab Integration       | `lib/gitlab/`                        | MR creation, project API      |
+| Subsystem                | Location                             | Purpose                     |
+| ------------------------ | ------------------------------------ | --------------------------- |
+| Workspace Manager        | `lib/managers/workspace-manager.ts`  | CRUD for git workspaces     |
+| Repository Manager       | `lib/managers/repository-manager.ts` | Git clone/branch operations |
+| Claude Code Orchestrator | `lib/claudeCode/orchestrator.ts`     | Execute Claude Code CLI     |
+| Job Queue                | `lib/queue/`                         | Async job execution         |
+| Git Operations           | `lib/git/`                           | simple-git wrapper          |
+| GitHub Integration       | `lib/github/`                        | PR creation, repository API |
+| GitLab Integration       | `lib/gitlab/`                        | MR creation, project API    |
 
 ### Data Storage
 
@@ -214,13 +214,13 @@ export async function POST(request: NextRequest) {
 
 This project follows strict documentation guidelines. Key rules:
 
-| Rule | Rationale |
-|------|-----------|
-| No first-person pronouns | Avoid "I", "we", "our" in all documentation |
-| Claude Code is a dependency | Not a partnership; users need their own Claude account |
-| Curious tone, not promotional | Documentation explains; marketing sells |
-| Answer five questions | What, why, who, how, and non-goals |
-| Acknowledge opinionated design | Built for GitLab teams; state limitations clearly |
+| Rule                           | Rationale                                              |
+| ------------------------------ | ------------------------------------------------------ |
+| No first-person pronouns       | Avoid "I", "we", "our" in all documentation            |
+| Claude Code is a dependency    | Not a partnership; users need their own Claude account |
+| Curious tone, not promotional  | Documentation explains; marketing sells                |
+| Answer five questions          | What, why, who, how, and non-goals                     |
+| Acknowledge opinionated design | Built for GitLab teams; state limitations clearly      |
 
 ### Opinionated by Design
 
@@ -244,14 +244,14 @@ Public-facing documentation must include the Claude Code dependency disclosure. 
 
 More detailed guidance in subdirectories:
 
-| File                       | Purpose                              |
-| -------------------------- | ------------------------------------ |
-| `docs/CLAUDE.md`           | Documentation writing standards      |
-| `src/CLAUDE.md`            | Source code overview and patterns    |
-| `src/lib/CLAUDE.md`        | Library modules detail               |
-| `src/components/CLAUDE.md` | UI component patterns                |
-| `src/app/api/CLAUDE.md`    | API route patterns                   |
-| `src/app/docs/CLAUDE.md`   | Documentation rendering system       |
+| File                       | Purpose                           |
+| -------------------------- | --------------------------------- |
+| `docs/CLAUDE.md`           | Documentation writing standards   |
+| `src/CLAUDE.md`            | Source code overview and patterns |
+| `src/lib/CLAUDE.md`        | Library modules detail            |
+| `src/components/CLAUDE.md` | UI component patterns             |
+| `src/app/api/CLAUDE.md`    | API route patterns                |
+| `src/app/docs/CLAUDE.md`   | Documentation rendering system    |
 
 ## Common Tasks
 

@@ -49,6 +49,7 @@ GITHUB_TOKEN=your_github_personal_access_token
 ### Provider Detection
 
 The system automatically detects your git provider from the repository URL:
+
 - URLs containing `github.com` or `github.` → GitHub (creates Pull Request)
 - URLs containing `gitlab.com` or `gitlab.` → GitLab (creates Merge Request)
 - Other URLs → No automatic MR/PR creation (changes are still pushed)

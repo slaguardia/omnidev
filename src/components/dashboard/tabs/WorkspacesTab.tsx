@@ -223,9 +223,7 @@ export default function WorkspacesTab({
               className="text-center py-12"
             >
               <p className="text-default-600">No workspaces found.</p>
-              <p className="text-sm text-default-500">
-                Clone a repository to get started.
-              </p>
+              <p className="text-sm text-default-500">Clone a repository to get started.</p>
             </motion.div>
           )}
         </AnimatePresence>

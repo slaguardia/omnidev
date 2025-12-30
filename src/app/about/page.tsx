@@ -421,9 +421,7 @@ export default function AboutPage() {
       <ScrollReveal>
         <section className="mb-16">
           <h2 className="text-2xl font-bold mb-2">Development Roadmap</h2>
-          <p className="text-default-500 mb-8">
-            Development progress and planned features.
-          </p>
+          <p className="text-default-500 mb-8">Development progress and planned features.</p>
 
           <div className="grid gap-6 md:grid-cols-3">
             {/* Completed */}

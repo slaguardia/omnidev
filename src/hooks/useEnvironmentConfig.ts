@@ -37,7 +37,11 @@ export const useEnvironmentConfig = () => {
 
       // Only include sensitive data for fields that were actually touched
       // Use empty string as fallback since touched means user interacted with the field
-      const sensitiveDataToSend: { gitlabToken?: string; githubToken?: string; claudeApiKey?: string } = {};
+      const sensitiveDataToSend: {
+        gitlabToken?: string;
+        githubToken?: string;
+        claudeApiKey?: string;
+      } = {};
       if (touchedFields.gitlabToken) {
         sensitiveDataToSend.gitlabToken = pendingSensitiveData.gitlabToken ?? '';
       }
@@ -68,7 +72,10 @@ export const useEnvironmentConfig = () => {
     }
   };
 
-  const updateSensitiveData = (type: 'gitlabToken' | 'githubToken' | 'claudeApiKey', value: string) => {
+  const updateSensitiveData = (
+    type: 'gitlabToken' | 'githubToken' | 'claudeApiKey',
+    value: string
+  ) => {
     setPendingSensitiveData((prev) => ({
       ...prev,
       [type]: value,

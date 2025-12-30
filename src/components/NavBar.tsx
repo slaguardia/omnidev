@@ -190,9 +190,7 @@ export const Navbar = () => {
                   as={NextLink}
                   className={clsx(
                     'w-full',
-                    isActive(item.href)
-                      ? 'text-primary font-medium'
-                      : 'text-foreground'
+                    isActive(item.href) ? 'text-primary font-medium' : 'text-foreground'
                   )}
                   href={item.href}
                   size="lg"
@@ -212,13 +210,7 @@ export const Navbar = () => {
                   <span className="text-sm text-default-600">
                     Signed in as {session.user?.name}
                   </span>
-                  <Button
-                    fullWidth
-                    size="sm"
-                    variant="flat"
-                    color="danger"
-                    onPress={handleSignOut}
-                  >
+                  <Button fullWidth size="sm" variant="flat" color="danger" onPress={handleSignOut}>
                     Sign Out
                   </Button>
                 </div>

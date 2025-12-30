@@ -9,6 +9,7 @@ This file establishes design principles and writing standards for project docume
 This project is opinionated. It was developed for a specific use case: teams using GitLab who want AI-assisted code analysis and editing through a web interface. The architecture reflects these origins.
 
 Documentation should:
+
 - Acknowledge the opinionated nature upfront
 - Explain the reasoning behind design decisions
 - Be clear about what the project does and does not support
@@ -18,23 +19,25 @@ Users benefit from understanding constraints early rather than discovering them 
 
 ### Voice and Tone
 
-| Guideline | Rationale |
-|-----------|-----------|
+| Guideline                | Rationale                                                       |
+| ------------------------ | --------------------------------------------------------------- |
 | No first-person pronouns | Avoid "I", "we", "our". Use passive voice or direct instruction |
-| Curious, not promotional | Documentation explains; marketing sells. Keep them separate |
-| Direct and concise | Respect reader time. Remove unnecessary words |
-| Technical accuracy first | Correctness matters more than polish |
-| Honest about limitations | State what the project does not do; save users time |
+| Curious, not promotional | Documentation explains; marketing sells. Keep them separate     |
+| Direct and concise       | Respect reader time. Remove unnecessary words                   |
+| Technical accuracy first | Correctness matters more than polish                            |
+| Honest about limitations | State what the project does not do; save users time             |
 
 ### Writing Standards
 
 **Preferred:**
+
 - "The application handles..."
 - "Users can configure..."
 - "This module provides..."
 - "Run the following command..."
 
 **Avoid:**
+
 - "I built this to..."
 - "We designed our system..."
 - "Our approach is..."
@@ -46,13 +49,13 @@ Users benefit from understanding constraints early rather than discovering them 
 
 The README answers five questions quickly:
 
-| Question | Section |
-|----------|---------|
-| What is this? | One-sentence description at top |
-| Why does it exist? | Problem statement, motivation |
-| What does it do? | Concrete capabilities, not hype |
-| Who is it for? | Target users AND who should look elsewhere |
-| How to start? | 5-10 minute quick start |
+| Question           | Section                                    |
+| ------------------ | ------------------------------------------ |
+| What is this?      | One-sentence description at top            |
+| Why does it exist? | Problem statement, motivation              |
+| What does it do?   | Concrete capabilities, not hype            |
+| Who is it for?     | Target users AND who should look elsewhere |
+| How to start?      | 5-10 minute quick start                    |
 
 Include these additional sections:
 
@@ -84,11 +87,13 @@ Claude Code is a product of Anthropic PBC and is not affiliated with this projec
 ### Branding Guidelines
 
 **Acceptable phrasing:**
+
 - "Agentic workflow automation for git repositories, using Claude Code"
 - "Orchestrates Claude Code for automated code analysis"
 - "Integrates with Claude Code CLI"
 
 **Avoid these patterns:**
+
 - "Powered by Claude" (implies partnership)
 - "Built on Claude" (implies foundation/endorsement)
 - "Claude-native" (implies official status)
@@ -118,11 +123,13 @@ pnpm install
 ### Tables vs Lists
 
 Use tables for:
+
 - Comparisons
 - Reference data with multiple attributes
 - Configuration options
 
 Use lists for:
+
 - Sequential steps
 - Hierarchical information
 - Simple enumerations
@@ -136,19 +143,19 @@ Use lists for:
 
 ## Related Documentation
 
-| Document | Purpose |
-|----------|---------|
-| `docs/WRITING_STYLE.md` | Detailed examples and patterns |
+| Document                 | Purpose                               |
+| ------------------------ | ------------------------------------- |
+| `docs/WRITING_STYLE.md`  | Detailed examples and patterns        |
 | `src/app/docs/CLAUDE.md` | Documentation renderer implementation |
 
 ## File Organization
 
-| Location | Purpose |
-|----------|---------|
-| `/docs/` | User-facing documentation, served at `/docs` |
-| `/CLAUDE.md` | AI assistant context for code navigation |
-| `/src/**/CLAUDE.md` | AI assistant context for specific modules |
-| `/README.md` | Project overview and quick start |
+| Location            | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| `/docs/`            | User-facing documentation, served at `/docs` |
+| `/CLAUDE.md`        | AI assistant context for code navigation     |
+| `/src/**/CLAUDE.md` | AI assistant context for specific modules    |
+| `/README.md`        | Project overview and quick start             |
 
 ### Documentation File Naming
 

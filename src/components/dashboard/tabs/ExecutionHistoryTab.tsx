@@ -164,9 +164,10 @@ export default function ExecutionHistoryTab({
                     <span className="flex items-center gap-1">
                       <GitBranch className="w-3 h-3" />
                       {execution.sourceBranch}
-                      {execution.targetBranch && execution.sourceBranch !== execution.targetBranch && (
-                        <span className="text-default-400">→ {execution.targetBranch}</span>
-                      )}
+                      {execution.targetBranch &&
+                        execution.sourceBranch !== execution.targetBranch && (
+                          <span className="text-default-400">→ {execution.targetBranch}</span>
+                        )}
                     </span>
                   )}
                 </div>

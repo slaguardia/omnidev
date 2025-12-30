@@ -8,13 +8,13 @@ This guide provides detailed examples and patterns for writing project documenta
 
 Never use first-person pronouns in documentation:
 
-| Avoid | Use Instead |
-|-------|-------------|
-| "I built this to solve..." | "This project solves..." |
-| "We recommend..." | "The recommended approach is..." |
-| "Our implementation uses..." | "The implementation uses..." |
-| "I've found that..." | "Experience shows that..." |
-| "Let me explain..." | (Just explain directly) |
+| Avoid                        | Use Instead                      |
+| ---------------------------- | -------------------------------- |
+| "I built this to solve..."   | "This project solves..."         |
+| "We recommend..."            | "The recommended approach is..." |
+| "Our implementation uses..." | "The implementation uses..."     |
+| "I've found that..."         | "Experience shows that..."       |
+| "Let me explain..."          | (Just explain directly)          |
 
 ### Preferred Constructions
 
@@ -51,22 +51,24 @@ Several configuration options exist for customization.
 
 ### Documentation vs Marketing
 
-| Documentation (Preferred) | Marketing (Avoid) |
-|---------------------------|-------------------|
-| "This tool automates X" | "Revolutionary automation" |
-| "Users can configure Y" | "Powerful configuration" |
-| "Handles Z use cases" | "Best-in-class Z support" |
-| "Requires Claude account" | "Leverages Claude power" |
+| Documentation (Preferred) | Marketing (Avoid)          |
+| ------------------------- | -------------------------- |
+| "This tool automates X"   | "Revolutionary automation" |
+| "Users can configure Y"   | "Powerful configuration"   |
+| "Handles Z use cases"     | "Best-in-class Z support"  |
+| "Requires Claude account" | "Leverages Claude power"   |
 
 ### Curious, Not Selling
 
 Documentation should:
+
 - Explain functionality clearly
 - Acknowledge limitations
 - Guide users to solutions
 - Invite feedback
 
 Documentation should NOT:
+
 - Make competitive claims
 - Use superlatives
 - Promise outcomes
@@ -101,10 +103,10 @@ state management but means parallel branch work requires multiple workspaces.
 
 **Acknowledge trade-offs:**
 
-| Pattern | Example |
-|---------|---------|
-| Scope limitation | "This tool handles X but not Y" |
-| Design trade-off | "Optimized for A at the cost of B" |
+| Pattern              | Example                              |
+| -------------------- | ------------------------------------ |
+| Scope limitation     | "This tool handles X but not Y"      |
+| Design trade-off     | "Optimized for A at the cost of B"   |
 | Future consideration | "Z support is not currently planned" |
 
 ## Structure Patterns
@@ -144,8 +146,8 @@ Configure the API endpoint:
 
 \`\`\`typescript
 const config = {
-  endpoint: process.env.API_URL,
-  timeout: 30000,
+endpoint: process.env.API_URL,
+timeout: 30000,
 };
 \`\`\`
 
@@ -157,10 +159,10 @@ The `timeout` value is in milliseconds.
 Use tables when data has multiple attributes:
 
 ```markdown
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `API_URL` | Yes | - | Backend API endpoint |
-| `TIMEOUT` | No | 30000 | Request timeout (ms) |
+| Variable  | Required | Default | Description          |
+| --------- | -------- | ------- | -------------------- |
+| `API_URL` | Yes      | -       | Backend API endpoint |
+| `TIMEOUT` | No       | 30000   | Request timeout (ms) |
 ```
 
 ## Specific Patterns
@@ -192,17 +194,17 @@ Group related options. Show defaults:
 
 ### Session Configuration
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `SESSION_DURATION` | 24h | How long sessions remain valid |
-| `REFRESH_ENABLED` | true | Allow session refresh |
+| Option             | Default | Description                    |
+| ------------------ | ------- | ------------------------------ |
+| `SESSION_DURATION` | 24h     | How long sessions remain valid |
+| `REFRESH_ENABLED`  | true    | Allow session refresh          |
 
 ### API Key Configuration
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `API_KEY_PREFIX` | wf_ | Prefix for generated keys |
-| `KEY_ROTATION` | 90d | Recommended rotation period |
+| Option           | Default | Description                 |
+| ---------------- | ------- | --------------------------- |
+| `API_KEY_PREFIX` | wf\_    | Prefix for generated keys   |
+| `KEY_ROTATION`   | 90d     | Recommended rotation period |
 ```
 
 ### Feature Documentation
@@ -221,8 +223,8 @@ Workspaces are created by cloning a git repository:
 \`\`\`bash
 POST /api/workspaces
 {
-  "url": "https://gitlab.example.com/repo.git",
-  "branch": "main"
+"url": "https://gitlab.example.com/repo.git",
+"branch": "main"
 }
 \`\`\`
 ```
@@ -261,26 +263,26 @@ End sections with next steps:
 
 ### Anthropomorphizing Software
 
-| Avoid | Use Instead |
-|-------|-------------|
+| Avoid                        | Use Instead              |
+| ---------------------------- | ------------------------ |
 | "The system wants you to..." | "The system requires..." |
-| "It tries to..." | "It attempts to..." |
-| "The app thinks..." | "The app determines..." |
+| "It tries to..."             | "It attempts to..."      |
+| "The app thinks..."          | "The app determines..."  |
 
 ### Unnecessary Hedging
 
-| Avoid | Use Instead |
-|-------|-------------|
-| "You might want to consider..." | "Consider..." |
-| "It's probably best to..." | "The recommended approach is..." |
-| "You may need to possibly..." | "You may need to..." |
+| Avoid                           | Use Instead                      |
+| ------------------------------- | -------------------------------- |
+| "You might want to consider..." | "Consider..."                    |
+| "It's probably best to..."      | "The recommended approach is..." |
+| "You may need to possibly..."   | "You may need to..."             |
 
 ### Redundant Instructions
 
-| Avoid | Use Instead |
-|-------|-------------|
-| "Go ahead and run..." | "Run..." |
-| "Simply click the button..." | "Click the button..." |
+| Avoid                         | Use Instead              |
+| ----------------------------- | ------------------------ |
+| "Go ahead and run..."         | "Run..."                 |
+| "Simply click the button..."  | "Click the button..."    |
 | "Just enter your password..." | "Enter your password..." |
 
 ## Review Questions

@@ -15,7 +15,10 @@ interface GitSourceConfigTabProps {
     gitlabToken?: string;
     githubToken?: string;
   };
-  updateSensitiveData: (type: 'gitlabToken' | 'githubToken' | 'claudeApiKey', value: string) => void;
+  updateSensitiveData: (
+    type: 'gitlabToken' | 'githubToken' | 'claudeApiKey',
+    value: string
+  ) => void;
   loading: boolean;
   onSaveConfig: () => void;
 }

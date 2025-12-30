@@ -83,7 +83,9 @@ export async function executeClaudeCodeJob(
   // For non-edit (ask) jobs, switch to the default/target branch (unless a specific branch
   // is specified) and pull latest changes to ensure we're querying up-to-date code
   if (!isEditJob) {
-    console.log(`[JOB] 🔄 Preparing workspace for ask job - switching to target branch and pulling latest...`);
+    console.log(
+      `[JOB] 🔄 Preparing workspace for ask job - switching to target branch and pulling latest...`
+    );
     const prepStart = Date.now();
 
     try {
@@ -118,7 +120,7 @@ export async function executeClaudeCodeJob(
           );
 
           if (!branchExists) {
-            const prepTime = Date.now() - prepStart;
+            const _prepTime = Date.now() - prepStart;
             console.error(
               `[JOB] ❌ Branch '${targetBranch}' does not exist. Available branches: ${availableBranches.slice(0, 10).join(', ')}${availableBranches.length > 10 ? '...' : ''}`
             );
@@ -128,7 +130,10 @@ export async function executeClaudeCodeJob(
           }
           console.log(`[JOB] ✅ Branch '${targetBranch}' exists`);
         } else {
-          console.warn(`[JOB] ⚠️ Could not validate branch existence:`, branchesResult.error?.message);
+          console.warn(
+            `[JOB] ⚠️ Could not validate branch existence:`,
+            branchesResult.error?.message
+          );
           // Continue anyway - switchBranch will fail if branch doesn't exist
         }
 
@@ -136,7 +141,9 @@ export async function executeClaudeCodeJob(
         console.log(`[JOB] 📌 Switching to branch: ${targetBranch}`);
         const switchResult = await switchBranch(payload.workspaceId, targetBranch);
         if (!switchResult.success) {
-          throw new Error(`Failed to switch to branch '${targetBranch}': ${switchResult.error?.message}`);
+          throw new Error(
+            `Failed to switch to branch '${targetBranch}': ${switchResult.error?.message}`
+          );
         }
       }
 
@@ -146,7 +153,10 @@ export async function executeClaudeCodeJob(
       const prepTime = Date.now() - prepStart;
 
       if (!pullResult.success) {
-        console.warn(`[JOB] ⚠️ Failed to pull latest changes in ${prepTime}ms:`, pullResult.error?.message);
+        console.warn(
+          `[JOB] ⚠️ Failed to pull latest changes in ${prepTime}ms:`,
+          pullResult.error?.message
+        );
         // Continue anyway - we'll work with whatever code is there
       } else {
         console.log(`[JOB] ✅ Workspace prepared in ${prepTime}ms`);
@@ -154,7 +164,10 @@ export async function executeClaudeCodeJob(
     } catch (error) {
       const prepTime = Date.now() - prepStart;
       // Re-throw branch validation errors - these should fail the job
-      if (error instanceof Error && (error.message.includes('does not exist') || error.message.includes('Failed to switch'))) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('does not exist') || error.message.includes('Failed to switch'))
+      ) {
         console.error(`[JOB] ❌ Branch error in ${prepTime}ms:`, error.message);
         throw error;
       }

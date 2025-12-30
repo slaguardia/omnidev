@@ -30,9 +30,7 @@ export async function createPullRequest(
     if (!token) {
       return {
         success: false,
-        error: new Error(
-          'GitHub API not configured. Please add your GitHub token in settings.'
-        ),
+        error: new Error('GitHub API not configured. Please add your GitHub token in settings.'),
       };
     }
 

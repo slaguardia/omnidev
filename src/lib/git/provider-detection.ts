@@ -32,9 +32,7 @@ export function detectProviderFromUrl(url: string): GitProvider {
  * - https://github.com/owner/repo.git
  * - https://github.com/owner/repo
  */
-export function extractGitHubOwnerRepo(
-  url: string
-): { owner: string; repo: string } | null {
+export function extractGitHubOwnerRepo(url: string): { owner: string; repo: string } | null {
   try {
     let cleanUrl = url.replace(/\.git$/, '');
 
