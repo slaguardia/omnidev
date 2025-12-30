@@ -70,6 +70,11 @@ RUN npm install -g pnpm
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build-time environment variables (for NEXT_PUBLIC_* vars that need to be baked into the build)
+# Set to 'true' for showcase mode (read-only, no auth, no dashboard)
+ARG NEXT_PUBLIC_SHOWCASE_MODE=false
+ENV NEXT_PUBLIC_SHOWCASE_MODE=${NEXT_PUBLIC_SHOWCASE_MODE}
+
 # Build the application
 RUN pnpm run build
 

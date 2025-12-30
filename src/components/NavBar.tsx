@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Navbar as HeroUINavbar,
   NavbarContent,
@@ -25,11 +25,29 @@ import { SearchIcon } from '@/components/Icons';
 import { SearchModal } from '@/components/SearchModal';
 import SpiderLogo from '@assets/assets_task_01jv5p5111evc9bcdck2nw68ac_1747168975_img_2-removebg-preview.png';
 
+/**
+ * Check if showcase mode is enabled (read-only public mode)
+ * In showcase mode, auth and dashboard are hidden
+ */
+function isShowcaseMode(): boolean {
+  return process.env.NEXT_PUBLIC_SHOWCASE_MODE === 'true';
+}
+
 export const Navbar = () => {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const showcaseMode = isShowcaseMode();
+
+  // Filter nav items based on showcase mode
+  const navItems = useMemo(() => {
+    if (showcaseMode) {
+      // Hide Dashboard link in showcase mode
+      return siteConfig.navItems.filter((item) => item.href !== '/dashboard');
+    }
+    return siteConfig.navItems;
+  }, [showcaseMode]);
 
   // Prevent hydration mismatch by only rendering auth content after mount
   useEffect(() => {
@@ -105,7 +123,7 @@ export const Navbar = () => {
         {/* Centered nav tabs (desktop) */}
         <NavbarContent className="hidden lg:flex flex-1 justify-center" justify="center">
           <ul className="flex gap-2 justify-center">
-            {siteConfig.navItems.map((item) => (
+            {navItems.map((item) => (
               <NavbarItem key={item.href} isActive={isActive(item.href)}>
                 <NextLink
                   className={clsx(
@@ -138,25 +156,27 @@ export const Navbar = () => {
           </NavbarItem>
           <NavbarItem className="hidden lg:flex">{searchButton}</NavbarItem>
 
-          {/* Authentication Section - only render after mount to avoid hydration mismatch */}
-          <NavbarItem className="hidden sm:flex items-center gap-6 ml-auto">
-            {!mounted || status === 'loading' ? (
-              <div className="w-20 h-8" />
-            ) : session ? (
-              <>
-                <span className="text-sm text-default-600 flex items-center">
-                  {session.user?.name}
-                </span>
-                <Button size="sm" variant="flat" color="danger" onPress={handleSignOut}>
-                  Sign Out
+          {/* Authentication Section - hidden in showcase mode */}
+          {!showcaseMode && (
+            <NavbarItem className="hidden sm:flex items-center gap-6 ml-auto">
+              {!mounted || status === 'loading' ? (
+                <div className="w-20 h-8" />
+              ) : session ? (
+                <>
+                  <span className="text-sm text-default-600 flex items-center">
+                    {session.user?.name}
+                  </span>
+                  <Button size="sm" variant="flat" color="danger" onPress={handleSignOut}>
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <Button as={NextLink} href="/signin" size="sm" variant="flat" color="primary">
+                  Sign In
                 </Button>
-              </>
-            ) : (
-              <Button as={NextLink} href="/signin" size="sm" variant="flat" color="primary">
-                Sign In
-              </Button>
-            )}
-          </NavbarItem>
+              )}
+            </NavbarItem>
+          )}
         </NavbarContent>
 
         <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
@@ -170,7 +190,7 @@ export const Navbar = () => {
         <NavbarMenu>
           {searchButton}
           <div className="mx-4 mt-2 flex flex-col gap-2">
-            {siteConfig.navItems.map((item) => (
+            {navItems.map((item) => (
               <NavbarMenuItem key={item.href}>
                 <Link
                   as={NextLink}
@@ -188,37 +208,40 @@ export const Navbar = () => {
               </NavbarMenuItem>
             ))}
           </div>
-          <div className="mx-4 mt-4 pt-4 border-t border-divider">
-            {!mounted || status === 'loading' ? (
-              <div className="w-full h-10" />
-            ) : session ? (
-              <div className="flex flex-col gap-3">
-                <span className="text-sm text-default-600">
-                  Signed in as {session.user?.name}
-                </span>
+          {/* Auth section - hidden in showcase mode */}
+          {!showcaseMode && (
+            <div className="mx-4 mt-4 pt-4 border-t border-divider">
+              {!mounted || status === 'loading' ? (
+                <div className="w-full h-10" />
+              ) : session ? (
+                <div className="flex flex-col gap-3">
+                  <span className="text-sm text-default-600">
+                    Signed in as {session.user?.name}
+                  </span>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    variant="flat"
+                    color="danger"
+                    onPress={handleSignOut}
+                  >
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
                 <Button
+                  as={NextLink}
+                  href="/signin"
                   fullWidth
                   size="sm"
                   variant="flat"
-                  color="danger"
-                  onPress={handleSignOut}
+                  color="primary"
                 >
-                  Sign Out
+                  Sign In
                 </Button>
-              </div>
-            ) : (
-              <Button
-                as={NextLink}
-                href="/signin"
-                fullWidth
-                size="sm"
-                variant="flat"
-                color="primary"
-              >
-                Sign In
-              </Button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </NavbarMenu>
       </HeroUINavbar>
 

@@ -29,7 +29,10 @@
       "Bash(pnpm eslint:*)",
       "Bash(pnpm lint:fix:*)",
       "Bash(pnpm config:*)",
-      "Bash(pnpm lint:all:fix:*)"
+      "Bash(pnpm lint:all:fix:*)",
+      "mcp__linear__get_issue",
+      "mcp__linear__update_issue",
+      "Bash(find:*)"
     ]
   }
 }

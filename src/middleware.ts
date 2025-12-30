@@ -2,7 +2,48 @@
 import { getToken } from 'next-auth/jwt';
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * Check if showcase mode is enabled (read-only public mode)
+ * Showcase mode disables authentication and blocks dashboard/settings access
+ */
+function isShowcaseMode(): boolean {
+  return process.env.SHOWCASE_MODE === 'true';
+}
+
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const showcaseMode = isShowcaseMode();
+
+  // In showcase mode, block access to dashboard, signin, and protected API routes
+  if (showcaseMode) {
+    const blockedInShowcase = [
+      '/dashboard',
+      '/signin',
+      '/settings',
+      '/api/user',
+      '/api/claude-md',
+      '/api/ask',
+      '/api/edit',
+      '/api/workspaces',
+      '/api/config',
+      '/api/jobs',
+    ];
+
+    const isBlocked = blockedInShowcase.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
+
+    if (isBlocked) {
+      console.log('[MIDDLEWARE] Showcase mode: blocking access to:', pathname);
+      const homeUrl = new URL('/', request.url);
+      return NextResponse.redirect(homeUrl);
+    }
+
+    // In showcase mode, skip auth checks entirely
+    return NextResponse.next();
+  }
+
+  // Normal mode: enforce authentication
   const protectedPaths = [
     '/dashboard',
     '/dashboard/',
@@ -14,7 +55,6 @@ export async function middleware(request: NextRequest) {
     '/api/claude-md',
   ];
 
-  const pathname = request.nextUrl.pathname;
   const isProtected = protectedPaths.some((path) =>
     new RegExp(`^${path.replace(/:\w+\*/g, '.*')}$`).test(pathname)
   );
