@@ -166,18 +166,17 @@ export default function ExecutionHistoryTab({
                   )}
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="flat"
-                color="danger"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(execution.id);
-                }}
-                isIconOnly
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  onPress={() => onDelete(execution.id)}
+                  isIconOnly
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         ))}
