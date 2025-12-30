@@ -43,32 +43,9 @@ curl -X POST http://localhost:3000/api/ask \
   }'
 ```
 
-**Response (Immediate Execution):**
+**Response:**
 
-When no other job is processing, the request executes immediately:
-
-```json
-{
-  "success": true,
-  "response": "The authentication system uses...",
-  "queued": false,
-  "method": "claude-code",
-  "workspace": {
-    "id": "workspace-123",
-    "path": "/path/to/workspace",
-    "repoUrl": "https://github.com/org/repo",
-    "targetBranch": "main"
-  },
-  "timing": {
-    "total": 5432,
-    "claudeExecution": 4521
-  }
-}
-```
-
-**Response (Queued):**
-
-When another job is already processing, the request is queued:
+All requests are queued for background processing and return immediately with a job ID:
 
 ```json
 {
@@ -143,28 +120,9 @@ curl -X POST http://localhost:3000/api/edit \
   }'
 ```
 
-**Response (Immediate Execution):**
+**Response:**
 
-```json
-{
-  "success": true,
-  "response": "I've added Zod validation to the login form...",
-  "queued": false,
-  "method": "claude-code",
-  "workspace": {
-    "id": "workspace-123",
-    "path": "/path/to/workspace",
-    "repoUrl": "https://github.com/org/repo",
-    "targetBranch": "main"
-  },
-  "timing": {
-    "total": 12543,
-    "claudeExecution": 10234
-  }
-}
-```
-
-**Response (Queued):**
+All requests are queued for background processing and return immediately with a job ID:
 
 ```json
 {
@@ -283,21 +241,21 @@ curl http://localhost:3000/api/jobs/2025-11-30T03-12-22Z-a1b2c3d4 \
 
 ## Request Queue System
 
-### Execute-or-Queue Behavior
+### Always-Queued Behavior
 
-The API uses an execute-or-queue pattern to ensure sequential processing:
+All `/api/ask` and `/api/edit` requests are queued for background processing. The API returns immediately with a job ID, and clients poll `/api/jobs/:jobId` for results.
 
-| Scenario                    | Behavior                                                           |
-| --------------------------- | ------------------------------------------------------------------ |
-| No job currently processing | Request executes immediately, returns `queued: false` with result  |
-| Another job is processing   | Request is queued, returns `queued: true` with `jobId` for polling |
+This design:
 
-This design prevents git conflicts by ensuring only one Claude Code execution runs at a time.
+- Prevents HTTP request timeouts (Claude Code can run for minutes)
+- Provides consistent API behavior (always async)
+- Prevents git conflicts by ensuring sequential processing
+- Allows the queue UI to show all operations
 
 **Concurrency note (Docker VM):**
 
-- The queue uses an **atomic processing lock file** (`workspaces/queue/processing.lock.json`) to prevent two concurrent requests from both starting “immediate” execution at the same time.
 - Jobs are processed sequentially by the background worker started at server boot (see `src/instrumentation.ts`).
+- The queue uses an **atomic processing lock file** (`workspaces/queue/processing.lock.json`) to coordinate job processing.
 
 ### Job States
 
@@ -311,17 +269,16 @@ This design prevents git conflicts by ensuring only one Claude Code execution ru
 ### Job Lifecycle
 
 1. **Request received** - API validates input and authentication
-2. **Queue check** - System checks if another job is processing
-3. **Execute or queue** - Job either runs immediately or enters the pending queue
-4. **Background processing** - Worker polls every 2 seconds for pending jobs
-5. **Completion** - Job moves to `completed` or `failed` state with result/error
-6. **Cleanup** - Jobs are retained for 7 days, then automatically deleted
+2. **Job queued** - Job enters the pending queue, API returns job ID immediately
+3. **Background processing** - Worker polls every 2 seconds for pending jobs
+4. **Completion** - Job moves to `completed` or `failed` state with result/error
+5. **Cleanup** - Jobs are retained for 7 days, then automatically deleted
 
 ---
 
 ## Git Actions After Execution
 
-For **edit** jobs (`POST /api/edit`), the worker runs git actions **inside the job** so behavior is consistent whether the request was immediate or queued:
+For **edit** jobs (`POST /api/edit`), the worker runs git actions **inside the job**:
 
 1. **Before Claude**: initialize git workflow (branch checkout/pull/branch creation when needed)
 2. **Run Claude**
@@ -372,9 +329,9 @@ When git actions are performed, the job result includes:
 
 ## Client Implementation Guide
 
-### Handling Immediate vs Queued Responses
+### Submitting Requests
 
-Check the `queued` field to determine how to proceed:
+All requests return a `jobId` that must be polled for results:
 
 ```javascript
 const response = await fetch('/api/ask', {
@@ -392,14 +349,9 @@ const response = await fetch('/api/ask', {
 
 const data = await response.json();
 
-if (data.queued) {
-  // Job was queued - need to poll for results
-  const result = await pollForResult(data.jobId);
-  console.log('Result:', result);
-} else {
-  // Job completed immediately
-  console.log('Response:', data.response);
-}
+// All requests are queued - poll for results
+const result = await pollForResult(data.jobId);
+console.log('Result:', result);
 ```
 
 ### Polling for Results
@@ -482,17 +434,9 @@ async function executeEdit(workspaceId, question, createMR = true) {
     throw new Error(submitData.error || 'Request failed');
   }
 
-  // Step 2: Get the result (immediate or via polling)
-  let result;
-  if (submitData.queued) {
-    console.log(`Job queued with ID: ${submitData.jobId}`);
-    result = await pollForResult(submitData.jobId);
-  } else {
-    result = {
-      output: submitData.response,
-      timing: submitData.timing,
-    };
-  }
+  // Step 2: Poll for result (all requests are queued)
+  console.log(`Job queued with ID: ${submitData.jobId}`);
+  const result = await pollForResult(submitData.jobId);
 
   // Step 3: Handle git results if present
   if (result.postExecution?.hasChanges) {

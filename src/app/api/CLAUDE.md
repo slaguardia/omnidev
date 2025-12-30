@@ -193,9 +193,9 @@ export async function POST(request: NextRequest) {
 
 ## Job Queue Integration
 
-### Execute-or-Queue Pattern
+### Always-Queued Pattern
 
-For long-running operations, use the job queue:
+All `/api/ask` and `/api/edit` requests are queued for background processing:
 
 ```typescript
 import { executeOrQueue, type ClaudeCodeJobPayload } from '@/lib/queue';
@@ -212,31 +212,22 @@ export async function POST(request: NextRequest) {
     sourceBranch,
   };
 
-  const execution = await executeOrQueue('claude-code', payload);
+  // Always queue the job (forceQueue: true) - returns immediately
+  const execution = await executeOrQueue('claude-code', payload, { forceQueue: true });
 
-  if (execution.immediate) {
-    // Job completed immediately
-    return NextResponse.json({
-      success: true,
-      response: execution.result.output,
-      queued: false,
-      timing: { total: Date.now() - startTime },
-    });
-  } else {
-    // Job was queued for background processing
-    return NextResponse.json({
-      success: true,
-      queued: true,
-      jobId: execution.jobId,
-      message: 'Poll /api/jobs/:jobId for results',
-    });
-  }
+  // forceQueue guarantees immediate: false
+  return NextResponse.json({
+    success: true,
+    queued: true,
+    jobId: execution.jobId,
+    message: 'Poll /api/jobs/:jobId for results',
+  });
 }
 ```
 
 ### Polling for Job Results
 
-Clients poll `/api/jobs/[jobId]` for queued jobs:
+Clients poll `/api/jobs/[jobId]` for results:
 
 ```typescript
 // Client-side polling

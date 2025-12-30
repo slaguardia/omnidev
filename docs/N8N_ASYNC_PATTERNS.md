@@ -1,23 +1,22 @@
 # n8n Async Patterns (Option A vs Option B)
 
-This document describes two production-ready patterns for integrating n8n with Workflow’s queued API (`/api/ask`, `/api/edit`) when requests may run for a long time and return either **immediately** or **queued**.
+This document describes two production-ready patterns for integrating n8n with Workflow's queued API (`/api/ask`, `/api/edit`).
 
-For API details (payloads, `queued`, `jobId`, `/api/jobs/:jobId`), see `docs/API_OPERATIONS.md`.
+For API details (payloads, `jobId`, `/api/jobs/:jobId`), see `docs/API_OPERATIONS.md`.
 
 ---
 
-## Background: Execute-or-Queue in Workflow
+## Background: Always-Queued in Workflow
 
-When you call `POST /api/ask` or `POST /api/edit`, Workflow returns one of two shapes:
+When you call `POST /api/ask` or `POST /api/edit`, Workflow always queues the request and returns immediately:
 
-- **Immediate**: `{ queued: false, response: string, ... }`
-- **Queued**: `{ queued: true, jobId: string, ... }`
+- **Response**: `{ queued: true, jobId: string, ... }`
 
-Queued jobs are retrieved by polling:
+Jobs are retrieved by polling:
 
 - `GET /api/jobs/:jobId` → returns `{ status: pending|processing|completed|failed, result?, error? }`
 
-**Key point:** your integration must always branch on `queued`.
+**Key point:** All requests return a `jobId` that must be polled for results.
 
 ---
 
@@ -35,10 +34,8 @@ Queued jobs are retrieved by polling:
 2. **Build Prompt** (Set node)
 3. **HTTP Request: Submit**
    - `POST /api/ask` or `POST /api/edit`
-4. **IF: queued?**
-   - If `queued === false`: go to **Process Result**
-   - If `queued === true`: enter **Poll Loop**
-5. **Poll Loop**
+   - Returns `jobId` immediately
+4. **Poll Loop**
    - **Wait** (2–10s, tune per volume)
    - **HTTP Request: Get Job**
      - `GET /api/jobs/{{ $json.jobId }}`
@@ -46,8 +43,8 @@ Queued jobs are retrieved by polling:
      - `completed`: go to **Process Result**
      - `failed`: go to **Handle Failure**
      - else: loop back to **Wait**
-6. **Process Result**
-7. **Update Task**
+5. **Process Result**
+6. **Update Task**
 
 ### Guardrails
 
@@ -93,13 +90,10 @@ Storage options:
 1. **Trigger**
 2. **Build Prompt**
 3. **HTTP Request: Submit** (`POST /api/ask` or `POST /api/edit`)
-4. **IF queued?**
-   - If immediate:
-     - Treat it like a completed job (write a record with a synthetic “completed” status) OR directly update the task.
-   - If queued:
-     - **Write tracking record** with `jobId` + metadata
-     - **Update task** (optional): “Queued. Tracking jobId …”
-     - **Exit**
+   - Returns `jobId` immediately
+4. **Write tracking record** with `jobId` + metadata
+5. **Update task** (optional): "Queued. Tracking jobId …"
+6. **Exit**
 
 ### Poller/Processor workflow (Workflow 2)
 

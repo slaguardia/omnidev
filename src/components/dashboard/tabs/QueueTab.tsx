@@ -383,6 +383,62 @@ export default function QueueTab() {
                         </pre>
                       </div>
                     </div>
+                    {/* Branch Display */}
+                    {selectedJob.type === 'claude-code' &&
+                      (() => {
+                        const payload = selectedJob.payload as ClaudeCodeJobPayload;
+                        // Get branch info from gitInitResult if available, else from payload
+                        let sourceBranch = payload.sourceBranch;
+                        let targetBranch: string | undefined;
+
+                        if (
+                          selectedJob.result &&
+                          typeof selectedJob.result === 'object' &&
+                          'gitInitResult' in selectedJob.result &&
+                          selectedJob.result.gitInitResult &&
+                          typeof selectedJob.result.gitInitResult === 'object'
+                        ) {
+                          const gitInit = selectedJob.result.gitInitResult as {
+                            sourceBranch?: string;
+                            targetBranch?: string;
+                          };
+                          if (gitInit.sourceBranch) sourceBranch = gitInit.sourceBranch;
+                          if (gitInit.targetBranch) targetBranch = gitInit.targetBranch;
+                        }
+
+                        if (!sourceBranch) return null;
+
+                        const isEdit = payload.editRequest === true;
+                        const hasMR = targetBranch && sourceBranch !== targetBranch;
+                        const label = isEdit
+                          ? hasMR
+                            ? 'Merge Request'
+                            : 'Committed To'
+                          : 'Branch';
+
+                        return (
+                          <div>
+                            <h4 className="text-sm font-semibold text-default-700 mb-1">{label}</h4>
+                            <div className="flex items-center gap-2 text-sm">
+                              {hasMR ? (
+                                <>
+                                  <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
+                                    {sourceBranch}
+                                  </span>
+                                  <span className="text-default-400">→</span>
+                                  <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
+                                    {targetBranch}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
+                                  {sourceBranch}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     {selectedJob.result !== undefined && selectedJob.result !== null && (
                       <>
                         {/* Result Output */}

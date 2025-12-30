@@ -15,7 +15,6 @@ import {
   MessageSquare,
   Pencil,
   RefreshCw,
-  GitBranch,
   ExternalLink,
 } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
@@ -262,7 +261,6 @@ export default function ExecutionHistoryTab({
                             : 'Branch'}
                         </h4>
                         <div className="flex items-center gap-2 text-sm">
-                          <GitBranch className="w-4 h-4 text-default-500" />
                           {/* For edit flows with MR: show source → target */}
                           {/* For edit flows without MR: show source (where commits went) */}
                           {/* For ask flows: show source (what was referenced) */}

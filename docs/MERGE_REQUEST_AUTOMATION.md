@@ -6,7 +6,7 @@ This document explains how the merge request (GitLab) and pull request (GitHub) 
 
 The system can create merge requests (GitLab) or pull requests (GitHub) after Claude Code makes changes to your workspace. The provider is automatically detected from the repository URL.
 
-For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR/PR creation runs **inside the same queue job** (consistent whether the request is immediate or queued).
+For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR/PR creation runs **inside the queue job**.
 
 ## Setup
 
