@@ -11,6 +11,7 @@ import {
   initializeGitWorkflow,
 } from '@/lib/claudeCode';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
+import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
 import type {
   ClaudeCodeJobPayload,
   ClaudeCodeJobResult,
@@ -20,7 +21,7 @@ import type {
   GitMRJobPayload,
   WorkspaceCleanupJobPayload,
 } from './types';
-import type { FilePath, GitUrl } from '@/lib/types/index';
+import type { CommitHash, FilePath, GitUrl } from '@/lib/types/index';
 
 /**
  * Extract usage information from the final 'result' type JSON log.
@@ -257,6 +258,32 @@ export async function executeClaudeCodeJob(
           if (postResult.data.mergeRequestUrl) pe.mergeRequestUrl = postResult.data.mergeRequestUrl;
           if (postResult.data.pushedBranch) pe.pushedBranch = postResult.data.pushedBranch;
           postExecution = pe;
+
+          // Update workspace commitHash if changes were committed to the default branch
+          // (i.e., no MR was required, meaning source === target branch)
+          if (
+            postResult.data.hasChanges &&
+            postResult.data.commitHash &&
+            !gitInitResult.mergeRequestRequired
+          ) {
+            try {
+              const { updateWorkspace } = await import('@/lib/managers/repository-manager');
+              const updateResult = await updateWorkspace(payload.workspaceId, {
+                metadata: { commitHash: postResult.data.commitHash as CommitHash },
+              });
+
+              if (updateResult.success) {
+                // Persist to disk
+                await WorkspaceManagerFunctions.saveWorkspace(updateResult.data);
+                console.log(
+                  `[JOB] ✅ Updated workspace commitHash to ${postResult.data.commitHash.substring(0, 7)}`
+                );
+              }
+            } catch (updateError) {
+              console.warn(`[JOB] ⚠️ Failed to update workspace commitHash:`, updateError);
+              // Don't fail the job, just log the warning
+            }
+          }
         } else {
           postExecution = undefined;
         }
