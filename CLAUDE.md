@@ -206,17 +206,48 @@ export async function POST(request: NextRequest) {
 | `API_RATE_LIMIT`    | No       | Requests per hour (default: 100) |
 | `ALLOWED_IPS`       | No       | IP whitelist (\* for all)        |
 
+## Documentation Principles
+
+This project follows strict documentation guidelines. Key rules:
+
+| Rule | Rationale |
+|------|-----------|
+| No first-person pronouns | Avoid "I", "we", "our" in all documentation |
+| Claude Code is a dependency | Not a partnership; users need their own Claude account |
+| Curious tone, not promotional | Documentation explains; marketing sells |
+| Answer five questions | What, why, who, how, and non-goals |
+| Acknowledge opinionated design | Built for GitLab teams; state limitations clearly |
+
+### Opinionated by Design
+
+This project was developed for a specific use case: teams using GitLab who want AI-assisted code analysis and editing through a web interface. Documentation should help users quickly determine if this tool fits their workflow rather than obscuring limitations.
+
+### Required Disclosure
+
+Public-facing documentation must include the Claude Code dependency disclosure. See `docs/CLAUDE.md` for the required text and branding guidelines.
+
+### Acceptable Phrasing
+
+- "Agentic workflow automation for git repositories, using Claude Code"
+- "Orchestrates Claude Code for automated code analysis"
+
+### Avoid
+
+- "Powered by Claude" or "Built on Claude" (implies partnership)
+- Any phrasing suggesting resale or access provision
+
 ## Nested CLAUDE.md Files
 
 More detailed guidance in subdirectories:
 
-| File                       | Purpose                           |
-| -------------------------- | --------------------------------- |
-| `src/CLAUDE.md`            | Source code overview and patterns |
-| `src/lib/CLAUDE.md`        | Library modules detail            |
-| `src/components/CLAUDE.md` | UI component patterns             |
-| `src/app/api/CLAUDE.md`    | API route patterns                |
-| `src/app/docs/CLAUDE.md`   | Documentation system              |
+| File                       | Purpose                              |
+| -------------------------- | ------------------------------------ |
+| `docs/CLAUDE.md`           | Documentation writing standards      |
+| `src/CLAUDE.md`            | Source code overview and patterns    |
+| `src/lib/CLAUDE.md`        | Library modules detail               |
+| `src/components/CLAUDE.md` | UI component patterns                |
+| `src/app/api/CLAUDE.md`    | API route patterns                   |
+| `src/app/docs/CLAUDE.md`   | Documentation rendering system       |
 
 ## Common Tasks
 

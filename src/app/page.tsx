@@ -137,7 +137,7 @@ export default function Home() {
           <FadeIn delay={0.1}>
             <div className="flex items-center justify-center gap-3 mb-8">
               <span className="px-4 py-2 bg-content2/60 border border-divider/60 rounded-full text-sm font-medium text-default-700 dark:text-default-200 flex items-center gap-2">
-                <Zap className="w-4 h-4" /> Powered by{' '}
+                <Zap className="w-4 h-4" /> Using{' '}
                 <span className="font-semibold text-primary">Claude Code</span>{' '}
                 <Zap className="w-4 h-4" />
               </span>

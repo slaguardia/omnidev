@@ -185,6 +185,62 @@ export default function AboutPage() {
 
       <Divider className="my-12" />
 
+      {/* Target Audience */}
+      <ScrollReveal>
+        <section className="mb-16">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="glass-card !border-l-4 !border-l-success">
+              <CardHeader className="pb-2">
+                <h3 className="font-semibold text-lg">Who This Is For</h3>
+              </CardHeader>
+              <CardBody className="pt-0">
+                <ul className="space-y-2 text-default-600 text-sm">
+                  <li>Teams using GitLab for source control</li>
+                  <li>Organizations wanting web-based AI code assistance</li>
+                  <li>Environments where Docker deployment is acceptable</li>
+                  <li>Developers who want async, queue-based AI task execution</li>
+                  <li>Users with their own Claude subscription</li>
+                </ul>
+              </CardBody>
+            </Card>
+
+            <Card className="glass-card !border-l-4 !border-l-warning">
+              <CardHeader className="pb-2">
+                <h3 className="font-semibold text-lg">Who Should Look Elsewhere</h3>
+              </CardHeader>
+              <CardBody className="pt-0">
+                <ul className="space-y-2 text-default-600 text-sm">
+                  <li>GitHub-only workflows (GitLab integration is primary)</li>
+                  <li>Users needing real-time collaborative editing</li>
+                  <li>Environments requiring serverless deployment</li>
+                  <li>Those expecting a hosted/managed service</li>
+                </ul>
+              </CardBody>
+            </Card>
+          </div>
+        </section>
+      </ScrollReveal>
+
+      <Divider className="my-12" />
+
+      {/* Claude Code Disclosure */}
+      <ScrollReveal>
+        <section className="mb-16">
+          <Card className="glass-card-static bg-content2/50">
+            <CardBody className="p-6">
+              <h3 className="font-semibold text-lg mb-3">Claude Code Dependency</h3>
+              <p className="text-default-600 text-sm leading-relaxed">
+                This project installs and orchestrates the publicly available Claude Code package.
+                Users must have their own Claude account and active subscription to use this tool.
+                Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+              </p>
+            </CardBody>
+          </Card>
+        </section>
+      </ScrollReveal>
+
+      <Divider className="my-12" />
+
       {/* Key Features */}
       <ScrollReveal>
         <section className="mb-16">
@@ -310,7 +366,7 @@ export default function AboutPage() {
       <ScrollReveal>
         <section className="mb-16">
           <h2 className="text-2xl font-bold mb-2">Technology Stack</h2>
-          <p className="text-default-500 mb-6">Built with modern, battle-tested technologies.</p>
+          <p className="text-default-500 mb-6">Built with modern, well-supported technologies.</p>
 
           <div className="grid gap-6 md:grid-cols-2">
             <div>
@@ -366,7 +422,7 @@ export default function AboutPage() {
         <section className="mb-16">
           <h2 className="text-2xl font-bold mb-2">Development Roadmap</h2>
           <p className="text-default-500 mb-8">
-            Where we&apos;ve been and where we&apos;re headed.
+            Development progress and planned features.
           </p>
 
           <div className="grid gap-6 md:grid-cols-3">

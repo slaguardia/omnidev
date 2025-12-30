@@ -1,4 +1,9 @@
-# Documentation Guidelines
+# Documentation Rendering System
+
+This file documents the technical implementation of the documentation renderer. For content writing guidelines, see:
+
+- `docs/CLAUDE.md` - Core documentation principles and standards
+- `docs/WRITING_STYLE.md` - Detailed writing patterns and examples
 
 ## File Location
 
