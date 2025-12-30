@@ -70,6 +70,29 @@ body {
   display: none; /* Chrome, Safari and Opera */
 }
 
+/* Thin scrollbar utility - uses same blue accent colors as global scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(var(--app-accent-rgb), 0.25) transparent; /* Firefox: thumb track */
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(var(--app-accent-rgb), 0.25);
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--app-accent-rgb), 0.4);
+}
+
 /* Glassmorphism effect for cards */
 .glass-card {
   position: relative;

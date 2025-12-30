@@ -7,9 +7,15 @@ import { docsConfig } from '@/lib/docs/config';
 export function DocsNavigation() {
   const pathname = usePathname();
 
+  // Match the main content height calculation (viewport minus navbar)
+  const NAVBAR_HEIGHT = '4rem';
+
   return (
-    <nav className="w-full p-4 glass-card-static">
-      <div className="space-y-6">
+    <nav
+      className="w-full glass-card-static overflow-hidden flex flex-col mb-6"
+      style={{ maxHeight: `calc(100vh - ${NAVBAR_HEIGHT} - 3rem)` }}
+    >
+      <div className="p-4 space-y-6 overflow-y-auto flex-1 scrollbar-thin">
         {docsConfig.map((section) => (
           <div key={section.title}>
             <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wider mb-2">

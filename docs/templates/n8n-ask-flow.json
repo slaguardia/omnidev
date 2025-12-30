@@ -1,0 +1,467 @@
+{
+  "name": "Workflow Ask Flow Template",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4d76bb25-6411-47ac-bde6-4a0a07042b59",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "update",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "54897115-f668-470b-a460-db6e8b788ec4",
+              "leftValue": "={{ $json.data.assignee.email }}",
+              "rightValue": "your-bot@example.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "01b3145c-97dd-4eb0-af42-2e5c9f250d0b",
+              "leftValue": "={{ $json.data.state.name }}",
+              "rightValue": "Codespider In Progress",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "7e2be421-09ae-46d5-adb6-1047da30a5d2",
+              "leftValue": "={{ $json.actor.email }}",
+              "rightValue": "your-bot@example.com",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        16
+      ],
+      "id": "422d7f2f-41f2-4570-aa38-07dff7b3e473",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-workflow-instance.com/api/ask",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspaceId",
+              "value": "YOUR_WORKSPACE_ID"
+            },
+            {
+              "name": "question",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "sourceBranch",
+              "value": "={{ $('Assign Flow').item.json.data.project.name }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        656,
+        0
+      ],
+      "id": "362e6e15-b192-45ee-b79e-1a7cc9a85f57",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d821dcc0-d078-4904-b725-1e68561b4b65",
+              "name": "prompt",
+              "value": "=You have access to a Linear MCP. Open the Linear issue at this URL: {{ $json.data.url }}  and do the requested research to create a robust plan for the work being requested and update ONLY the issue description in Linear.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "30caa444-669f-417b-b8de-1de94c436bf4",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "issueId": "={{ $('Assign Flow').item.json.data.id }}",
+        "updateFields": {
+          "assigneeId": "YOUR_ASSIGNEE_ID",
+          "stateId": "YOUR_STATE_ID"
+        }
+      },
+      "type": "n8n-nodes-base.linear",
+      "typeVersion": 1.1,
+      "position": [
+        864,
+        0
+      ],
+      "id": "191bf595-8275-43eb-9e4e-c0cd4b802e97",
+      "name": "Update an issue",
+      "credentials": {
+        "linearApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Linear account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3050db8b-e6d7-4b63-aaa9-c5c366f55ec4",
+              "leftValue": "={{ $json.data.body }}",
+              "rightValue": "@codespider",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "c96d2644-bc8f-4a5c-be0d-434ab02509a9",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        -320
+      ],
+      "id": "a29671c0-9b52-455a-a00e-7868d67c7172",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-workflow-instance.com/api/ask",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workspaceId",
+              "value": "YOUR_WORKSPACE_ID"
+            },
+            {
+              "name": "question",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "sourceBranch",
+              "value": "={{ $json.data.issue.project.name }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        640,
+        -336
+      ],
+      "id": "d0bea2c6-0285-42d3-988b-00b56aa0fbb2",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d821dcc0-d078-4904-b725-1e68561b4b65",
+              "name": "prompt",
+              "value": "=You have access to a Linear MCP. Review my latest comment on this issue: {{ $json.data.issue.url }} and do the requested research to address my comment and update the issue description with any changes to the plan. If my comment pompts you to replan the isseue do not put the new plan in the reply but update the issue description with the new plan.  When you are done, leave a brief reply to my comment.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        -336
+      ],
+      "id": "0af7fd42-9df2-4238-ae0c-6830b8ea25be",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "teamId": "YOUR_TEAM_ID",
+        "resources": "={{ [\"comment\",\"project\"] }}"
+      },
+      "type": "n8n-nodes-base.linearTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -320
+      ],
+      "id": "4e725fa1-7d01-49e8-8a70-8146fcb151b0",
+      "name": "Comment Flow",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "linearApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Linear account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "teamId": "YOUR_TEAM_ID",
+        "resources": [
+          "issue"
+        ]
+      },
+      "type": "n8n-nodes-base.linearTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        16
+      ],
+      "id": "10839963-ecb7-4f99-84ac-50f76bdb88ba",
+      "name": "Assign Flow",
+      "webhookId": "YOUR_WEBHOOK_ID",
+      "credentials": {
+        "linearApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Linear account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "endpoint": "https://api.linear.app/graphql",
+        "query": "=query IssueWithProject($issueId: String!) {\n  issue(id: $issueId) {\n    id\n    title\n    team {\n      id\n      name\n    }\n    project {\n      id\n      name\n    }\n  }\n}\n",
+        "variables": "={\n  \"issueId\": \"{{ $json.data.issue.id }}\"\n}\n",
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.graphql",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        -496
+      ],
+      "id": "385a7796-69b1-4987-9d16-8acca04dfe19",
+      "name": "GraphQL",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Update an issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "GraphQL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment Flow": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Flow": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GraphQL": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

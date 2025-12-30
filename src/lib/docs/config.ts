@@ -107,6 +107,18 @@ export const docsConfig: DocSection[] = [
         file: 'N8N_WORKFLOWS.md',
       },
       {
+        title: 'n8n Templates',
+        slug: 'n8n-templates',
+        description: 'Ready-to-use n8n node configurations and complete flows',
+        file: 'N8N_TEMPLATES.md',
+      },
+      {
+        title: 'n8n Async Patterns',
+        slug: 'n8n-async-patterns',
+        description: 'Patterns for handling queued requests (Option A vs B)',
+        file: 'N8N_ASYNC_PATTERNS.md',
+      },
+      {
         title: 'Prompt Templates',
         slug: 'prompt-templates',
         description: 'Reusable prompt templates for planning and development',
