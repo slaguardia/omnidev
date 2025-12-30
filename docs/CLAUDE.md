@@ -1,17 +1,34 @@
 # Documentation Guidelines
 
-This file establishes design principles and writing standards for project documentation. These guidelines are subject to change as the project develops.
+This file establishes design principles and writing standards for OmniDev documentation. These guidelines are subject to change as the project develops.
 
 ## Core Principles
 
+### Project Identity
+
+**OmniDev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+
+OmniDev is:
+
+- A developer automation platform / workflow orchestration runtime
+- One bot identity spanning many workspaces
+- Workflow-agnostic and deploy-anywhere
+
+OmniDev is NOT:
+
+- A SaaS AI product
+- A multi-bot system
+- An AI model provider
+- A Claude Code replacement
+
 ### Project Philosophy
 
-This project is opinionated. It was developed for a specific use case: teams using GitLab who want AI-assisted code analysis and editing through a web interface. The architecture reflects these origins.
+OmniDev adapts to developer workflows, not the other way around. The architecture reflects this principle: one bot, many workspaces, with workspace-scoped behavior.
 
 Documentation should:
 
-- Acknowledge the opinionated nature upfront
-- Explain the reasoning behind design decisions
+- Acknowledge the single-bot model clearly
+- Explain the relationship to Claude Code (dependency, not partnership)
 - Be clear about what the project does and does not support
 - Help users determine if this tool fits their workflow
 
@@ -79,21 +96,42 @@ All public-facing documentation must include this disclosure:
 ```markdown
 ## Claude Code Dependency
 
-This project installs and orchestrates the publicly available Claude Code package.
+OmniDev installs and orchestrates the publicly available Claude Code package.
 Users must have their own Claude account and active subscription.
 Claude Code is a product of Anthropic PBC and is not affiliated with this project.
 ```
+
+### Relationship to Claude Code
+
+OmniDev uses Claude Code as an execution and reasoning engine. OmniDev does not replace, reimplement, or resell Claude Code.
+
+| OmniDev Responsibilities | Claude Code Responsibilities |
+| ------------------------ | ---------------------------- |
+| Workflow orchestration   | Code understanding           |
+| Event handling           | Command execution            |
+| Workspace scoping        | Research and reasoning       |
+| Permission boundaries    | Repo-level operations        |
+| Integration lifecycle    |                              |
 
 ### Branding Guidelines
 
 **Acceptable phrasing:**
 
-- "Agentic workflow automation for git repositories, using Claude Code"
+- "Single developer bot orchestration runtime"
+- "One bot, many workspaces"
+- "Workspace-scoped behavior"
+- "Orchestration layer / automation runtime"
+- "Bring your own AI"
 - "Orchestrates Claude Code for automated code analysis"
 - "Integrates with Claude Code CLI"
 
 **Avoid these patterns:**
 
+- "Multi-bot system"
+- "Agent framework"
+- "AI platform"
+- "Hosted AI service"
+- "Claude replacement"
 - "Powered by Claude" (implies partnership)
 - "Built on Claude" (implies foundation/endorsement)
 - "Claude-native" (implies official status)

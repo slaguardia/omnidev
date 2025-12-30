@@ -23,7 +23,7 @@ import type {
   AsyncResult,
   WorkspaceMetadata,
 } from '@/lib/types/index';
-import { GitOperations } from '../git';
+import { GitOperations, prepareWorkspaceForEdit } from '../git';
 
 // Type for workspace manager functions
 type WorkspaceManager = typeof WorkspaceManagerFunctions;
@@ -865,9 +865,12 @@ export async function initializeWorkspaceGitConfig(
 }
 
 /**
- * Initialize git workflow - clean up local branches and pull latest changes
- * This should be called at the start of any development workflow
- * If the source branch and target branch are the same, checkout the target branch, pull latest, run cleanup, checkout new branch, then ask the question
+ * Initialize git workflow - prepare workspace and set up for edit operations
+ *
+ * This function ensures a clean, predictable state before any edit workflow:
+ * 1. Prepares workspace (discards changes, syncs with remote, deletes local branches)
+ * 2. If source === target: creates a new unique branch for MR
+ * 3. If source !== target: switches to source branch and syncs with remote
  */
 export async function initializeGitWorkflow(
   workspaceId: WorkspaceId,
@@ -887,7 +890,7 @@ export async function initializeGitWorkflow(
     const gitOps = new GitOperations();
 
     // Get the configured target branch for this workspace
-    let targetBranch = workspace.targetBranch; // This is the configured target branch
+    let targetBranch = workspace.targetBranch;
     console.log('Getting target branch:', targetBranch);
     if (!targetBranch) {
       console.log(
@@ -908,47 +911,38 @@ export async function initializeGitWorkflow(
       }
     }
 
+    // Step 1: Prepare workspace - ensures clean state on target branch
+    // This discards all uncommitted changes, removes untracked files,
+    // syncs with remote, and deletes all local branches except target
+    console.log('[GIT WORKFLOW] Preparing workspace for edit...');
+    const prepareResult = await prepareWorkspaceForEdit(workspace.path, targetBranch);
+    if (!prepareResult.success) {
+      return {
+        success: false,
+        error: new Error(`Failed to prepare workspace: ${prepareResult.error?.message}`),
+      };
+    }
+
+    const { deletedBranches, hadUncommittedChanges, hadUntrackedFiles } = prepareResult.data;
+    if (deletedBranches.length > 0) {
+      console.log(`[GIT WORKFLOW] Cleaned up ${deletedBranches.length} local branches`);
+    }
+    if (hadUncommittedChanges || hadUntrackedFiles) {
+      console.log(
+        `[GIT WORKFLOW] Cleaned up workspace: uncommitted=${hadUncommittedChanges}, untracked=${hadUntrackedFiles}`
+      );
+    }
+
     // If no sourceBranch was provided, default to the targetBranch.
     const effectiveSourceBranch = sourceBranch || targetBranch;
 
     // Check if the source branch is the same as the target branch
     if (effectiveSourceBranch === targetBranch) {
       console.log(
-        '[GIT WORKFLOW] Source branch is the same as the target branch, checking out target branch...'
+        '[GIT WORKFLOW] Source branch is the same as target branch, creating new branch for MR...'
       );
-      // Checkout the target branch
-      const checkoutResult = await gitOps.switchBranch(workspace.path, targetBranch);
-      if (!checkoutResult.success) {
-        return {
-          success: false,
-          error: new Error(
-            `Failed to checkout target branch ${targetBranch}: ${checkoutResult.error.message}`
-          ),
-        };
-      }
 
-      // Pull latest changes from the target branch
-      const defaultPullResult = await gitOps.pullChanges(workspace.path);
-      if (!defaultPullResult.success) {
-        return {
-          success: false,
-          error: new Error(
-            `Failed to pull latest changes from target branch: ${defaultPullResult.error.message}`
-          ),
-        };
-      }
-
-      // Run cleanup
-      console.log('[GIT WORKFLOW] Running cleanup...');
-      const cleanupResult = await gitOps.cleanBranches(workspace.path, targetBranch);
-      if (!cleanupResult.success) {
-        return {
-          success: false,
-          error: new Error(`Failed to clean branches: ${cleanupResult.error.message}`),
-        };
-      }
-
-      // Create a new branch with a unique name
+      // Create a new branch with a unique name for the MR
       const uniqueBranchName = `${targetBranch}-${Date.now()}`;
       const createBranchResult = await gitOps.switchBranch(workspace.path, uniqueBranchName);
       if (!createBranchResult.success) {
@@ -972,6 +966,8 @@ export async function initializeGitWorkflow(
 
     // If the source branch is different from the target branch
     else {
+      console.log(`[GIT WORKFLOW] Switching to source branch: ${effectiveSourceBranch}`);
+
       // Switch to the source branch
       const switchResult = await gitOps.switchBranch(workspace.path, effectiveSourceBranch);
       if (!switchResult.success) {
@@ -983,14 +979,13 @@ export async function initializeGitWorkflow(
         };
       }
 
-      // Pull latest changes from the source branch
+      // Sync source branch with remote (reset to origin/branch)
+      console.log(`[GIT WORKFLOW] Syncing source branch with remote...`);
       const pullResult = await gitOps.pullChanges(workspace.path);
       if (!pullResult.success) {
         return {
           success: false,
-          error: new Error(
-            `Failed to pull latest changes from source branch: ${pullResult.error.message}`
-          ),
+          error: new Error(`Failed to sync source branch with remote: ${pullResult.error.message}`),
         };
       }
 

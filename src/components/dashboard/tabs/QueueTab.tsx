@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePersistedState } from '@/hooks';
 import { Button } from '@heroui/button';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
 import { Switch } from '@heroui/switch';
@@ -11,7 +12,6 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Eye,
   Hourglass,
   Info,
   MessageSquare,
@@ -38,7 +38,7 @@ interface QueueStatusResponse {
 export default function QueueTab() {
   const [queueStatus, setQueueStatus] = useState<QueueStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = usePersistedState('queueTab.autoRefresh', true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
@@ -147,36 +147,25 @@ export default function QueueTab() {
     );
   };
 
-  const JobCard = ({ job, showActions = true }: { job: Job; showActions?: boolean }) => (
-    <div className="p-4 glass-card">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {getStatusIcon(job.status)}
-            <span className="font-medium text-sm">{getJobTypeLabel(job.type)}</span>
-            {getOperationBadge(job)}
-            {getStatusBadge(job.status)}
-          </div>
-          <p className="text-xs text-default-500 font-mono mb-2 truncate">ID: {job.id}</p>
-          <div className="flex items-center gap-4 text-xs text-default-500">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {formatRelativeTime(job.createdAt)}
-            </span>
-            {job.startedAt && <span>Started: {formatRelativeTime(job.startedAt)}</span>}
-            {job.completedAt && <span>Completed: {formatRelativeTime(job.completedAt)}</span>}
-          </div>
-        </div>
-        {showActions && (
-          <Button
-            size="sm"
-            variant="flat"
-            onClick={() => handleViewDetails(job)}
-            startContent={<Eye className="w-4 h-4" />}
-          >
-            View
-          </Button>
-        )}
+  const JobCard = ({ job }: { job: Job }) => (
+    <div
+      className="p-4 glass-card cursor-pointer hover:bg-default-100/50 transition-colors"
+      onClick={() => handleViewDetails(job)}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        {getStatusIcon(job.status)}
+        <span className="font-medium text-sm">{getJobTypeLabel(job.type)}</span>
+        {getOperationBadge(job)}
+        {getStatusBadge(job.status)}
+      </div>
+      <p className="text-xs text-default-500 font-mono mb-2 truncate">ID: {job.id}</p>
+      <div className="flex items-center gap-4 text-xs text-default-500">
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {formatRelativeTime(job.createdAt)}
+        </span>
+        {job.startedAt && <span>Started: {formatRelativeTime(job.startedAt)}</span>}
+        {job.completedAt && <span>Completed: {formatRelativeTime(job.completedAt)}</span>}
       </div>
     </div>
   );

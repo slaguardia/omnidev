@@ -13,7 +13,7 @@ export function Footer() {
   return (
     <footer className="w-full flex items-center justify-center py-6 bg-background/80 backdrop-blur-sm">
       <div className="text-sm text-default-500">
-        © {new Date().getFullYear()} CodeSpider. All rights reserved.
+        © {new Date().getFullYear()} Omnidev. All rights reserved.
       </div>
     </footer>
   );

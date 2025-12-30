@@ -13,7 +13,7 @@ export default function AboutPage() {
       {/* Hero Section */}
       <FadeIn>
         <header className="text-center mb-16">
-          <h1 className={title({ size: 'lg', class: 'mb-4' })}>About CodeSpider</h1>
+          <h1 className={title({ size: 'lg', class: 'mb-4' })}>About Omnidev</h1>
           <p className={subtitle({ class: 'max-w-2xl mx-auto' })}>
             A self-hosted platform for AI-assisted code analysis and editing, powered by Claude Code
             CLI
@@ -26,12 +26,12 @@ export default function AboutPage() {
         <section className="mb-16">
           <Card className="glass-card-static">
             <CardBody className="p-8 md:p-10">
-              <h2 className="text-2xl font-bold mb-6">Why CodeSpider?</h2>
+              <h2 className="text-2xl font-bold mb-6">Why Omnidev?</h2>
               <div className="space-y-6 text-default-700">
                 <p className="text-lg">
-                  CodeSpider turns your Claude subscription into a 24/7 development assistant. Queue
-                  up code changes from your phone, triage your backlog while commuting, and wake up
-                  to merge requests ready for review.
+                  Omnidev turns your Claude subscription into a 24/7 development assistant. Queue up
+                  code changes from your phone, triage your backlog while commuting, and wake up to
+                  merge requests ready for review.
                 </p>
 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
@@ -53,9 +53,8 @@ export default function AboutPage() {
                     </div>
                     <h3 className="font-semibold text-foreground mb-2">Work While You Sleep</h3>
                     <p className="text-sm">
-                      Assign issues to CodeSpider from your phone and let it work overnight. Come
-                      back to branches with completed changes and merge requests waiting for your
-                      review.
+                      Assign issues to Omnidev from your phone and let it work overnight. Come back
+                      to branches with completed changes and merge requests waiting for your review.
                     </p>
                   </div>
 
@@ -180,44 +179,6 @@ export default function AboutPage() {
               </div>
             </CardBody>
           </Card>
-        </section>
-      </ScrollReveal>
-
-      <Divider className="my-12" />
-
-      {/* Target Audience */}
-      <ScrollReveal>
-        <section className="mb-16">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="glass-card !border-l-4 !border-l-success">
-              <CardHeader className="pb-2">
-                <h3 className="font-semibold text-lg">Who This Is For</h3>
-              </CardHeader>
-              <CardBody className="pt-0">
-                <ul className="space-y-2 text-default-600 text-sm">
-                  <li>Teams using GitLab for source control</li>
-                  <li>Organizations wanting web-based AI code assistance</li>
-                  <li>Environments where Docker deployment is acceptable</li>
-                  <li>Developers who want async, queue-based AI task execution</li>
-                  <li>Users with their own Claude subscription</li>
-                </ul>
-              </CardBody>
-            </Card>
-
-            <Card className="glass-card !border-l-4 !border-l-warning">
-              <CardHeader className="pb-2">
-                <h3 className="font-semibold text-lg">Who Should Look Elsewhere</h3>
-              </CardHeader>
-              <CardBody className="pt-0">
-                <ul className="space-y-2 text-default-600 text-sm">
-                  <li>GitHub-only workflows (GitLab integration is primary)</li>
-                  <li>Users needing real-time collaborative editing</li>
-                  <li>Environments requiring serverless deployment</li>
-                  <li>Those expecting a hosted/managed service</li>
-                </ul>
-              </CardBody>
-            </Card>
-          </div>
         </section>
       </ScrollReveal>
 
@@ -440,11 +401,14 @@ export default function AboutPage() {
                     <li>Workspace management</li>
                     <li>Claude Code CLI integration</li>
                     <li>REST API endpoints</li>
+                    <li>GitHub pull requests</li>
                     <li>GitLab merge requests</li>
                     <li>2FA authentication</li>
                     <li>Async job queue</li>
                     <li>Docker sandboxing</li>
                     <li>Documentation system</li>
+                    <li>Remote MCP server support</li>
+                    <li>Enhanced execution history</li>
                   </ul>
                 </CardBody>
               </Card>
@@ -461,9 +425,6 @@ export default function AboutPage() {
                 </CardHeader>
                 <CardBody className="pt-0">
                   <ul className="space-y-2 text-default-600 text-sm">
-                    <li>MCP server proxy infrastructure</li>
-                    <li>Remote MCP server support (token-based)</li>
-                    <li>Enhanced execution history</li>
                     <li>Performance optimizations</li>
                   </ul>
                 </CardBody>
@@ -483,7 +444,6 @@ export default function AboutPage() {
                   <ul className="space-y-2 text-default-600 text-sm">
                     <li>OAuth-based MCP server support</li>
                     <li>MCP connections dashboard</li>
-                    <li>GitHub integration</li>
                     <li>Multi-user teams</li>
                   </ul>
                 </CardBody>

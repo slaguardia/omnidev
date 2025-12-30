@@ -1,8 +1,8 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: 'CodeSpider',
-  description: 'Intelligent code analysis and workflow management powered by AI',
+  name: 'Omnidev',
+  description: 'Agentic workflow automation for git repositories',
   navItems: [
     {
       label: 'Docs',
@@ -44,10 +44,10 @@ export const siteConfig = {
     },
   ],
   links: {
-    github: 'https://github.com/yourusername/codespider',
-    twitter: 'https://twitter.com/codespider',
-    docs: 'https://docs.codespider.dev',
-    discord: 'https://discord.gg/codespider',
-    sponsor: 'https://patreon.com/codespider',
+    github: 'https://github.com/yourusername/omnidev',
+    twitter: 'https://twitter.com/omnidev',
+    docs: 'https://docs.omnidev.cloud',
+    discord: 'https://discord.gg/omnidev',
+    sponsor: 'https://patreon.com/omnidev',
   },
 };

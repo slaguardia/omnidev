@@ -13,7 +13,6 @@ import {
 import { Kbd } from '@heroui/kbd';
 import { Link } from '@heroui/link';
 import { Button } from '@heroui/button';
-import Image from 'next/image';
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -23,7 +22,6 @@ import { siteConfig } from '@/lib/config/site';
 import { ThemeSwitch } from '@/components/ThemeSwitch';
 import { GithubIcon, SearchIcon } from '@/components/Icons';
 import { SearchModal } from '@/components/SearchModal';
-import SpiderLogo from '@assets/assets_task_01jv5p5111evc9bcdck2nw68ac_1747168975_img_2-removebg-preview.png';
 
 /**
  * Check if showcase mode is enabled (read-only public mode)
@@ -102,19 +100,9 @@ export const Navbar = () => {
       >
         <NavbarBrand className="gap-3 max-w-fit flex-shrink-0">
           <NextLink className="flex justify-start items-center gap-2" href="/">
-            <div className="h-9 w-9 overflow-hidden flex items-center justify-center">
-              <Image
-                src={SpiderLogo}
-                alt="CodeSpider"
-                width={36}
-                height={36}
-                priority
-                className="h-9 w-9 object-contain"
-              />
-            </div>
-            <p className="font-semibold tracking-tight text-foreground text-xl">
+            <p className="font-title font-semibold tracking-tight text-foreground text-xl">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
-                CodeSpider
+                {siteConfig.name}
               </span>
             </p>
           </NextLink>

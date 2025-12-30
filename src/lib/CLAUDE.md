@@ -1,4 +1,6 @@
-# Library Modules
+# OmniDev — Library Modules
+
+> OmniDev is a single developer bot orchestration runtime. See root `CLAUDE.md` for project identity and architectural constraints.
 
 Core business logic organized by domain. Each module has an `index.ts` barrel export.
 

@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { Providers } from '@/app/providers';
 
 import { siteConfig } from '@/lib/config/site';
-import { fontSans } from '@/lib/config/fonts';
+import { fontSans, fontTitle } from '@/lib/config/fonts';
 import { Navbar } from '@/components/NavBar';
 import { Footer } from '@/components/Footer';
 
@@ -15,9 +15,6 @@ export const metadata: Metadata = {
     template: `%s - ${siteConfig.name}`,
   },
   description: siteConfig.description,
-  icons: {
-    icon: '/icon.png',
-  },
 };
 
 export const viewport: Viewport = {
@@ -32,7 +29,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html suppressHydrationWarning lang="en">
       <head />
       <body
-        className={clsx('min-h-screen text-foreground font-sans antialiased', fontSans.variable)}
+        className={clsx(
+          'min-h-screen text-foreground font-sans antialiased',
+          fontSans.variable,
+          fontTitle.variable
+        )}
       >
         <Providers themeProps={{ attribute: 'class', defaultTheme: 'dark' }}>
           <div className="relative flex flex-col min-h-screen">

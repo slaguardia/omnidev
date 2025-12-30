@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { usePersistedState } from '@/hooks';
 import { Button } from '@heroui/button';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
 import { Switch } from '@heroui/switch';
 import {
   History,
   Trash2,
-  Eye,
   Clock,
   CheckCircle,
   XCircle,
@@ -40,7 +40,7 @@ export default function ExecutionHistoryTab({
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [showJsonLogs, setShowJsonLogs] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = usePersistedState('executionHistory.autoRefresh', false);
   const [isManuallyRefreshing, setIsManuallyRefreshing] = useState(false);
 
   // Auto-refresh every 3 seconds when enabled
@@ -126,7 +126,11 @@ export default function ExecutionHistoryTab({
       {/* History List */}
       <div className="space-y-4">
         {history.map((execution) => (
-          <div key={execution.id} className="p-4 glass-card">
+          <div
+            key={execution.id}
+            className="p-4 glass-card cursor-pointer hover:bg-default-100/50 transition-colors"
+            onClick={() => handleViewDetails(execution)}
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -162,25 +166,18 @@ export default function ExecutionHistoryTab({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  onClick={() => handleViewDetails(execution)}
-                  startContent={<Eye className="w-4 h-4" />}
-                >
-                  View
-                </Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="danger"
-                  onClick={() => onDelete(execution.id)}
-                  isIconOnly
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="flat"
+                color="danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(execution.id);
+                }}
+                isIconOnly
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         ))}

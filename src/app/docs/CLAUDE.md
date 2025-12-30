@@ -1,4 +1,6 @@
-# Documentation Rendering System
+# OmniDev — Documentation Rendering System
+
+> OmniDev is a single developer bot orchestration runtime. See root `CLAUDE.md` for project identity and architectural constraints.
 
 This file documents the technical implementation of the documentation renderer. For content writing guidelines, see:
 

@@ -150,10 +150,10 @@ export default function Home() {
               <span
                 className={
                   title({ size: 'lg' }) +
-                  ' bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'
+                  ' font-title bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400'
                 }
               >
-                CodeSpider
+                Omnidev
               </span>
             </h1>
           </FadeInUp>

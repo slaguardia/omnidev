@@ -43,6 +43,11 @@ import {
   getWorkspaceGitConfig,
   unsetWorkspaceGitConfig,
 } from '@/lib/git/config';
+import { prepareWorkspaceForEdit } from '@/lib/git/prepare';
+
+// Export prepare types and function
+export type { PrepareWorkspaceResult } from '@/lib/git/prepare';
+export { prepareWorkspaceForEdit };
 
 /**
  * Main Git operations class that provides access to all git operations
@@ -132,5 +137,10 @@ export class GitOperations {
 
   async unsetWorkspaceGitConfig(...args: Parameters<typeof unsetWorkspaceGitConfig>) {
     return unsetWorkspaceGitConfig(...args);
+  }
+
+  // Preparation operations
+  async prepareWorkspaceForEdit(...args: Parameters<typeof prepareWorkspaceForEdit>) {
+    return prepareWorkspaceForEdit(...args);
   }
 }

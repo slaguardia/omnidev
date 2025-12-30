@@ -32,7 +32,7 @@ const staticPages: SearchItem[] = [
     description: 'Browse all documentation',
     category: 'page',
   },
-  { label: 'About', href: '/about', description: 'About CodeSpider', category: 'page' },
+  { label: 'About', href: '/about', description: 'About Omnidev', category: 'page' },
   { label: 'Sign In', href: '/signin', description: 'Sign in to your account', category: 'page' },
 ];
 

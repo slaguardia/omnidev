@@ -1,7 +1,7 @@
 {
-  "name": "workflow",
+  "name": "omnidev",
   "version": "1.0.0",
-  "description": "Workflow manager for GitLab with Claude Code integration for AI-powered code analysis",
+  "description": "Agentic workflow automation for git repositories, using Claude Code",
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",

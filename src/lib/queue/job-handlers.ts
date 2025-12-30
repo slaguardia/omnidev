@@ -189,11 +189,16 @@ export async function executeClaudeCodeJob(
     const gitInitTime = Date.now() - gitInitStart;
 
     if (!initResult.success) {
-      console.warn(
-        `[JOB] ⚠️ Git workflow initialization failed in ${gitInitTime}ms:`,
-        initResult.error?.message
+      const gitInitError = initResult.error?.message || 'Unknown git workflow error';
+      console.error(
+        `[JOB] ❌ Git workflow initialization failed in ${gitInitTime}ms:`,
+        gitInitError
       );
-      // Best-effort: continue without git automation.
+      // Fail the job immediately - continuing without git automation would leave changes uncommitted
+      throw new Error(
+        `Git workflow initialization failed: ${gitInitError}. ` +
+          `This prevents orphaned changes in the workspace.`
+      );
     } else {
       // Only create merge requests when explicitly requested.
       // We still want commit+push behavior for edit jobs even when createMR=false.
