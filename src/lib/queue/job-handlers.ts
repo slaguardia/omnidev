@@ -264,30 +264,61 @@ export async function executeClaudeCodeJob(
           if (postResult.data.pushedBranch) pe.pushedBranch = postResult.data.pushedBranch;
           postExecution = pe;
 
-          // Update workspace commitHash if changes were committed to the default branch
-          // (i.e., no MR was required, meaning source === target branch)
-          if (
-            postResult.data.hasChanges &&
-            postResult.data.commitHash &&
-            !gitInitResult.mergeRequestRequired
-          ) {
-            try {
-              const { updateWorkspace } = await import('@/lib/managers/repository-manager');
+          // After edit flow completes, always switch back to target branch and update
+          // the workspace commitHash to reflect the target branch's HEAD, not the working branch
+          try {
+            const { updateWorkspace, switchBranch, pullChanges } = await import(
+              '@/lib/managers/repository-manager'
+            );
+            const { getCurrentCommitHash } = await import('@/lib/git/commits');
+
+            console.log(
+              `[JOB] 🔄 Resetting workspace to target branch: ${gitInitResult.targetBranch}`
+            );
+
+            // Switch back to target branch
+            const switchResult = await switchBranch(
+              payload.workspaceId,
+              gitInitResult.targetBranch
+            );
+            if (!switchResult.success) {
+              console.warn(
+                `[JOB] ⚠️ Failed to switch to target branch: ${switchResult.error?.message}`
+              );
+            } else {
+              // Pull latest changes to ensure we have the most recent commit
+              const pullResult = await pullChanges(payload.workspaceId);
+              if (!pullResult.success) {
+                console.warn(
+                  `[JOB] ⚠️ Failed to pull latest changes: ${pullResult.error?.message}`
+                );
+              }
+            }
+
+            // Get the current commit hash from the target branch
+            const commitHashResult = await getCurrentCommitHash(payload.workspacePath as FilePath);
+            if (!commitHashResult.success) {
+              console.warn(
+                `[JOB] ⚠️ Failed to get commit hash: ${commitHashResult.error?.message}`
+              );
+            } else if (commitHashResult.data) {
+              const targetBranchCommitHash = commitHashResult.data;
+
               const updateResult = await updateWorkspace(payload.workspaceId, {
-                metadata: { commitHash: postResult.data.commitHash as CommitHash },
+                metadata: { commitHash: targetBranchCommitHash as CommitHash },
               });
 
               if (updateResult.success) {
                 // Persist to disk
                 await WorkspaceManagerFunctions.saveWorkspace(updateResult.data);
                 console.log(
-                  `[JOB] ✅ Updated workspace commitHash to ${postResult.data.commitHash.substring(0, 7)}`
+                  `[JOB] ✅ Workspace reset to ${gitInitResult.targetBranch}, commitHash: ${targetBranchCommitHash.substring(0, 7)}`
                 );
               }
-            } catch (updateError) {
-              console.warn(`[JOB] ⚠️ Failed to update workspace commitHash:`, updateError);
-              // Don't fail the job, just log the warning
             }
+          } catch (updateError) {
+            console.warn(`[JOB] ⚠️ Failed to reset workspace to target branch:`, updateError);
+            // Don't fail the job, just log the warning
           }
         } else {
           postExecution = undefined;

@@ -42,6 +42,7 @@ export default function ExecutionHistoryTab({
   const [showJsonLogs, setShowJsonLogs] = useState(false);
   const [autoRefresh, setAutoRefresh] = usePersistedState('executionHistory.autoRefresh', false);
   const [isManuallyRefreshing, setIsManuallyRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Auto-refresh every 3 seconds when enabled
   useEffect(() => {
@@ -73,6 +74,16 @@ export default function ExecutionHistoryTab({
   const handleClearAll = async () => {
     await onClearAll();
     setIsClearConfirmOpen(false);
+  };
+
+  const handleDelete = async (executionId: string) => {
+    if (deletingId) return; // Prevent concurrent deletes
+    setDeletingId(executionId);
+    try {
+      await onDelete(executionId);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -171,8 +182,10 @@ export default function ExecutionHistoryTab({
                   size="sm"
                   variant="flat"
                   color="danger"
-                  onPress={() => onDelete(execution.id)}
+                  onPress={() => handleDelete(execution.id)}
                   isIconOnly
+                  isLoading={deletingId === execution.id}
+                  isDisabled={deletingId !== null}
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
