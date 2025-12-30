@@ -77,6 +77,8 @@ export interface ExecutionHistoryEntry {
   sourceBranch?: string;
   /** The target/base branch for merge requests (for edit jobs) */
   targetBranch?: string;
+  /** URL to the created merge/pull request (for edit jobs with createMR) */
+  mergeRequestUrl?: string;
   /** Raw JSON stream logs from Claude Code execution */
   jsonLogs?: ClaudeCodeJsonLogEntry[];
   /** Raw stdout output (includes all output before parsing) */

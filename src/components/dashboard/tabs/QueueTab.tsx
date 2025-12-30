@@ -16,6 +16,7 @@ import {
   Info,
   MessageSquare,
   Pencil,
+  ExternalLink,
 } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import type { Job, JobStatus, JobType, ClaudeCodeJobPayload } from '@/lib/queue';
@@ -398,6 +399,35 @@ export default function QueueTab() {
                                   {String(selectedJob.result.output)}
                                 </p>
                               </div>
+                            </div>
+                          )}
+
+                        {/* Merge/Pull Request Link */}
+                        {selectedJob.type === 'claude-code' &&
+                          selectedJob.result &&
+                          typeof selectedJob.result === 'object' &&
+                          'postExecution' in selectedJob.result &&
+                          selectedJob.result.postExecution &&
+                          typeof selectedJob.result.postExecution === 'object' &&
+                          'mergeRequestUrl' in selectedJob.result.postExecution &&
+                          selectedJob.result.postExecution.mergeRequestUrl && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-default-700 mb-1">
+                                {String(selectedJob.result.postExecution.mergeRequestUrl).includes(
+                                  'github.com'
+                                )
+                                  ? 'Pull Request'
+                                  : 'Merge Request'}
+                              </h4>
+                              <a
+                                href={String(selectedJob.result.postExecution.mergeRequestUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm text-primary-500 hover:text-primary-600 hover:underline"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                {String(selectedJob.result.postExecution.mergeRequestUrl)}
+                              </a>
                             </div>
                           )}
 

@@ -16,6 +16,7 @@ import {
   Pencil,
   RefreshCw,
   GitBranch,
+  ExternalLink,
 } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import { ExecutionHistoryEntry } from '@/lib/dashboard/types';
@@ -160,16 +161,6 @@ export default function ExecutionHistoryTab({
                   {execution.executionTimeMs && (
                     <span>Duration: {formatDuration(execution.executionTimeMs)}</span>
                   )}
-                  {execution.sourceBranch && (
-                    <span className="flex items-center gap-1">
-                      <GitBranch className="w-3 h-3" />
-                      {execution.sourceBranch}
-                      {execution.targetBranch &&
-                        execution.sourceBranch !== execution.targetBranch && (
-                          <span className="text-default-400">→ {execution.targetBranch}</span>
-                        )}
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -260,26 +251,57 @@ export default function ExecutionHistoryTab({
                       <h4 className="text-sm font-semibold text-default-700 mb-1">Workspace</h4>
                       <p className="text-sm">{selectedExecution.workspaceName}</p>
                     </div>
-                    {(selectedExecution.sourceBranch || selectedExecution.targetBranch) && (
+                    {selectedExecution.sourceBranch && (
                       <div>
-                        <h4 className="text-sm font-semibold text-default-700 mb-1">Branch</h4>
+                        <h4 className="text-sm font-semibold text-default-700 mb-1">
+                          {selectedExecution.editRequest
+                            ? selectedExecution.targetBranch &&
+                              selectedExecution.sourceBranch !== selectedExecution.targetBranch
+                              ? 'Merge Request'
+                              : 'Committed To'
+                            : 'Branch'}
+                        </h4>
                         <div className="flex items-center gap-2 text-sm">
                           <GitBranch className="w-4 h-4 text-default-500" />
-                          {selectedExecution.sourceBranch && (
+                          {/* For edit flows with MR: show source → target */}
+                          {/* For edit flows without MR: show source (where commits went) */}
+                          {/* For ask flows: show source (what was referenced) */}
+                          {selectedExecution.editRequest &&
+                          selectedExecution.targetBranch &&
+                          selectedExecution.sourceBranch !== selectedExecution.targetBranch ? (
+                            <>
+                              <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
+                                {selectedExecution.sourceBranch}
+                              </span>
+                              <span className="text-default-400">→</span>
+                              <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
+                                {selectedExecution.targetBranch}
+                              </span>
+                            </>
+                          ) : (
                             <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
                               {selectedExecution.sourceBranch}
                             </span>
                           )}
-                          {selectedExecution.targetBranch &&
-                            selectedExecution.sourceBranch !== selectedExecution.targetBranch && (
-                              <>
-                                <span className="text-default-400">→</span>
-                                <span className="font-mono bg-default-100 px-2 py-0.5 rounded">
-                                  {selectedExecution.targetBranch}
-                                </span>
-                              </>
-                            )}
                         </div>
+                      </div>
+                    )}
+                    {selectedExecution.mergeRequestUrl && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-default-700 mb-1">
+                          {selectedExecution.mergeRequestUrl.includes('github.com')
+                            ? 'Pull Request'
+                            : 'Merge Request'}
+                        </h4>
+                        <a
+                          href={selectedExecution.mergeRequestUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-primary-500 hover:text-primary-600 hover:underline"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          {selectedExecution.mergeRequestUrl}
+                        </a>
                       </div>
                     )}
                     <div>

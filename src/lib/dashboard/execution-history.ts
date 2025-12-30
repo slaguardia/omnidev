@@ -33,6 +33,8 @@ export async function loadExecutionHistory(): Promise<ExecutionHistoryEntry[]> {
         status: job.status === 'completed' ? 'success' : 'error',
         executedAt: job.completedAt || job.createdAt,
         ...(payload.editRequest !== undefined && { editRequest: payload.editRequest }),
+        // Include sourceBranch from payload (available for both ask and edit flows)
+        ...(payload.sourceBranch && { sourceBranch: payload.sourceBranch }),
       };
 
       if (job.status === 'completed' && job.result) {
@@ -57,6 +59,10 @@ export async function loadExecutionHistory(): Promise<ExecutionHistoryEntry[]> {
           if (gitInit.targetBranch) {
             entry.targetBranch = gitInit.targetBranch;
           }
+        }
+        // Extract merge request URL from postExecution (available for edit jobs with MR)
+        if (result.postExecution?.mergeRequestUrl) {
+          entry.mergeRequestUrl = result.postExecution.mergeRequestUrl;
         }
       } else if (job.status === 'failed' && job.error) {
         entry.errorMessage = job.error;
