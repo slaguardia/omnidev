@@ -32,7 +32,11 @@
       "Bash(pnpm lint:all:fix:*)",
       "mcp__linear__get_issue",
       "mcp__linear__update_issue",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "mcp__linear__list_teams",
+      "mcp__linear__list_projects",
+      "mcp__linear__create_issue",
+      "Bash(npx eslint:*)"
     ]
   }
 }

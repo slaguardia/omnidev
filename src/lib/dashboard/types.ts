@@ -73,6 +73,10 @@ export interface ExecutionHistoryEntry {
   executionTimeMs?: number;
   /** Whether this was an edit request (true) or ask request (false/undefined) */
   editRequest?: boolean;
+  /** The branch where Claude Code executed (for edit jobs, this is the working branch) */
+  sourceBranch?: string;
+  /** The target/base branch for merge requests (for edit jobs) */
+  targetBranch?: string;
   /** Raw JSON stream logs from Claude Code execution */
   jsonLogs?: ClaudeCodeJsonLogEntry[];
   /** Raw stdout output (includes all output before parsing) */

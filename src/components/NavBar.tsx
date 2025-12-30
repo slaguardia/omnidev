@@ -21,7 +21,7 @@ import { useSession, signOut } from 'next-auth/react';
 
 import { siteConfig } from '@/lib/config/site';
 import { ThemeSwitch } from '@/components/ThemeSwitch';
-import { SearchIcon } from '@/components/Icons';
+import { GithubIcon, SearchIcon } from '@/components/Icons';
 import { SearchModal } from '@/components/SearchModal';
 import SpiderLogo from '@assets/assets_task_01jv5p5111evc9bcdck2nw68ac_1747168975_img_2-removebg-preview.png';
 
@@ -143,15 +143,9 @@ export const Navbar = () => {
 
         <NavbarContent className="hidden sm:flex flex-shrink-0" justify="end">
           <NavbarItem className="hidden sm:flex gap-2">
-            {/* <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
-            <TwitterIcon className="text-default-500" />
-          </Link>
-          <Link isExternal aria-label="Discord" href={siteConfig.links.discord}>
-            <DiscordIcon className="text-default-500" />
-          </Link>
-          <Link isExternal aria-label="Github" href={siteConfig.links.github}>
-            <GithubIcon className="text-default-500" />
-          </Link> */}
+            <Link isExternal aria-label="Github" href={siteConfig.links.github}>
+              <GithubIcon className="text-default-500" />
+            </Link>
             <ThemeSwitch />
           </NavbarItem>
           <NavbarItem className="hidden lg:flex">{searchButton}</NavbarItem>
@@ -180,9 +174,9 @@ export const Navbar = () => {
         </NavbarContent>
 
         <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-          {/* <Link isExternal aria-label="Github" href={siteConfig.links.github}>
-          <GithubIcon className="text-default-500" />
-        </Link> */}
+          <Link isExternal aria-label="Github" href={siteConfig.links.github}>
+            <GithubIcon className="text-default-500" />
+          </Link>
           <ThemeSwitch />
           <NavbarMenuToggle />
         </NavbarContent>

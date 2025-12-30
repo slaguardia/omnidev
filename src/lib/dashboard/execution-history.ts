@@ -45,6 +45,19 @@ export async function loadExecutionHistory(): Promise<ExecutionHistoryEntry[]> {
         if (result.rawOutput) {
           entry.rawOutput = result.rawOutput;
         }
+        // Extract branch info from gitInitResult (available for edit jobs)
+        if (result.gitInitResult && typeof result.gitInitResult === 'object') {
+          const gitInit = result.gitInitResult as {
+            sourceBranch?: string;
+            targetBranch?: string;
+          };
+          if (gitInit.sourceBranch) {
+            entry.sourceBranch = gitInit.sourceBranch;
+          }
+          if (gitInit.targetBranch) {
+            entry.targetBranch = gitInit.targetBranch;
+          }
+        }
       } else if (job.status === 'failed' && job.error) {
         entry.errorMessage = job.error;
       }

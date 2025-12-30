@@ -452,12 +452,20 @@ export async function pullChanges(workspaceId: WorkspaceId): Promise<AsyncResult
       return pullResult;
     }
 
-    // Update commit hash
+    // Update commit hash in memory and persist to disk
     const commitResult = await gitOps.getCurrentCommitHash(workspace.path);
     if (commitResult.success) {
-      await updateWorkspace(workspaceId, {
+      const updateResult = await updateWorkspace(workspaceId, {
         metadata: { commitHash: commitResult.data },
       });
+
+      // Persist to disk via WorkspaceManager
+      if (updateResult.success) {
+        await WorkspaceManagerFunctions.saveWorkspace(updateResult.data);
+        console.log(
+          `[REPOSITORY MANAGER] Updated commit hash to ${commitResult.data.substring(0, 7)} for workspace ${workspaceId}`
+        );
+      }
     }
 
     return { success: true, data: undefined };
