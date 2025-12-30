@@ -36,7 +36,8 @@
       "mcp__linear__list_teams",
       "mcp__linear__list_projects",
       "mcp__linear__create_issue",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "mcp__linear__list_issue_statuses"
     ]
   }
 }

@@ -936,6 +936,38 @@ export async function initializeGitWorkflow(
     // If no sourceBranch was provided, default to the targetBranch.
     const effectiveSourceBranch = sourceBranch || targetBranch;
 
+    // If source branch differs from target, validate it exists on remote
+    // This prevents creating orphan local branches that can't be pushed
+    if (effectiveSourceBranch !== targetBranch) {
+      console.log(
+        `[GIT WORKFLOW] Validating source branch exists on remote: origin/${effectiveSourceBranch}`
+      );
+      const remoteBranchesResult = await gitOps.getAllRemoteBranches(workspace.path);
+      if (!remoteBranchesResult.success) {
+        return {
+          success: false,
+          error: new Error(
+            `Failed to fetch remote branches: ${remoteBranchesResult.error?.message}`
+          ),
+        };
+      }
+
+      const remoteBranchExists = remoteBranchesResult.data.includes(effectiveSourceBranch);
+      if (!remoteBranchExists) {
+        return {
+          success: false,
+          error: new Error(
+            `Source branch '${effectiveSourceBranch}' does not exist on remote. ` +
+              `Available branches: ${remoteBranchesResult.data.slice(0, 5).join(', ')}` +
+              (remoteBranchesResult.data.length > 5
+                ? ` and ${remoteBranchesResult.data.length - 5} more`
+                : '')
+          ),
+        };
+      }
+      console.log(`[GIT WORKFLOW] ✅ Source branch exists on remote`);
+    }
+
     // Check if the source branch is the same as the target branch
     if (effectiveSourceBranch === targetBranch) {
       console.log(

@@ -307,7 +307,13 @@ export async function deleteBranch(
 }
 
 /**
- * Switch to a different branch
+ * Switch to a different branch and sync with remote
+ *
+ * If the branch exists locally, switches to it and syncs with remote (if remote exists).
+ * If not, attempts to create it tracking the remote branch (origin/branchName).
+ * Falls back to creating from HEAD if remote doesn't exist.
+ *
+ * Always fetches and syncs to avoid divergence issues.
  */
 export async function switchBranch(
   workspacePath: FilePath,
@@ -316,16 +322,42 @@ export async function switchBranch(
   try {
     const git = createSandboxedGit(workspacePath);
 
+    // Fetch latest from remote first to ensure we have up-to-date refs
+    console.log(`[GIT] Fetching latest from remote...`);
+    await git.fetch(['--all', '--prune']);
+
     // Check if branch exists locally
     const branches = await git.branch();
     const localBranches = Object.keys(branches.branches);
 
     if (localBranches.includes(branchName)) {
       // Switch to existing local branch
+      console.log(`[GIT] Switching to existing local branch: ${branchName}`);
       await git.checkout(branchName);
+
+      // Sync with remote if it exists (reset to avoid divergence)
+      try {
+        await git.raw(['rev-parse', `origin/${branchName}`]);
+        console.log(`[GIT] Syncing with origin/${branchName}...`);
+        await git.reset(['--hard', `origin/${branchName}`]);
+        console.log(`[GIT] ✅ Branch ${branchName} synced with remote`);
+      } catch {
+        // Remote doesn't exist for this branch, that's okay
+        console.log(`[GIT] No remote tracking branch origin/${branchName}, keeping local state`);
+      }
     } else {
-      // Create and switch to new branch from remote
-      await git.checkoutLocalBranch(branchName);
+      // Branch doesn't exist locally - try to create from remote tracking branch
+      console.log(`[GIT] Branch ${branchName} not found locally, checking remote...`);
+
+      // First, try to create tracking branch from origin
+      try {
+        await git.checkout(['-b', branchName, `origin/${branchName}`]);
+        console.log(`[GIT] Created local branch ${branchName} tracking origin/${branchName}`);
+      } catch {
+        // Remote branch doesn't exist, create from HEAD as fallback
+        console.log(`[GIT] Remote origin/${branchName} not found, creating from current HEAD`);
+        await git.checkoutLocalBranch(branchName);
+      }
     }
 
     return { success: true, data: undefined };
