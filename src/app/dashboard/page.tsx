@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { addToast } from '@heroui/toast';
+import { Select, SelectItem } from '@heroui/select';
 // Components
 import {
   CloneRepositoryModal,
@@ -18,6 +19,17 @@ import {
   QueueTab,
 } from '@/components/dashboard';
 import { motion, AnimatePresence } from '@/components/motion';
+
+const dashboardTabs = [
+  { key: 'workspaces', title: 'Workspaces' },
+  { key: 'operations', title: 'Operations' },
+  { key: 'queue', title: 'Request Queue' },
+  { key: 'history', title: 'Execution History' },
+  { key: 'git-source', title: 'Git Source Config' },
+  { key: 'snippets', title: 'Snippets' },
+  { key: 'settings', title: 'Environment Settings' },
+  { key: 'security', title: 'Account Security' },
+];
 
 // Hooks
 import {
@@ -197,6 +209,23 @@ export default function DashboardPage() {
       {/* Main Content Area - scrolls independently */}
       <div className="lg:pl-64 xl:pl-72 h-[calc(100vh-4rem)] overflow-hidden">
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 h-full overflow-y-auto">
+          {/* Mobile Navigation */}
+          <div className="lg:hidden mb-6">
+            <Select
+              label="Navigate to"
+              labelPlacement="outside"
+              selectedKeys={[activeTab]}
+              onChange={(e) => setActiveTab(e.target.value)}
+              classNames={{
+                trigger: 'bg-content2/60',
+              }}
+            >
+              {dashboardTabs.map((tab) => (
+                <SelectItem key={tab.key}>{tab.title}</SelectItem>
+              ))}
+            </Select>
+          </div>
+
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -208,7 +237,7 @@ export default function DashboardPage() {
               {activeTab === 'workspaces' && (
                 <WorkspacesTab
                   workspaces={workspaces}
-                  loading={loading}
+                  loading={workspacesLoading}
                   onRefreshWorkspaces={loadWorkspaces}
                   onOpenCloneModal={() => setIsCloneModalOpen(true)}
                   onDeleteWorkspace={handleCleanupWithToast}

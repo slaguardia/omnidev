@@ -170,23 +170,54 @@ export const Navbar = () => {
         <NavbarMenu>
           {searchButton}
           <div className="mx-4 mt-2 flex flex-col gap-2">
-            {siteConfig.navMenuItems.map((item, index) => (
-              <NavbarMenuItem key={`${item}-${index}`}>
+            {siteConfig.navItems.map((item) => (
+              <NavbarMenuItem key={item.href}>
                 <Link
-                  color={
-                    index === 2
-                      ? 'primary'
-                      : index === siteConfig.navMenuItems.length - 1
-                        ? 'danger'
-                        : 'foreground'
-                  }
-                  href="#"
+                  as={NextLink}
+                  className={clsx(
+                    'w-full',
+                    isActive(item.href)
+                      ? 'text-primary font-medium'
+                      : 'text-foreground'
+                  )}
+                  href={item.href}
                   size="lg"
                 >
                   {item.label}
                 </Link>
               </NavbarMenuItem>
             ))}
+          </div>
+          <div className="mx-4 mt-4 pt-4 border-t border-divider">
+            {!mounted || status === 'loading' ? (
+              <div className="w-full h-10" />
+            ) : session ? (
+              <div className="flex flex-col gap-3">
+                <span className="text-sm text-default-600">
+                  Signed in as {session.user?.name}
+                </span>
+                <Button
+                  fullWidth
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  onPress={handleSignOut}
+                >
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Button
+                as={NextLink}
+                href="/signin"
+                fullWidth
+                size="sm"
+                variant="flat"
+                color="primary"
+              >
+                Sign In
+              </Button>
+            )}
           </div>
         </NavbarMenu>
       </HeroUINavbar>
