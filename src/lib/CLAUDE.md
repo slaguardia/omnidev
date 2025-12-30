@@ -10,6 +10,7 @@ Core business logic organized by domain. Each module has an `index.ts` barrel ex
 | `claudeCode/` | Claude Code CLI integration      | Yes         |
 | `git/`        | Git operations via simple-git    | Yes         |
 | `gitlab/`     | GitLab API via @gitbeaker/rest   | Yes         |
+| `github/`     | GitHub API via @octokit/rest     | Yes         |
 | `queue/`      | File-based job queue             | Yes         |
 | `workspace/`  | Workspace management actions     | Yes         |
 | `managers/`   | Resource managers                | Yes         |
@@ -220,6 +221,47 @@ const mr = await createMergeRequest({
   sourceBranch: 'claude/feature-123',
   targetBranch: 'main',
 });
+```
+
+### `github/` - GitHub API
+
+GitHub API integration using @octokit/rest.
+
+**Key Files:**
+| File | Purpose |
+|------|---------|
+| `types.ts` | GitHub-specific type definitions |
+| `api.ts` | URL parsing, repository operations |
+| `pull-requests.ts` | Pull request creation |
+| `index.ts` | Barrel exports |
+
+**Key Exports:**
+
+```typescript
+// API operations
+export { extractOwnerRepoFromUrl, getRepository, getRepositoryBranches } from './api';
+export { createPullRequest, formatPullRequestDescription } from './pull-requests';
+
+// Types
+export type { CreatePullRequestParams, GitHubPullRequest } from './types';
+```
+
+**Usage:**
+
+```typescript
+import { createPullRequest, extractOwnerRepoFromUrl } from '@/lib/github';
+
+const ownerRepo = extractOwnerRepoFromUrl('https://github.com/owner/repo');
+if (ownerRepo) {
+  const pr = await createPullRequest({
+    owner: ownerRepo.owner,
+    repo: ownerRepo.repo,
+    title: 'Feature: Add new component',
+    body: 'AI-generated changes',
+    head: 'claude/feature-123',
+    base: 'main',
+  });
+}
 ```
 
 ### `queue/` - Job Queue

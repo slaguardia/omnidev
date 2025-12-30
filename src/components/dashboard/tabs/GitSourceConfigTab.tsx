@@ -13,8 +13,9 @@ interface GitSourceConfigTabProps {
   setEnvConfig: React.Dispatch<React.SetStateAction<ClientSafeAppConfig>>;
   pendingSensitiveData: {
     gitlabToken?: string;
+    githubToken?: string;
   };
-  updateSensitiveData: (type: 'gitlabToken' | 'claudeApiKey', value: string) => void;
+  updateSensitiveData: (type: 'gitlabToken' | 'githubToken' | 'claudeApiKey', value: string) => void;
   loading: boolean;
   onSaveConfig: () => void;
 }
@@ -140,6 +141,75 @@ export default function GitSourceConfigTab({
                 variant="bordered"
                 size="sm"
               />
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* GitHub Connection Card */}
+        <Card className="glass-card-static">
+          <CardHeader className="px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-default-500" />
+              <h3 className="font-semibold text-default-700 dark:text-default-500">
+                GitHub Connection
+              </h3>
+            </div>
+          </CardHeader>
+          <CardBody className="px-4 py-5 space-y-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-default-700">
+                <LabelWithTooltip
+                  label="GitHub Username"
+                  tooltip="Used for git clone authentication"
+                />
+              </label>
+              <Input
+                value={envConfig.github.username}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEnvConfig((prev) => ({
+                    ...prev,
+                    github: { ...prev.github, username: e.target.value },
+                  }))
+                }
+                variant="bordered"
+                size="sm"
+                placeholder="your-github-username"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-default-700">
+                <LabelWithTooltip
+                  label="Personal Access Token"
+                  tooltip={
+                    envConfig.github.tokenSet
+                      ? 'Token is configured (enter new value to update)'
+                      : 'Personal access token with repo scope'
+                  }
+                />
+              </label>
+              <Input
+                type="password"
+                value={pendingSensitiveData.githubToken || ''}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  updateSensitiveData('githubToken', e.target.value)
+                }
+                variant="bordered"
+                size="sm"
+                placeholder={
+                  envConfig.github.tokenSet ? '••••••••••••••••' : 'Enter your GitHub token'
+                }
+              />
+            </div>
+            <div className="pt-2">
+              <a
+                href="https://github.com/settings/tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Generate GitHub Token
+              </a>
             </div>
           </CardBody>
         </Card>

@@ -11,6 +11,14 @@ export type {
   GitConfig,
 } from '@/lib/git/types';
 
+// Export provider detection utilities
+export {
+  detectProviderFromUrl,
+  extractGitHubOwnerRepo,
+  isGitHubUrl,
+  isGitLabUrl,
+} from '@/lib/git/provider-detection';
+
 import {
   getCurrentBranch,
   getBranches,

@@ -11,6 +11,7 @@ import { cloneRepository as gitCloneRepository, validateGitUrl } from '@/lib/git
 import { getCurrentBranch } from '@/lib/git/branches';
 import { getCurrentCommitHash } from '@/lib/git/commits';
 import { setWorkspaceGitConfig as setGitConfig } from '@/lib/git/config';
+import { detectProviderFromUrl } from '@/lib/git/provider-detection';
 import { type GitCloneOptions } from '@/lib/git/types';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
 import { getWorkspaceBaseDir, getConfig } from '@/lib/config/server-actions';
@@ -163,12 +164,17 @@ export async function cloneRepository(
     const size = await calculateWorkspaceSize();
     console.log('[REPOSITORY MANAGER] Workspace size:', size);
 
+    // Detect git provider from URL
+    const provider = detectProviderFromUrl(repoUrl);
+    console.log('[REPOSITORY MANAGER] Detected provider:', provider);
+
     // Create workspace object
     const workspace: Workspace = {
       id: workspaceId,
       path: workspacePath,
       repoUrl,
       targetBranch: actualBranch, // Use the actual current branch
+      provider, // Store detected provider for PR/MR handling
       createdAt: new Date(),
       lastAccessed: new Date(),
       metadata: {

@@ -17,6 +17,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     commitEmail: '',
     allowedHosts: ['gitlab.com'],
   },
+  github: {
+    token: '',
+    username: '',
+    commitName: '',
+    commitEmail: '',
+  },
   claude: {
     apiKey: '',
     authMode: 'auto',
@@ -30,6 +36,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   security: {
     allowedGitLabHosts: ['gitlab.com'],
+    allowedGitHubHosts: ['github.com'],
     maxWorkspaceSize: 500 * 1024 * 1024, // 500MB in bytes
     apiKey: '',
   },
@@ -59,6 +66,12 @@ export function getDefaultClientSafeConfig(): ClientSafeAppConfig {
       commitEmail: DEFAULT_CONFIG.gitlab.commitEmail,
       tokenSet: false,
       allowedHosts: DEFAULT_CONFIG.gitlab.allowedHosts,
+    },
+    github: {
+      username: DEFAULT_CONFIG.github.username,
+      commitName: DEFAULT_CONFIG.github.commitName,
+      commitEmail: DEFAULT_CONFIG.github.commitEmail,
+      tokenSet: false,
     },
     claude: {
       apiKeySet: false,

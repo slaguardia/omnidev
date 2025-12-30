@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A Next.js 15 web application that provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis. Users can clone repositories, ask questions about code, and request AI-assisted edits with automatic branch creation and merge request support.
+A Next.js 15 web application that provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis. Users can clone repositories from GitHub or GitLab, ask questions about code, and request AI-assisted edits with automatic branch creation and pull/merge request support.
 
 ## Technology Stack
 
@@ -15,6 +15,7 @@ A Next.js 15 web application that provides a web UI for managing Git workspaces 
 | Authentication  | NextAuth.js with 2FA (TOTP)             | 4.x     |
 | Git Operations  | simple-git                              | 3.x     |
 | GitLab API      | @gitbeaker/rest                         | 39.x    |
+| GitHub API      | @octokit/rest                           | 22.x    |
 | Validation      | Zod                                     | 3.x     |
 | Testing         | Vitest                                  | 2.x     |
 | Package Manager | pnpm                                    | -       |
@@ -41,6 +42,7 @@ workflow/
 │       ├── claudeCode/         # Claude Code CLI integration
 │       ├── config/             # Configuration management
 │       ├── git/                # Git operations (simple-git)
+│       ├── github/             # GitHub API integration
 │       ├── gitlab/             # GitLab API integration
 │       ├── managers/           # Resource managers
 │       ├── queue/              # Job queue system
@@ -87,14 +89,15 @@ docker compose watch      # Dev mode with hot reload
 
 ### Core Subsystems
 
-| Subsystem                | Location                             | Purpose                     |
-| ------------------------ | ------------------------------------ | --------------------------- |
-| Workspace Manager        | `lib/managers/workspace-manager.ts`  | CRUD for git workspaces     |
-| Repository Manager       | `lib/managers/repository-manager.ts` | Git clone/branch operations |
-| Claude Code Orchestrator | `lib/claudeCode/orchestrator.ts`     | Execute Claude Code CLI     |
-| Job Queue                | `lib/queue/`                         | Async job execution         |
-| Git Operations           | `lib/git/`                           | simple-git wrapper          |
-| GitLab Integration       | `lib/gitlab/`                        | MR creation, project API    |
+| Subsystem                | Location                             | Purpose                       |
+| ------------------------ | ------------------------------------ | ----------------------------- |
+| Workspace Manager        | `lib/managers/workspace-manager.ts`  | CRUD for git workspaces       |
+| Repository Manager       | `lib/managers/repository-manager.ts` | Git clone/branch operations   |
+| Claude Code Orchestrator | `lib/claudeCode/orchestrator.ts`     | Execute Claude Code CLI       |
+| Job Queue                | `lib/queue/`                         | Async job execution           |
+| Git Operations           | `lib/git/`                           | simple-git wrapper            |
+| GitHub Integration       | `lib/github/`                        | PR creation, repository API   |
+| GitLab Integration       | `lib/gitlab/`                        | MR creation, project API      |
 
 ### Data Storage
 
@@ -203,6 +206,7 @@ export async function POST(request: NextRequest) {
 | `ANTHROPIC_API_KEY` | Yes      | Claude API key                   |
 | `GITLAB_URL`        | No       | GitLab instance URL              |
 | `GITLAB_TOKEN`      | No       | GitLab personal access token     |
+| `GITHUB_TOKEN`      | No       | GitHub personal access token     |
 | `API_RATE_LIMIT`    | No       | Requests per hour (default: 100) |
 | `ALLOWED_IPS`       | No       | IP whitelist (\* for all)        |
 

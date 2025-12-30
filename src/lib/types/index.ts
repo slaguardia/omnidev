@@ -9,6 +9,11 @@ export type FilePath = string & { readonly brand: unique symbol };
 export type CommitHash = string & { readonly brand: unique symbol };
 
 /**
+ * Git provider type
+ */
+export type GitProvider = 'gitlab' | 'github' | 'other';
+
+/**
  * Workspace configuration and metadata
  */
 export interface Workspace {
@@ -19,6 +24,7 @@ export interface Workspace {
   createdAt: Date;
   lastAccessed: Date;
   metadata?: WorkspaceMetadata;
+  provider?: GitProvider; // Detected from repoUrl, optional for backwards compat
 }
 
 export interface WorkspaceMetadata {
@@ -127,6 +133,34 @@ export interface GitLabMergeRequest {
   };
 }
 
+/**
+ * GitHub API types
+ */
+export interface GitHubPullRequest {
+  id: number;
+  number: number;
+  title: string;
+  body: string;
+  state: 'open' | 'closed';
+  head: {
+    ref: string;
+    sha: string;
+  };
+  base: {
+    ref: string;
+    sha: string;
+  };
+  htmlUrl: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: number;
+    login: string;
+  };
+  merged: boolean;
+  mergedAt?: Date;
+}
+
 export interface CreateMergeRequestOptions {
   projectId: string | number;
   title: string;
@@ -171,6 +205,7 @@ export enum WorkspaceErrorCode {
  */
 export interface AppConfig {
   gitlab: GitLabConfig;
+  github: GitHubConfig;
   claude: ClaudeConfig;
   workspace: WorkspaceConfig;
   security: SecurityConfig;
@@ -182,6 +217,7 @@ export interface AppConfig {
  */
 export interface ClientSafeAppConfig {
   gitlab: ClientSafeGitLabConfig;
+  github: ClientSafeGitHubConfig;
   claude: ClientSafeClaudeConfig;
   workspace: WorkspaceConfig;
   security: SecurityConfig;
@@ -204,6 +240,20 @@ export interface ClientSafeGitLabConfig {
   commitEmail: string;
   tokenSet: boolean; // Instead of the actual token
   allowedHosts: string[];
+}
+
+export interface GitHubConfig {
+  token: string;
+  username: string;
+  commitName: string;
+  commitEmail: string;
+}
+
+export interface ClientSafeGitHubConfig {
+  username: string;
+  commitName: string;
+  commitEmail: string;
+  tokenSet: boolean; // Instead of the actual token
 }
 
 export interface ClaudeConfig {
@@ -233,6 +283,7 @@ export interface WorkspaceConfig {
 
 export interface SecurityConfig {
   allowedGitLabHosts: string[];
+  allowedGitHubHosts: string[];
   maxWorkspaceSize: number;
   apiKey: string;
 }

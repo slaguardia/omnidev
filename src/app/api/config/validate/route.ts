@@ -27,6 +27,7 @@ function loadConfigFromFile(): AppConfig {
     const savedConfig = JSON.parse(configData) as Partial<AppConfig>;
     return {
       gitlab: { ...DEFAULT_CONFIG.gitlab, ...savedConfig.gitlab },
+      github: { ...DEFAULT_CONFIG.github, ...savedConfig.github },
       claude: { ...DEFAULT_CONFIG.claude, ...savedConfig.claude },
       workspace: { ...DEFAULT_CONFIG.workspace, ...savedConfig.workspace },
       security: { ...DEFAULT_CONFIG.security, ...savedConfig.security },

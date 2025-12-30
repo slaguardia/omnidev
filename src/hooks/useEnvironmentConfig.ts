@@ -7,10 +7,12 @@ export const useEnvironmentConfig = () => {
   const [envConfig, setEnvConfig] = useState<ClientSafeAppConfig>(getDefaultClientSafeConfig());
   const [pendingSensitiveData, setPendingSensitiveData] = useState<{
     gitlabToken?: string;
+    githubToken?: string;
     claudeApiKey?: string;
   }>({});
   const [touchedFields, setTouchedFields] = useState<{
     gitlabToken?: boolean;
+    githubToken?: boolean;
     claudeApiKey?: boolean;
   }>({});
   const [loading, setLoading] = useState(false);
@@ -35,9 +37,12 @@ export const useEnvironmentConfig = () => {
 
       // Only include sensitive data for fields that were actually touched
       // Use empty string as fallback since touched means user interacted with the field
-      const sensitiveDataToSend: { gitlabToken?: string; claudeApiKey?: string } = {};
+      const sensitiveDataToSend: { gitlabToken?: string; githubToken?: string; claudeApiKey?: string } = {};
       if (touchedFields.gitlabToken) {
         sensitiveDataToSend.gitlabToken = pendingSensitiveData.gitlabToken ?? '';
+      }
+      if (touchedFields.githubToken) {
+        sensitiveDataToSend.githubToken = pendingSensitiveData.githubToken ?? '';
       }
       if (touchedFields.claudeApiKey) {
         sensitiveDataToSend.claudeApiKey = pendingSensitiveData.claudeApiKey ?? '';
@@ -63,7 +68,7 @@ export const useEnvironmentConfig = () => {
     }
   };
 
-  const updateSensitiveData = (type: 'gitlabToken' | 'claudeApiKey', value: string) => {
+  const updateSensitiveData = (type: 'gitlabToken' | 'githubToken' | 'claudeApiKey', value: string) => {
     setPendingSensitiveData((prev) => ({
       ...prev,
       [type]: value,
@@ -96,6 +101,15 @@ export const useEnvironmentConfig = () => {
       envConfig.gitlab.tokenSet
     ) {
       clearing.push('GitLab Token');
+    }
+
+    // Check if GitHub token is being cleared (touched, empty, and was previously set)
+    if (
+      touchedFields.githubToken &&
+      !pendingSensitiveData.githubToken &&
+      envConfig.github.tokenSet
+    ) {
+      clearing.push('GitHub Token');
     }
 
     // Check if Claude API key is being cleared (touched, empty, and was previously set)

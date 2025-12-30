@@ -40,6 +40,7 @@ function loadConfigFromFile(): AppConfig {
     // Merge with defaults to ensure all fields exist
     return {
       gitlab: { ...DEFAULT_CONFIG.gitlab, ...savedConfig.gitlab },
+      github: { ...DEFAULT_CONFIG.github, ...savedConfig.github },
       claude: { ...DEFAULT_CONFIG.claude, ...savedConfig.claude },
       workspace: { ...DEFAULT_CONFIG.workspace, ...savedConfig.workspace },
       security: { ...DEFAULT_CONFIG.security, ...savedConfig.security },
@@ -70,6 +71,12 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
       commitEmail: config.gitlab.commitEmail || '',
       tokenSet: !!config.gitlab.token,
       allowedHosts: config.gitlab.allowedHosts,
+    },
+    github: {
+      username: config.github.username || '',
+      commitName: config.github.commitName || '',
+      commitEmail: config.github.commitEmail || '',
+      tokenSet: !!config.github.token,
     },
     claude: {
       apiKeySet: !!config.claude.apiKey,
@@ -173,6 +180,7 @@ export async function updateConfigFromClient(
   clientConfig: ClientSafeAppConfig,
   sensitiveData?: {
     gitlabToken?: string;
+    githubToken?: string;
     claudeApiKey?: string;
   }
 ): Promise<{ success: boolean; message: string; errors?: string[] }> {
@@ -207,6 +215,15 @@ export async function updateConfigFromClient(
             ? sensitiveData.gitlabToken
             : currentConfig.gitlab.token,
         allowedHosts: clientConfig.gitlab.allowedHosts,
+      },
+      github: {
+        username: clientConfig.github.username,
+        commitName: clientConfig.github.commitName,
+        commitEmail: clientConfig.github.commitEmail,
+        token:
+          sensitiveData?.githubToken !== undefined
+            ? sensitiveData.githubToken
+            : currentConfig.github.token,
       },
       claude: {
         apiKey:

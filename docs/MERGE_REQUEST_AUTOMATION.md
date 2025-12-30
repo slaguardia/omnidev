@@ -1,20 +1,20 @@
-# Merge Request Automation
+# Merge Request / Pull Request Automation
 
-This document explains how the merge request creation functionality works after Claude Code makes edits to your repository.
+This document explains how the merge request (GitLab) and pull request (GitHub) creation functionality works after Claude Code makes edits to your repository.
 
 ## Overview
 
-The system can create merge requests after Claude Code makes changes to your workspace.
+The system can create merge requests (GitLab) or pull requests (GitHub) after Claude Code makes changes to your workspace. The provider is automatically detected from the repository URL.
 
-For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR creation runs **inside the same queue job** (consistent whether the request is immediate or queued).
+For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR/PR creation runs **inside the same queue job** (consistent whether the request is immediate or queued).
 
 ## Setup
 
 ### Environment Variables
 
-Add these to your `.env` file:
+Add these to your `.env` file depending on your git provider:
 
-Required for merge request creation:
+**For GitLab repositories:**
 
 ```bash
 GITLAB_TOKEN=your_gitlab_personal_access_token
@@ -22,6 +22,12 @@ GITLAB_URL=https://gitlab.com
 ```
 
 Note: Use your GitLab instance URL if self-hosted
+
+**For GitHub repositories:**
+
+```bash
+GITHUB_TOKEN=your_github_personal_access_token
+```
 
 ### GitLab Token Setup
 
@@ -31,16 +37,30 @@ Note: Use your GitLab instance URL if self-hosted
    - `write_repository` (push code, create MRs)
 3. Copy the token to your environment variables
 
+### GitHub Token Setup
+
+1. Go to GitHub → Settings → Developer settings → Personal access tokens
+2. Create a token with these scopes:
+   - `repo` (full repository access)
+3. Copy the token to your environment variables or configure via the Dashboard UI
+
 ## How It Works
 
-### Automated MR Creation
+### Provider Detection
+
+The system automatically detects your git provider from the repository URL:
+- URLs containing `github.com` or `github.` → GitHub (creates Pull Request)
+- URLs containing `gitlab.com` or `gitlab.` → GitLab (creates Merge Request)
+- Other URLs → No automatic MR/PR creation (changes are still pushed)
+
+### Automated MR/PR Creation
 
 After Claude Code completes any changes to your workspace:
 
 1. **Change Detection**: The system checks if any files were modified
 2. **Auto Commit**: Changes are automatically committed
 3. **Branch Push**: The feature branch is pushed to the remote repository
-4. **MR Creation**: A merge request is created (if GitLab API is configured)
+4. **MR/PR Creation**: A merge request (GitLab) or pull request (GitHub) is created if the respective API is configured
 
 ### Branch Workflow
 
@@ -59,7 +79,7 @@ If you need fully custom MR metadata, that would be a follow-up enhancement to p
 
 ## API Usage
 
-### Basic Merge Request Creation
+### GitLab Merge Request Creation
 
 ```typescript
 import { createMergeRequest } from '@/lib/gitlab';
@@ -74,7 +94,22 @@ const result = await createMergeRequest({
 });
 ```
 
-### Configuration Options
+### GitHub Pull Request Creation
+
+```typescript
+import { createPullRequest } from '@/lib/github';
+
+const result = await createPullRequest({
+  owner: 'repository-owner',
+  repo: 'repository-name',
+  title: 'Your PR Title',
+  body: 'Your detailed description of changes',
+  head: 'feature-branch',
+  base: 'main',
+});
+```
+
+### GitLab Configuration Options
 
 | Option               | Type     | Description                      | Default  |
 | -------------------- | -------- | -------------------------------- | -------- |
@@ -88,11 +123,24 @@ const result = await createMergeRequest({
 | `assigneeId`         | number   | GitLab user ID to assign         | none     |
 | `labels`             | string[] | Labels to add to MR              | `[]`     |
 
+### GitHub Configuration Options
+
+| Option  | Type    | Description                 | Default  |
+| ------- | ------- | --------------------------- | -------- |
+| `owner` | string  | Repository owner/org        | Required |
+| `repo`  | string  | Repository name             | Required |
+| `title` | string  | Pull request title          | Required |
+| `body`  | string  | Pull request description    | Required |
+| `head`  | string  | Source branch name          | Required |
+| `base`  | string  | Target branch for PR        | `main`   |
+| `draft` | boolean | Create as draft PR          | `false`  |
+| `token` | string  | GitHub token (if not in UI) | none     |
+
 ## Error Handling
 
 The system gracefully handles errors:
 
-**If GitLab token is missing:**
+**If GitLab token is missing (for GitLab repos):**
 
 ```json
 {
@@ -101,7 +149,16 @@ The system gracefully handles errors:
 }
 ```
 
-**If MR creation fails but Claude Code succeeds:**
+**If GitHub token is missing (for GitHub repos):**
+
+```json
+{
+  "autoMRDisabled": true,
+  "warning": "GitHub token not configured - pull request creation skipped"
+}
+```
+
+**If MR/PR creation fails but Claude Code succeeds:**
 
 ```json
 {
@@ -120,9 +177,9 @@ The system gracefully handles errors:
 1. **Manual Descriptions**: Write clear, detailed descriptions explaining what changed and why
 2. **Branch Naming**: Use descriptive branch names that reflect the changes
 3. **Small Changes**: Ask Claude for focused, reviewable changes
-4. **Environment Setup**: Ensure GitLab tokens are properly configured
-5. **Review Process**: Always review merge requests before approving
-6. **Testing**: Test changes locally before creating merge requests
+4. **Environment Setup**: Ensure GitLab/GitHub tokens are properly configured for your repositories
+5. **Review Process**: Always review merge requests/pull requests before approving
+6. **Testing**: Test changes locally before creating merge requests/pull requests
 
 ## Troubleshooting
 
@@ -130,20 +187,30 @@ The system gracefully handles errors:
 
 1. **"GitLab token not configured"**
 
-   - Ensure `GITLAB_TOKEN` is set in environment
+   - Ensure `GITLAB_TOKEN` is set in environment or configured via Dashboard UI
    - Verify token has `api` and `write_repository` scopes
 
-2. **"Auto mode is deprecated"**
+2. **"GitHub token not configured"**
+
+   - Ensure `GITHUB_TOKEN` is set in environment or configured via Dashboard UI
+   - Verify token has `repo` scope
+
+3. **"Auto mode is deprecated"**
 
    - Update your code to provide manual title and description
    - Remove reliance on auto-generated summaries
 
-3. **"Failed to extract project ID"**
+4. **"Failed to extract project ID"** (GitLab)
 
    - Check repository URL format
    - Ensure workspace is properly initialized
 
-4. **"No current branch found"**
+5. **"Could not extract owner/repo"** (GitHub)
+
+   - Check repository URL format (should be `https://github.com/owner/repo`)
+   - Ensure the URL is a valid GitHub repository URL
+
+6. **"No current branch found"**
    - Ensure you're on a feature branch (not detached HEAD)
    - Claude Code will create a new branch if needed
 

@@ -1,12 +1,13 @@
 import { WorkspaceConfig } from '@/lib/workspace/types';
-import { GitLabConfig } from '@/lib/gitlab/types';
-import { ClientSafeGitLabConfig } from '@/lib/gitlab/types';
+import { GitLabConfig, ClientSafeGitLabConfig } from '@/lib/gitlab/types';
+import { GitHubConfig, ClientSafeGitHubConfig } from '@/lib/github/types';
 
 /**
  * Configuration types
  */
 export interface AppConfig {
   gitlab: GitLabConfig;
+  github: GitHubConfig;
   claude: ClaudeConfig;
   workspace: WorkspaceConfig;
   security: SecurityConfig;
@@ -18,6 +19,7 @@ export interface AppConfig {
  */
 export interface ClientSafeAppConfig {
   gitlab: ClientSafeGitLabConfig;
+  github: ClientSafeGitHubConfig;
   claude: ClientSafeClaudeConfig;
   workspace: WorkspaceConfig;
   security: SecurityConfig;
@@ -45,6 +47,7 @@ export interface ClientSafeClaudeConfig {
 
 export interface SecurityConfig {
   allowedGitLabHosts: string[];
+  allowedGitHubHosts: string[];
   maxWorkspaceSize: number;
   apiKey: string;
 }

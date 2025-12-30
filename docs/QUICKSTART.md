@@ -54,9 +54,19 @@ docker compose up --build
 
 See [Docker Setup](/docs/docker) for detailed Docker configuration.
 
+## Git Provider Support
+
+The application supports both GitLab and GitHub repositories:
+
+- **GitLab**: Creates Merge Requests after Claude Code edits
+- **GitHub**: Creates Pull Requests after Claude Code edits
+
+The provider is auto-detected from the repository URL. See [Credentials Management](/docs/credentials) for token setup.
+
 ## Next Steps
 
 - [Environment Setup](/docs/environment) - Configure environment variables
 - [Docker Setup](/docs/docker) - Deploy with Docker
 - [API Operations](/docs/api-operations) - Use the API
 - [Credentials Management](/docs/credentials) - Manage tokens and keys
+- [MR/PR Automation](/docs/merge-request-automation) - Automated merge/pull request creation

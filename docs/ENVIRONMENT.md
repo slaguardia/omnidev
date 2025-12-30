@@ -53,9 +53,14 @@ API_RATE_LIMIT=100
 
 # ---- Integration credentials (or configure via Dashboard UI) ----
 ANTHROPIC_API_KEY=<your-anthropic-key>
+
+# GitLab (for GitLab repositories)
 GITLAB_URL=https://gitlab.com
 GITLAB_TOKEN=<your-gitlab-token>
 ALLOWED_GITLAB_HOSTS=gitlab.com
+
+# GitHub (for GitHub repositories)
+GITHUB_TOKEN=<your-github-token>
 ```
 
 ### Generate Secure Values
@@ -201,6 +206,19 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
 - **Format:** Comma-separated hostnames
 - **Default:** `gitlab.com`
 - **Example:** `gitlab.com,gitlab.company.com`
+
+---
+
+### GitHub Integration
+
+#### GITHUB_TOKEN
+
+- **Required:** No (can be set via UI)
+- **Description:** GitHub personal access token for pull request creation
+- **Format:** String (starts with `ghp_` for fine-grained tokens or `github_pat_` for classic tokens)
+- **Scopes Required:** `repo` (full repository access)
+- **Create:** https://github.com/settings/tokens
+- **Note:** Can also be configured through the Dashboard UI
 
 ---
 
