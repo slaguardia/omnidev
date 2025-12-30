@@ -1000,8 +1000,10 @@ export async function initializeGitWorkflow(
     else {
       console.log(`[GIT WORKFLOW] Switching to source branch: ${effectiveSourceBranch}`);
 
-      // Switch to the source branch
-      const switchResult = await gitOps.switchBranch(workspace.path, effectiveSourceBranch);
+      // Switch to the source branch (requireRemote=true since we validated it exists above)
+      const switchResult = await gitOps.switchBranch(workspace.path, effectiveSourceBranch, {
+        requireRemote: true,
+      });
       if (!switchResult.success) {
         return {
           success: false,
@@ -1011,15 +1013,9 @@ export async function initializeGitWorkflow(
         };
       }
 
-      // Sync source branch with remote (reset to origin/branch)
-      console.log(`[GIT WORKFLOW] Syncing source branch with remote...`);
-      const pullResult = await gitOps.pullChanges(workspace.path);
-      if (!pullResult.success) {
-        return {
-          success: false,
-          error: new Error(`Failed to sync source branch with remote: ${pullResult.error.message}`),
-        };
-      }
+      // Note: switchBranch with requireRemote=true already syncs with remote via reset --hard
+      // No need to call pullChanges separately
+      console.log(`[GIT WORKFLOW] ✅ Source branch synced with remote`);
 
       return {
         success: true,

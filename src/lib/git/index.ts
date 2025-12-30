@@ -28,7 +28,11 @@ import {
   deleteBranch,
   switchBranch,
   cleanBranches,
+  type SwitchBranchOptions,
 } from '@/lib/git/branches';
+
+// Export branch types
+export type { SwitchBranchOptions };
 import {
   getCurrentCommitHash,
   getCommitInfo,

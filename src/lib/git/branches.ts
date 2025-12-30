@@ -306,19 +306,30 @@ export async function deleteBranch(
   }
 }
 
+export interface SwitchBranchOptions {
+  /**
+   * If true, the branch MUST exist on remote. Fails instead of falling back to creating from HEAD.
+   * Use this when you've already validated the remote branch exists.
+   */
+  requireRemote?: boolean;
+}
+
 /**
  * Switch to a different branch and sync with remote
  *
  * If the branch exists locally, switches to it and syncs with remote (if remote exists).
  * If not, attempts to create it tracking the remote branch (origin/branchName).
- * Falls back to creating from HEAD if remote doesn't exist.
+ * Falls back to creating from HEAD if remote doesn't exist (unless requireRemote is true).
  *
  * Always fetches and syncs to avoid divergence issues.
  */
 export async function switchBranch(
   workspacePath: FilePath,
-  branchName: string
+  branchName: string,
+  options: SwitchBranchOptions = {}
 ): Promise<AsyncResult<void>> {
+  const { requireRemote = false } = options;
+
   try {
     const git = createSandboxedGit(workspacePath);
 
@@ -342,6 +353,15 @@ export async function switchBranch(
         await git.reset(['--hard', `origin/${branchName}`]);
         console.log(`[GIT] ✅ Branch ${branchName} synced with remote`);
       } catch {
+        if (requireRemote) {
+          return {
+            success: false,
+            error: new Error(
+              `Branch ${branchName} exists locally but remote origin/${branchName} not found. ` +
+                `Cannot sync with remote as required.`
+            ),
+          };
+        }
         // Remote doesn't exist for this branch, that's okay
         console.log(`[GIT] No remote tracking branch origin/${branchName}, keeping local state`);
       }
@@ -349,12 +369,89 @@ export async function switchBranch(
       // Branch doesn't exist locally - try to create from remote tracking branch
       console.log(`[GIT] Branch ${branchName} not found locally, checking remote...`);
 
-      // First, try to create tracking branch from origin
+      // Try multiple methods to fetch and create the tracking branch
+      let remoteRefCreated = false;
+
+      // Method 1: Standard fetch of specific branch
       try {
-        await git.checkout(['-b', branchName, `origin/${branchName}`]);
-        console.log(`[GIT] Created local branch ${branchName} tracking origin/${branchName}`);
-      } catch {
-        // Remote branch doesn't exist, create from HEAD as fallback
+        console.log(`[GIT] Fetching origin/${branchName} with standard fetch...`);
+        await git.raw(['fetch', 'origin', branchName]);
+        // Verify the ref was created
+        await git.raw(['rev-parse', `origin/${branchName}`]);
+        remoteRefCreated = true;
+        console.log(`[GIT] ✅ Successfully fetched origin/${branchName}`);
+      } catch (fetchError) {
+        console.log(`[GIT] Standard fetch failed: ${fetchError}`);
+      }
+
+      // Method 2: Explicit refspec fetch (if method 1 failed)
+      if (!remoteRefCreated) {
+        try {
+          console.log(`[GIT] Trying explicit refspec fetch...`);
+          await git.raw([
+            'fetch',
+            'origin',
+            `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
+          ]);
+          // Verify the ref was created
+          await git.raw(['rev-parse', `origin/${branchName}`]);
+          remoteRefCreated = true;
+          console.log(`[GIT] ✅ Successfully fetched origin/${branchName} via refspec`);
+        } catch (refspecError) {
+          console.log(`[GIT] Refspec fetch failed: ${refspecError}`);
+        }
+      }
+
+      // Method 3: Fetch all and re-check (sometimes fetch --all misses new branches)
+      if (!remoteRefCreated) {
+        try {
+          console.log(`[GIT] Trying fetch --all again with verbose...`);
+          await git.raw(['fetch', '--all', '--verbose']);
+          // Check if ref exists now
+          await git.raw(['rev-parse', `origin/${branchName}`]);
+          remoteRefCreated = true;
+          console.log(`[GIT] ✅ Found origin/${branchName} after verbose fetch`);
+        } catch {
+          console.log(`[GIT] Remote ref origin/${branchName} still not available`);
+        }
+      }
+
+      // Now try to checkout
+      if (remoteRefCreated) {
+        // Remote ref exists, create tracking branch
+        try {
+          await git.checkout(['-b', branchName, `origin/${branchName}`]);
+          console.log(`[GIT] ✅ Created local branch ${branchName} tracking origin/${branchName}`);
+
+          // Verify we're synced properly
+          const localHead = await git.raw(['rev-parse', 'HEAD']);
+          const remoteHead = await git.raw(['rev-parse', `origin/${branchName}`]);
+          if (localHead.trim() !== remoteHead.trim()) {
+            console.log(`[GIT] Heads differ, forcing sync...`);
+            await git.reset(['--hard', `origin/${branchName}`]);
+          }
+          console.log(`[GIT] ✅ Branch ${branchName} fully synced with remote`);
+        } catch (checkoutError) {
+          return {
+            success: false,
+            error: new Error(
+              `Remote ref origin/${branchName} exists but checkout failed: ${checkoutError}`
+            ),
+          };
+        }
+      } else {
+        // Remote ref doesn't exist
+        if (requireRemote) {
+          return {
+            success: false,
+            error: new Error(
+              `Branch ${branchName} does not exist on remote and requireRemote=true. ` +
+                `Refusing to create from HEAD. Check that the branch exists on origin.`
+            ),
+          };
+        }
+
+        // Fallback: create from HEAD (only when we don't require remote)
         console.log(`[GIT] Remote origin/${branchName} not found, creating from current HEAD`);
         await git.checkoutLocalBranch(branchName);
       }
