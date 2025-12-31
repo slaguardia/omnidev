@@ -57,13 +57,26 @@ export async function pushChanges(
   try {
     const git = createSandboxedGit(workspacePath);
 
-    // Diagnostic logging before push
     const currentBranch = branch || (await git.revparse(['--abbrev-ref', 'HEAD'])).trim();
+
+    // Fresh fetch before push to ensure we have the latest remote state
+    // This prevents "non-fast-forward" errors due to stale local refs
+    console.log(`[GIT PUSH] Fetching latest state of origin/${currentBranch}...`);
+    try {
+      await git.fetch(['origin', currentBranch]);
+    } catch (fetchError) {
+      console.warn(`[GIT PUSH] Could not fetch origin/${currentBranch}: ${fetchError}`);
+      // Continue anyway - branch might be new
+    }
+
+    // Diagnostic logging before push
     const localHead = await git.raw(['rev-parse', 'HEAD']);
     const localShort = localHead.trim().substring(0, 7);
 
     let remoteShort = 'N/A';
     let isBehind = false;
+    let behind = 0;
+    let ahead = 0;
     try {
       const remoteHead = await git.raw(['rev-parse', `origin/${currentBranch}`]);
       remoteShort = remoteHead.trim().substring(0, 7);
@@ -76,8 +89,8 @@ export async function pushChanges(
         `origin/${currentBranch}...HEAD`,
       ]);
       const parts = aheadBehind.trim().split(/\s+/).map(Number);
-      const behind = parts[0] ?? 0;
-      const ahead = parts[1] ?? 0;
+      behind = parts[0] ?? 0;
+      ahead = parts[1] ?? 0;
       isBehind = behind > 0;
 
       console.log(
@@ -86,7 +99,10 @@ export async function pushChanges(
 
       if (isBehind) {
         console.warn(
-          `[GIT PUSH] ⚠️ Local branch is ${behind} commit(s) behind remote - push may fail!`
+          `[GIT PUSH] ⚠️ Local branch is ${behind} commit(s) behind remote - push will likely fail!`
+        );
+        console.warn(
+          `[GIT PUSH] Remote has commits that local doesn't have. Consider rebasing or using createMR=true.`
         );
       }
     } catch {

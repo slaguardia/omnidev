@@ -182,49 +182,47 @@ export default function WorkspaceDetailModal({
                       </button>
                     </Tooltip>
                   </div>
-                  <Select
-                    label="Select default branch"
-                    labelPlacement="inside"
-                    selectedKeys={selectedBranch ? [selectedBranch] : []}
-                    onSelectionChange={(keys) => {
-                      const selected = Array.from(keys)[0] as string;
-                      if (selected) setSelectedBranch(selected);
-                    }}
-                    isLoading={branchesLoading}
-                    variant="bordered"
-                    classNames={{
-                      trigger: 'h-12',
-                    }}
-                  >
-                    {branches.map((branch) => (
-                      <SelectItem key={branch} textValue={branch}>
-                        <div className="flex items-center gap-2">
-                          <GitBranch className="w-4 h-4 text-default-400" />
-                          <span>{branch}</span>
-                          {branch === workspace.branch && (
-                            <Chip size="sm" variant="flat" color="primary" className="ml-auto">
-                              current
-                            </Chip>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </Select>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-default-600">Branch protection:</span>
-                    {permissions ? (
-                      <Chip
-                        size="sm"
-                        variant="flat"
-                        color={permissions.targetBranchProtected ? 'warning' : 'success'}
-                        startContent={
-                          permissions.targetBranchProtected ? <Lock className="w-3 h-3" /> : null
-                        }
-                      >
-                        {permissions.targetBranchProtected ? 'Protected' : 'Not protected'}
-                      </Chip>
-                    ) : (
-                      <span className="text-sm text-default-400 italic">Unknown</span>
+                    <Select
+                      label="Select default branch"
+                      labelPlacement="inside"
+                      selectedKeys={selectedBranch ? [selectedBranch] : []}
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0] as string;
+                        if (selected) setSelectedBranch(selected);
+                      }}
+                      isLoading={branchesLoading}
+                      variant="bordered"
+                      classNames={{
+                        trigger: 'h-12',
+                        base: 'flex-1',
+                      }}
+                    >
+                      {branches.map((branch) => (
+                        <SelectItem key={branch} textValue={branch}>
+                          <div className="flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-default-400" />
+                            <span>{branch}</span>
+                            {branch === workspace.branch && (
+                              <Chip size="sm" variant="flat" color="primary" className="ml-auto">
+                                current
+                              </Chip>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </Select>
+                    {permissions?.targetBranchProtected && (
+                      <Tooltip content="This branch is protected">
+                        <Chip
+                          size="sm"
+                          variant="flat"
+                          color="warning"
+                          startContent={<Lock className="w-3 h-3" />}
+                        >
+                          Protected
+                        </Chip>
+                      </Tooltip>
                     )}
                   </div>
                   {selectedBranch !== workspace.branch && (
@@ -365,14 +363,11 @@ export default function WorkspaceDetailModal({
               <Button color="default" variant="flat" onPress={onClose}>
                 Cancel
               </Button>
-              <Button
-                color="primary"
-                onPress={handleSave}
-                isLoading={saving}
-                isDisabled={selectedBranch === workspace.branch}
-              >
-                {selectedBranch === workspace.branch ? 'Close' : 'Save Changes'}
-              </Button>
+              {selectedBranch !== workspace.branch && (
+                <Button color="primary" onPress={handleSave} isLoading={saving}>
+                  Save Changes
+                </Button>
+              )}
             </ModalFooter>
           </>
         )}

@@ -335,7 +335,42 @@ export async function switchBranch(
 
     // Fetch latest from remote first to ensure we have up-to-date refs
     console.log(`[GIT] Fetching latest from remote...`);
-    await git.fetch(['--all', '--prune']);
+    await git.fetch(['--all', '--prune', '--force']);
+
+    // Verify we have the correct remote state using ls-remote
+    try {
+      const lsRemote = await git.raw(['ls-remote', 'origin', `refs/heads/${branchName}`]);
+      if (lsRemote.trim()) {
+        const actualRemoteCommit = lsRemote.split(/\s+/)[0]?.substring(0, 7) || 'unknown';
+        const localRef = await git
+          .raw(['rev-parse', `origin/${branchName}`])
+          .catch(() => 'not-found');
+        const localRefShort = localRef.trim().substring(0, 7);
+        console.log(
+          `[GIT] Remote state: actual origin/${branchName}=${actualRemoteCommit}, local ref=${localRefShort}`
+        );
+        if (
+          actualRemoteCommit !== localRefShort &&
+          actualRemoteCommit !== 'unknown' &&
+          localRefShort !== 'not-fou'
+        ) {
+          console.warn(`[GIT] ⚠️ Local ref is stale! Forcing ref update...`);
+          await git.fetch([
+            'origin',
+            `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
+          ]);
+          // Re-check after force update
+          const updatedRef = await git
+            .raw(['rev-parse', `origin/${branchName}`])
+            .catch(() => 'not-found');
+          console.log(
+            `[GIT] After force update: origin/${branchName}=${updatedRef.trim().substring(0, 7)}`
+          );
+        }
+      }
+    } catch (lsRemoteError) {
+      console.warn(`[GIT] Could not verify remote state for ${branchName}: ${lsRemoteError}`);
+    }
 
     // Check if branch exists locally
     const branches = await git.branch();

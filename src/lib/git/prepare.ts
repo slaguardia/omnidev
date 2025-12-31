@@ -115,15 +115,51 @@ export async function prepareWorkspaceForEdit(
 
     if (isShallow) {
       try {
-        await git.fetch(['--unshallow']);
+        // Unshallow with full depth to get complete history
+        await git.fetch(['--unshallow', '--all']);
         console.log(`[GIT PREPARE] ✅ Repository unshallowed successfully`);
       } catch (unshallowError) {
         console.warn(`[GIT PREPARE] Failed to unshallow: ${unshallowError}`);
-        // Continue anyway - might still work
+        // Try alternative: fetch with depth=0 (infinite)
+        try {
+          await git.fetch(['--depth=2147483647']);
+          console.log(`[GIT PREPARE] ✅ Fetched full history via depth override`);
+        } catch {
+          // Continue anyway
+        }
       }
     }
 
-    await git.fetch(['--all', '--prune']);
+    // Aggressive fetch to ensure we have latest refs
+    // First, prune any stale remote-tracking refs
+    await git.fetch(['--all', '--prune', '--force']);
+
+    // Verify we have the correct remote state using ls-remote (bypasses local cache)
+    try {
+      const lsRemote = await git.raw([
+        'ls-remote',
+        'origin',
+        `refs/heads/${effectiveTargetBranch}`,
+      ]);
+      const actualRemoteCommit = lsRemote.split(/\s+/)[0]?.substring(0, 7) || 'unknown';
+      const localRef = await git
+        .raw(['rev-parse', `origin/${effectiveTargetBranch}`])
+        .catch(() => 'not-found');
+      const localRefShort = localRef.trim().substring(0, 7);
+      console.log(
+        `[GIT PREPARE] Remote state check: actual remote=${actualRemoteCommit}, local origin/${effectiveTargetBranch}=${localRefShort}`
+      );
+      if (actualRemoteCommit !== localRefShort && actualRemoteCommit !== 'unknown') {
+        console.warn(`[GIT PREPARE] ⚠️ Local ref is stale! Forcing ref update...`);
+        // Force update the ref
+        await git.fetch([
+          'origin',
+          `+refs/heads/${effectiveTargetBranch}:refs/remotes/origin/${effectiveTargetBranch}`,
+        ]);
+      }
+    } catch (lsRemoteError) {
+      console.warn(`[GIT PREPARE] Could not verify remote state: ${lsRemoteError}`);
+    }
 
     // Step 6: Checkout target branch (create from remote if needed)
     console.log(`[GIT PREPARE] Switching to target branch: ${effectiveTargetBranch}`);
