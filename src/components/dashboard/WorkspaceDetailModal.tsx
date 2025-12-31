@@ -210,6 +210,23 @@ export default function WorkspaceDetailModal({
                       </SelectItem>
                     ))}
                   </Select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-default-600">Branch protection:</span>
+                    {permissions ? (
+                      <Chip
+                        size="sm"
+                        variant="flat"
+                        color={permissions.targetBranchProtected ? 'warning' : 'success'}
+                        startContent={
+                          permissions.targetBranchProtected ? <Lock className="w-3 h-3" /> : null
+                        }
+                      >
+                        {permissions.targetBranchProtected ? 'Protected' : 'Not protected'}
+                      </Chip>
+                    ) : (
+                      <span className="text-sm text-default-400 italic">Unknown</span>
+                    )}
+                  </div>
                   {selectedBranch !== workspace.branch && (
                     <p className="text-xs text-warning-600">
                       Changing the default branch will refresh permissions for the new branch.
@@ -227,9 +244,10 @@ export default function WorkspaceDetailModal({
                       <span className="text-sm font-medium">Permissions</span>
                     </div>
                     <Button
+                      color="primary"
                       size="sm"
                       variant="flat"
-                      startContent={<RefreshCw className="w-3.5 h-3.5" />}
+                      startContent={<RefreshCw className="w-4 h-4" />}
                       isLoading={refreshingPermissions}
                       onPress={handleRefreshPermissions}
                     >
@@ -255,29 +273,6 @@ export default function WorkspaceDetailModal({
                             </Tooltip>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-default-600">Branch Protected</span>
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={permissions.targetBranchProtected ? 'warning' : 'success'}
-                          startContent={
-                            permissions.targetBranchProtected ? <Lock className="w-3 h-3" /> : null
-                          }
-                        >
-                          {permissions.targetBranchProtected ? 'Yes' : 'No'}
-                        </Chip>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-default-600">Can Push to Protected</span>
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={permissions.canPushToProtected ? 'success' : 'danger'}
-                        >
-                          {permissions.canPushToProtected ? 'Yes' : 'No'}
-                        </Chip>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-default-600">Authenticated As</span>

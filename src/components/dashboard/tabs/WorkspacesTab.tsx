@@ -16,7 +16,6 @@ import {
   Lock,
   AlertTriangle,
   Shield,
-  Settings,
 } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -167,8 +166,11 @@ export default function WorkspacesTab({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: index * 0.05 }}
                 >
-                  <Card className="glass-card">
-                    <CardHeader className="px-4 py-3">
+                  <div
+                    className="glass-card cursor-pointer hover:bg-default-100/50 transition-colors"
+                    onClick={() => openWorkspaceDetails(workspace)}
+                  >
+                    <div className="px-4 py-3">
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2 min-w-0">
                           <FolderOpen className="w-4 h-4 text-default-500 flex-shrink-0" />
@@ -201,30 +203,23 @@ export default function WorkspacesTab({
                             </Chip>
                           </Tooltip>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Button
-                            color="default"
-                            size="sm"
-                            variant="flat"
-                            onClick={() => openWorkspaceDetails(workspace)}
-                            startContent={<Settings className="w-3.5 h-3.5" />}
-                          >
-                            Details
-                          </Button>
-                          <Button
-                            color="danger"
-                            size="sm"
-                            variant="flat"
-                            onClick={() => onDeleteWorkspace(workspace.id)}
-                            isDisabled={loading}
-                            startContent={<Trash2 className="w-3.5 h-3.5" />}
-                          >
-                            Delete
-                          </Button>
-                        </div>
+                        <Button
+                          color="danger"
+                          size="sm"
+                          variant="flat"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteWorkspace(workspace.id);
+                          }}
+                          isDisabled={loading}
+                          startContent={<Trash2 className="w-3.5 h-3.5" />}
+                          className="flex-shrink-0"
+                        >
+                          Delete
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardBody className="px-4 pt-1 pb-4">
+                    </div>
+                    <div className="px-4 pt-1 pb-4">
                       <div className="space-y-3">
                         {workspace.metadata?.commitHash && (
                           <div className="flex items-center gap-2 text-sm">
@@ -302,8 +297,8 @@ export default function WorkspacesTab({
                           </div>
                         </div>
                       </div>
-                    </CardBody>
-                  </Card>
+                    </div>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
