@@ -97,8 +97,32 @@ export async function prepareWorkspaceForEdit(
     console.log(`[GIT PREPARE] Removing all untracked files...`);
     await git.clean(CleanOptions.FORCE + CleanOptions.RECURSIVE + CleanOptions.IGNORED_INCLUDED);
 
-    // Step 5: Fetch all remotes
+    // Step 5: Fetch all remotes and unshallow if needed
+    // Shallow clones (depth: 1) can cause push failures due to incomplete history
     console.log(`[GIT PREPARE] Fetching from remote...`);
+
+    // Check if repo is shallow
+    let isShallow = false;
+    try {
+      const shallowCheck = await git.raw(['rev-parse', '--is-shallow-repository']);
+      isShallow = shallowCheck.trim() === 'true';
+      if (isShallow) {
+        console.log(`[GIT PREPARE] ⚠️ Repository is shallow - will attempt to unshallow`);
+      }
+    } catch {
+      // Older git versions may not support this flag
+    }
+
+    if (isShallow) {
+      try {
+        await git.fetch(['--unshallow']);
+        console.log(`[GIT PREPARE] ✅ Repository unshallowed successfully`);
+      } catch (unshallowError) {
+        console.warn(`[GIT PREPARE] Failed to unshallow: ${unshallowError}`);
+        // Continue anyway - might still work
+      }
+    }
+
     await git.fetch(['--all', '--prune']);
 
     // Step 6: Checkout target branch (create from remote if needed)
@@ -122,6 +146,21 @@ export async function prepareWorkspaceForEdit(
     console.log(`[GIT PREPARE] Syncing with origin/${effectiveTargetBranch}...`);
     try {
       await git.reset(['--hard', `origin/${effectiveTargetBranch}`]);
+
+      // Diagnostic logging: verify sync was successful
+      const localHead = await git.raw(['rev-parse', 'HEAD']);
+      const remoteHead = await git.raw(['rev-parse', `origin/${effectiveTargetBranch}`]);
+      const localShort = localHead.trim().substring(0, 7);
+      const remoteShort = remoteHead.trim().substring(0, 7);
+      const match = localHead.trim() === remoteHead.trim();
+      console.log(
+        `[GIT PREPARE] Sync check: local=${localShort}, origin/${effectiveTargetBranch}=${remoteShort} ${match ? '✅' : '❌ MISMATCH'}`
+      );
+      if (!match) {
+        console.error(
+          `[GIT PREPARE] ⚠️ Local HEAD does not match remote after reset! This may cause push failures.`
+        );
+      }
     } catch (error) {
       console.warn(`[GIT PREPARE] Could not reset to origin/${effectiveTargetBranch}: ${error}`);
       // Continue anyway - we're on the target branch at least

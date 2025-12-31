@@ -423,14 +423,29 @@ export async function switchBranch(
           await git.checkout(['-b', branchName, `origin/${branchName}`]);
           console.log(`[GIT] ✅ Created local branch ${branchName} tracking origin/${branchName}`);
 
-          // Verify we're synced properly
+          // Verify we're synced properly with diagnostic logging
           const localHead = await git.raw(['rev-parse', 'HEAD']);
           const remoteHead = await git.raw(['rev-parse', `origin/${branchName}`]);
-          if (localHead.trim() !== remoteHead.trim()) {
-            console.log(`[GIT] Heads differ, forcing sync...`);
+          const localShort = localHead.trim().substring(0, 7);
+          const remoteShort = remoteHead.trim().substring(0, 7);
+          const match = localHead.trim() === remoteHead.trim();
+
+          if (!match) {
+            console.log(
+              `[GIT] Heads differ: local=${localShort}, origin/${branchName}=${remoteShort}, forcing sync...`
+            );
             await git.reset(['--hard', `origin/${branchName}`]);
+            // Re-verify after reset
+            const newLocalHead = await git.raw(['rev-parse', 'HEAD']);
+            const newMatch = newLocalHead.trim() === remoteHead.trim();
+            console.log(
+              `[GIT] After reset: local=${newLocalHead.trim().substring(0, 7)}, origin/${branchName}=${remoteShort} ${newMatch ? '✅' : '❌ STILL MISMATCHED'}`
+            );
+          } else {
+            console.log(
+              `[GIT] ✅ Branch ${branchName} synced: local=${localShort}, origin/${branchName}=${remoteShort}`
+            );
           }
-          console.log(`[GIT] ✅ Branch ${branchName} fully synced with remote`);
         } catch (checkoutError) {
           return {
             success: false,
