@@ -23,7 +23,17 @@ import type {
   AsyncResult,
   WorkspaceMetadata,
 } from '@/lib/types/index';
-import { GitOperations, prepareWorkspaceForEdit } from '../git';
+import { GitOperations, prepareWorkspaceForEdit, isGitHubUrl, isGitLabUrl } from '../git';
+import {
+  canPushToBranch as gitlabCanPushToBranch,
+  extractProjectIdFromUrl as extractGitLabProjectId,
+  getGitLabConfig,
+} from '@/lib/gitlab';
+import {
+  canPushToBranch as githubCanPushToBranch,
+  extractOwnerRepoFromUrl as extractGitHubOwnerRepo,
+  getGitHubConfig,
+} from '@/lib/github';
 
 // Type for workspace manager functions
 type WorkspaceManager = typeof WorkspaceManagerFunctions;
@@ -399,10 +409,15 @@ export async function updateWorkspace(
 
 /**
  * Switch to a different branch
+ * @param workspaceId - The workspace ID
+ * @param branchName - The branch to switch to
+ * @param updateWorkspaceConfig - If true (default), updates the workspace's targetBranch setting.
+ *                                Set to false for temporary branch switches during edit workflows.
  */
 export async function switchBranch(
   workspaceId: WorkspaceId,
-  branchName: string
+  branchName: string,
+  updateWorkspaceConfig: boolean = true
 ): Promise<AsyncResult<void>> {
   try {
     const workspace = await getWorkspace(workspaceId);
@@ -420,8 +435,10 @@ export async function switchBranch(
       return switchResult;
     }
 
-    // Update workspace branch
-    await updateWorkspace(workspaceId, { targetBranch: branchName });
+    // Only update workspace config if explicitly requested (default behavior for backwards compatibility)
+    if (updateWorkspaceConfig) {
+      await updateWorkspace(workspaceId, { targetBranch: branchName });
+    }
 
     return { success: true, data: undefined };
   } catch (error) {
@@ -864,6 +881,121 @@ export async function initializeWorkspaceGitConfig(
   }
 }
 
+export interface BranchPushPermissionCheckResult {
+  canPush: boolean;
+  isProtected: boolean;
+  reason: string;
+  provider: 'github' | 'gitlab' | 'unknown';
+}
+
+/**
+ * Check if the current user can push directly to a branch
+ * Unified function that detects the provider and calls the appropriate API
+ */
+export async function checkBranchPushPermission(
+  repoUrl: GitUrl,
+  branchName: string
+): Promise<AsyncResult<BranchPushPermissionCheckResult>> {
+  try {
+    const urlString = String(repoUrl);
+
+    if (isGitLabUrl(urlString)) {
+      const config = await getGitLabConfig();
+      if (!config.token) {
+        console.warn('[PERMISSION CHECK] No GitLab token configured, skipping permission check');
+        return {
+          success: true,
+          data: {
+            canPush: true, // Assume can push if no token to check
+            isProtected: false,
+            reason: 'No GitLab token configured, cannot verify permissions',
+            provider: 'gitlab',
+          },
+        };
+      }
+
+      const projectId = extractGitLabProjectId(repoUrl);
+      if (!projectId) {
+        return {
+          success: false,
+          error: new Error('Could not extract GitLab project ID from URL'),
+        };
+      }
+
+      const result = await gitlabCanPushToBranch(projectId, branchName, config.baseUrl, config.token);
+      if (!result.success) {
+        return result;
+      }
+
+      return {
+        success: true,
+        data: {
+          ...result.data,
+          provider: 'gitlab',
+        },
+      };
+    }
+
+    if (isGitHubUrl(urlString)) {
+      const config = await getGitHubConfig();
+      if (!config.token) {
+        console.warn('[PERMISSION CHECK] No GitHub token configured, skipping permission check');
+        return {
+          success: true,
+          data: {
+            canPush: true, // Assume can push if no token to check
+            isProtected: false,
+            reason: 'No GitHub token configured, cannot verify permissions',
+            provider: 'github',
+          },
+        };
+      }
+
+      const ownerRepo = extractGitHubOwnerRepo(repoUrl);
+      if (!ownerRepo) {
+        return {
+          success: false,
+          error: new Error('Could not extract GitHub owner/repo from URL'),
+        };
+      }
+
+      const result = await githubCanPushToBranch(
+        ownerRepo.owner,
+        ownerRepo.repo,
+        branchName,
+        config.token
+      );
+      if (!result.success) {
+        return result;
+      }
+
+      return {
+        success: true,
+        data: {
+          ...result.data,
+          provider: 'github',
+        },
+      };
+    }
+
+    // Unknown provider - assume can push
+    return {
+      success: true,
+      data: {
+        canPush: true,
+        isProtected: false,
+        reason: 'Unknown git provider, cannot verify permissions',
+        provider: 'unknown',
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: new Error(`Failed to check branch push permission: ${error}`),
+    };
+  }
+}
+
 /**
  * Initialize git workflow - prepare workspace and set up for edit operations
  *
@@ -874,7 +1006,8 @@ export async function initializeWorkspaceGitConfig(
  */
 export async function initializeGitWorkflow(
   workspaceId: WorkspaceId,
-  sourceBranch?: string
+  sourceBranch?: string,
+  createMR?: boolean
 ): Promise<AsyncResult<GitInitResult>> {
   try {
     // Get the workspace
@@ -970,27 +1103,68 @@ export async function initializeGitWorkflow(
 
     // Check if the source branch is the same as the target branch
     if (effectiveSourceBranch === targetBranch) {
+      // Only create a new branch if MR is explicitly requested
+      if (createMR) {
+        console.log(
+          '[GIT WORKFLOW] Source branch is the same as target branch and MR requested, creating new branch...'
+        );
+
+        // Create a new branch with a unique name for the MR
+        const uniqueBranchName = `${targetBranch}-${Date.now()}`;
+        const createBranchResult = await gitOps.switchBranch(workspace.path, uniqueBranchName);
+        if (!createBranchResult.success) {
+          return {
+            success: false,
+            error: new Error(
+              `Failed to create and switch to new branch ${uniqueBranchName}: ${createBranchResult.error.message}`
+            ),
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            mergeRequestRequired: true,
+            sourceBranch: uniqueBranchName,
+            targetBranch: targetBranch,
+          },
+        };
+      }
+
+      // No MR requested - check if user can push directly to this branch
       console.log(
-        '[GIT WORKFLOW] Source branch is the same as target branch, creating new branch for MR...'
+        '[GIT WORKFLOW] Source branch is the same as target branch, no MR requested. Checking push permissions...'
       );
 
-      // Create a new branch with a unique name for the MR
-      const uniqueBranchName = `${targetBranch}-${Date.now()}`;
-      const createBranchResult = await gitOps.switchBranch(workspace.path, uniqueBranchName);
-      if (!createBranchResult.success) {
+      const permissionCheck = await checkBranchPushPermission(workspace.repoUrl, targetBranch);
+      if (!permissionCheck.success) {
+        console.warn(
+          '[GIT WORKFLOW] Could not verify push permissions:',
+          permissionCheck.error?.message
+        );
+        // Continue anyway - let the push fail naturally if there's a permission issue
+      } else if (!permissionCheck.data.canPush) {
+        console.error(
+          `[GIT WORKFLOW] ❌ Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}`
+        );
         return {
           success: false,
           error: new Error(
-            `Failed to create and switch to new branch ${uniqueBranchName}: ${createBranchResult.error.message}`
+            `Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}. ` +
+              `Set createMR=true to create a merge request instead.`
           ),
         };
+      } else {
+        console.log(
+          `[GIT WORKFLOW] ✅ User can push to branch '${targetBranch}': ${permissionCheck.data.reason}`
+        );
       }
 
       return {
         success: true,
         data: {
-          mergeRequestRequired: true,
-          sourceBranch: uniqueBranchName,
+          mergeRequestRequired: false,
+          sourceBranch: targetBranch,
           targetBranch: targetBranch,
         },
       };

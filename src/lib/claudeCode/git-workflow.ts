@@ -21,7 +21,7 @@ export type GitBranchWorkflowResult = GitInitResult;
 export async function initializeGitWorkflow(
   options: GitWorkflowOptions
 ): Promise<AsyncResult<GitInitResult>> {
-  const { workspaceId, sourceBranch } = options;
+  const { workspaceId, sourceBranch, createMR } = options;
 
   try {
     // Initialize workspace manager
@@ -44,7 +44,7 @@ export async function initializeGitWorkflow(
 
     // Initialize git workflow
     console.log('[GIT WORKFLOW] Initializing git workflow for workspace:', workspaceId);
-    return await initializeGitWorkflowFunction(workspaceId, sourceBranch);
+    return await initializeGitWorkflowFunction(workspaceId, sourceBranch, createMR);
   } catch (error) {
     return {
       success: false,

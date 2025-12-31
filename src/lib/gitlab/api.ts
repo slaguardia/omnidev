@@ -111,3 +111,168 @@ export async function getProjectMergeRequests(
     };
   }
 }
+
+/**
+ * GitLab access levels
+ * @see https://docs.gitlab.com/ee/api/access_requests.html
+ */
+export const GitLabAccessLevel = {
+  NO_ACCESS: 0,
+  MINIMAL_ACCESS: 5,
+  GUEST: 10,
+  REPORTER: 20,
+  DEVELOPER: 30,
+  MAINTAINER: 40,
+  OWNER: 50,
+} as const;
+
+export interface BranchPushPermissionResult {
+  canPush: boolean;
+  isProtected: boolean;
+  reason: string;
+  userAccessLevel?: number;
+  requiredAccessLevel?: number;
+}
+
+/**
+ * Check if the current user can push directly to a branch
+ * This checks branch protection rules and user's access level
+ */
+export async function canPushToBranch(
+  projectId: string,
+  branchName: string,
+  baseUrl: string,
+  token: string
+): Promise<AsyncResult<BranchPushPermissionResult>> {
+  try {
+    const gitlab = new Gitlab({
+      host: baseUrl,
+      token: token,
+    });
+
+    // Get branch info to check if it's protected
+    let isProtected = false;
+    try {
+      const branch = await gitlab.Branches.show(projectId, branchName);
+      isProtected = (branch as { protected?: boolean }).protected === true;
+    } catch (error) {
+      // Branch might not exist yet, which is fine for new branches
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        return {
+          success: true,
+          data: {
+            canPush: true,
+            isProtected: false,
+            reason: 'Branch does not exist yet, will be created on push',
+          },
+        };
+      }
+      throw error;
+    }
+
+    // If not protected, user can push
+    if (!isProtected) {
+      return {
+        success: true,
+        data: {
+          canPush: true,
+          isProtected: false,
+          reason: 'Branch is not protected',
+        },
+      };
+    }
+
+    // Branch is protected - check if user has permission
+    // First get current user's access level in the project
+    let userAccessLevel: number = GitLabAccessLevel.NO_ACCESS;
+    try {
+      // Get current user
+      const currentUser = await gitlab.Users.showCurrentUser();
+      const userId = (currentUser as { id: number }).id;
+
+      // Get user's membership in the project
+      try {
+        const member = await gitlab.ProjectMembers.show(projectId, userId, {
+          includeInherited: true,
+        });
+        userAccessLevel = (member as { access_level: number }).access_level;
+      } catch {
+        // User might not be a direct member but could have access through group
+        // Try to get effective access level from project
+        const project = await gitlab.Projects.show(projectId);
+        const permissions = (project as unknown as { permissions?: { project_access?: { access_level: number } | null; group_access?: { access_level: number } | null } }).permissions;
+        if (permissions?.project_access?.access_level) {
+          userAccessLevel = permissions.project_access.access_level;
+        } else if (permissions?.group_access?.access_level) {
+          userAccessLevel = permissions.group_access.access_level;
+        }
+      }
+    } catch (error) {
+      console.warn('[GITLAB] Could not determine user access level:', error);
+      // If we can't determine access level, assume no push access to protected branch
+      return {
+        success: true,
+        data: {
+          canPush: false,
+          isProtected: true,
+          reason: 'Could not determine user access level for protected branch',
+        },
+      };
+    }
+
+    // Get protected branch rules to check required access level for push
+    let requiredAccessLevel: number = GitLabAccessLevel.MAINTAINER; // Default to maintainer if we can't determine
+    try {
+      const protectedBranch = await gitlab.ProtectedBranches.show(projectId, branchName);
+      const pushAccessLevels = (protectedBranch as { push_access_levels?: Array<{ access_level: number }> }).push_access_levels;
+
+      if (pushAccessLevels && pushAccessLevels.length > 0) {
+        // Find the minimum required access level
+        // Note: access_level of 0 means "No one" can push
+        const levels = pushAccessLevels
+          .map((l) => l.access_level)
+          .filter((l) => l > 0);
+
+        if (levels.length === 0) {
+          // No one can push directly
+          return {
+            success: true,
+            data: {
+              canPush: false,
+              isProtected: true,
+              reason: 'Branch protection rules prevent any direct pushes',
+              userAccessLevel,
+              requiredAccessLevel: 0,
+            },
+          };
+        }
+
+        requiredAccessLevel = Math.min(...levels);
+      }
+    } catch (error) {
+      console.warn('[GITLAB] Could not get protected branch rules:', error);
+      // Continue with default required level
+    }
+
+    const canPush = userAccessLevel >= requiredAccessLevel;
+
+    return {
+      success: true,
+      data: {
+        canPush,
+        isProtected: true,
+        reason: canPush
+          ? `User has sufficient access level (${userAccessLevel} >= ${requiredAccessLevel})`
+          : `User access level (${userAccessLevel}) is below required level (${requiredAccessLevel}) for protected branch`,
+        userAccessLevel,
+        requiredAccessLevel,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: new Error(`Failed to check branch push permission: ${error}`),
+    };
+  }
+}

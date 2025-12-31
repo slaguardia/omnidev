@@ -26,6 +26,8 @@ export interface GitWorkflowOptions {
   workspaceId: WorkspaceId;
   /** Optional. If omitted, the workflow uses the workspace targetBranch as the base. */
   sourceBranch?: string;
+  /** Whether to create a merge/pull request. If false and sourceBranch === targetBranch, commits directly to that branch. */
+  createMR?: boolean;
 }
 
 /**

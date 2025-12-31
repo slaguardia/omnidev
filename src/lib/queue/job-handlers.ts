@@ -138,9 +138,9 @@ export async function executeClaudeCodeJob(
           // Continue anyway - switchBranch will fail if branch doesn't exist
         }
 
-        // Switch to the target branch
+        // Switch to the target branch (without updating workspace config - this is a temporary switch)
         console.log(`[JOB] 📌 Switching to branch: ${targetBranch}`);
-        const switchResult = await switchBranch(payload.workspaceId, targetBranch);
+        const switchResult = await switchBranch(payload.workspaceId, targetBranch, false);
         if (!switchResult.success) {
           throw new Error(
             `Failed to switch to branch '${targetBranch}': ${switchResult.error?.message}`
@@ -184,6 +184,7 @@ export async function executeClaudeCodeJob(
     const initResult = await initializeGitWorkflow({
       workspaceId: payload.workspaceId,
       ...(payload.sourceBranch ? { sourceBranch: payload.sourceBranch } : {}),
+      ...(payload.createMR !== undefined ? { createMR: payload.createMR } : {}),
     });
 
     const gitInitTime = Date.now() - gitInitStart;
