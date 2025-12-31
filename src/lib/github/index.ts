@@ -12,6 +12,8 @@ export {
   getRepositoryBranches,
   getRepositoryPullRequests,
   canPushToBranch,
+  getRepositoryPermissions,
+  GitHubAccessLevel,
   type GitHubBranchPushPermissionResult,
 } from '@/lib/github/api';
 

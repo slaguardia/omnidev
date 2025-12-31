@@ -1,3 +1,14 @@
+export interface WorkspacePermissions {
+  provider: 'github' | 'gitlab';
+  accessLevel: number;
+  accessLevelName: string;
+  canPushToProtected: boolean;
+  targetBranchProtected: boolean;
+  authenticatedUser: string;
+  checkedAt: string;
+  warning?: string;
+}
+
 export interface Workspace {
   id: string;
   repoUrl: string;
@@ -13,6 +24,7 @@ export interface Workspace {
       userName?: string;
       signingKey?: string;
     };
+    permissions?: WorkspacePermissions;
   };
 }
 

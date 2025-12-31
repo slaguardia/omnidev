@@ -27,12 +27,35 @@ export interface Workspace {
   provider?: GitProvider; // Detected from repoUrl, optional for backwards compat
 }
 
+/**
+ * Cached permissions for a workspace, determined at clone time
+ */
+export interface WorkspacePermissions {
+  provider: 'github' | 'gitlab';
+  /** User's access level (GitLab: 30=Developer, 40=Maintainer, 50=Owner; GitHub: pull/push/admin) */
+  accessLevel: number;
+  /** Human-readable access level name */
+  accessLevelName: string;
+  /** Whether user can push to protected branches */
+  canPushToProtected: boolean;
+  /** Whether the workspace's target branch is protected */
+  targetBranchProtected: boolean;
+  /** Username of the authenticated user */
+  authenticatedUser: string;
+  /** ISO timestamp when permissions were checked */
+  checkedAt: string;
+  /** Warning message if user has limited permissions */
+  warning?: string;
+}
+
 export interface WorkspaceMetadata {
   size: number;
   commitHash: CommitHash;
   isActive: boolean;
   tags?: string[];
   gitConfig?: WorkspaceGitConfig;
+  /** Cached permissions from clone time */
+  permissions?: WorkspacePermissions;
 }
 
 /**

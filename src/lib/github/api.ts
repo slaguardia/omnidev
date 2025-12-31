@@ -3,7 +3,7 @@
  */
 
 import { Octokit } from '@octokit/rest';
-import type { AsyncResult, GitUrl } from '@/lib/types/index';
+import type { AsyncResult, GitUrl, WorkspacePermissions } from '@/lib/types/index';
 
 /**
  * Extract owner and repo from a GitHub repository URL
@@ -285,6 +285,156 @@ export async function canPushToBranch(
     return {
       success: false,
       error: new Error(`Failed to check branch push permission: ${error}`),
+    };
+  }
+}
+
+/**
+ * GitHub access levels (numeric for comparison)
+ */
+export const GitHubAccessLevel = {
+  NONE: 0,
+  PULL: 1,
+  PUSH: 2,
+  ADMIN: 3,
+} as const;
+
+/**
+ * Map GitHub permission to numeric access level
+ */
+function getAccessLevelFromPermission(permission: string): number {
+  switch (permission) {
+    case 'admin':
+      return GitHubAccessLevel.ADMIN;
+    case 'push':
+    case 'write':
+      return GitHubAccessLevel.PUSH;
+    case 'pull':
+    case 'read':
+      return GitHubAccessLevel.PULL;
+    default:
+      return GitHubAccessLevel.NONE;
+  }
+}
+
+/**
+ * Map GitHub permission to human-readable name
+ */
+function getAccessLevelName(permission: string): string {
+  switch (permission) {
+    case 'admin':
+      return 'Admin';
+    case 'push':
+    case 'write':
+      return 'Write';
+    case 'pull':
+    case 'read':
+      return 'Read';
+    default:
+      return 'None';
+  }
+}
+
+/**
+ * Get repository permissions for caching at workspace creation time
+ * This checks user's permission level and branch protection status
+ */
+export async function getRepositoryPermissions(
+  owner: string,
+  repo: string,
+  branchName: string,
+  token: string
+): Promise<AsyncResult<WorkspacePermissions>> {
+  try {
+    const octokit = new Octokit({ auth: token });
+
+    // Get current user and repository permissions
+    let authenticatedUser = 'unknown';
+    let userPermission = 'none';
+
+    try {
+      // Get authenticated user
+      const { data: user } = await octokit.users.getAuthenticated();
+      authenticatedUser = user.login;
+
+      // Get repository with permissions
+      const { data: repoData } = await octokit.repos.get({ owner, repo });
+      const permissions = repoData.permissions;
+      if (permissions?.admin) {
+        userPermission = 'admin';
+      } else if (permissions?.push) {
+        userPermission = 'push';
+      } else if (permissions?.pull) {
+        userPermission = 'pull';
+      }
+    } catch (error) {
+      console.warn('[GITHUB] Could not get user/repo info:', error);
+    }
+
+    // Check if the target branch is protected
+    let targetBranchProtected = false;
+    let canPushToProtected = userPermission === 'admin' || userPermission === 'push';
+
+    try {
+      const { data: branchData } = await octokit.repos.getBranch({
+        owner,
+        repo,
+        branch: branchName,
+      });
+      targetBranchProtected = branchData.protected === true;
+
+      if (targetBranchProtected) {
+        // Admins can bypass protection
+        if (userPermission === 'admin') {
+          canPushToProtected = true;
+        } else if (userPermission === 'push') {
+          // Check specific protection rules
+          try {
+            const { data: protection } = await octokit.repos.getBranchProtection({
+              owner,
+              repo,
+              branch: branchName,
+            });
+
+            // If there are restrictions or required reviews, user can't push directly
+            if (protection.restrictions || protection.required_pull_request_reviews) {
+              canPushToProtected = false;
+            }
+          } catch {
+            // Can't view protection rules, assume no push
+            canPushToProtected = false;
+          }
+        } else {
+          canPushToProtected = false;
+        }
+      }
+    } catch {
+      // Branch might not exist yet
+      targetBranchProtected = false;
+    }
+
+    // Generate warning message if applicable
+    let warning: string | undefined;
+    if (targetBranchProtected && !canPushToProtected) {
+      warning = `Branch '${branchName}' is protected. Your ${getAccessLevelName(userPermission)} access cannot push directly. Use createMR=true to create pull requests.`;
+    }
+
+    const permissions: WorkspacePermissions = {
+      provider: 'github',
+      accessLevel: getAccessLevelFromPermission(userPermission),
+      accessLevelName: getAccessLevelName(userPermission),
+      canPushToProtected,
+      targetBranchProtected,
+      authenticatedUser,
+      checkedAt: new Date().toISOString(),
+      ...(warning && { warning }),
+    };
+
+    return { success: true, data: permissions };
+  } catch (error) {
+    return {
+      success: false,
+      error: new Error(`Failed to get repository permissions: ${error}`),
     };
   }
 }

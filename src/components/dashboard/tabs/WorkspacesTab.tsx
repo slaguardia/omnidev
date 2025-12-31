@@ -7,7 +7,8 @@ import { addToast } from '@heroui/toast';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { Chip } from '@heroui/chip';
 import { Skeleton } from '@heroui/skeleton';
-import { GitBranch, FolderOpen, Trash2, Clock, Hash } from 'lucide-react';
+import { GitBranch, FolderOpen, Trash2, Clock, Hash, Lock, AlertTriangle, Shield } from 'lucide-react';
+import { Tooltip } from '@heroui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Workspace } from '@/lib/dashboard/types';
 
@@ -150,9 +151,27 @@ export default function WorkspacesTab({
                           <h3 className="font-semibold text-foreground truncate">
                             {getProjectDisplayName(workspace.repoUrl)}
                           </h3>
-                          <Chip size="sm" variant="flat" color="primary" className="flex-shrink-0">
-                            <span className="font-mono text-xs">{workspace.branch}</span>
-                          </Chip>
+                          <Tooltip
+                            content={
+                              workspace.metadata?.permissions?.targetBranchProtected
+                                ? 'This branch is protected'
+                                : 'This branch is not protected'
+                            }
+                          >
+                            <Chip
+                              size="sm"
+                              variant="flat"
+                              color={workspace.metadata?.permissions?.targetBranchProtected ? 'warning' : 'primary'}
+                              className="flex-shrink-0"
+                              startContent={
+                                workspace.metadata?.permissions?.targetBranchProtected ? (
+                                  <Lock className="w-3 h-3" />
+                                ) : null
+                              }
+                            >
+                              <span className="font-mono text-xs">{workspace.branch}</span>
+                            </Chip>
+                          </Tooltip>
                         </div>
                         <Button
                           color="danger"
@@ -176,6 +195,44 @@ export default function WorkspacesTab({
                             <span className="text-default-700 font-mono">
                               {workspace.metadata.commitHash.slice(0, 8)}
                             </span>
+                          </div>
+                        )}
+
+                        {/* Permissions row */}
+                        {workspace.metadata?.permissions ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Shield className="w-3.5 h-3.5 text-default-400" />
+                            <span className="text-default-500">Access:</span>
+                            <span
+                              className={
+                                workspace.metadata.permissions.targetBranchProtected &&
+                                !workspace.metadata.permissions.canPushToProtected
+                                  ? 'text-warning-600 font-medium'
+                                  : 'text-default-700'
+                              }
+                            >
+                              {workspace.metadata.permissions.accessLevelName}
+                            </span>
+                            {workspace.metadata.permissions.targetBranchProtected &&
+                              !workspace.metadata.permissions.canPushToProtected && (
+                                <Tooltip
+                                  content={
+                                    workspace.metadata.permissions.warning ||
+                                    'MRs required for protected branches'
+                                  }
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5 text-warning-500 cursor-help" />
+                                </Tooltip>
+                              )}
+                            <span className="text-default-400 text-xs">
+                              ({workspace.metadata.permissions.authenticatedUser})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Shield className="w-3.5 h-3.5 text-default-400" />
+                            <span className="text-default-500">Access:</span>
+                            <span className="text-default-400 italic">Unknown (no credentials)</span>
                           </div>
                         )}
 

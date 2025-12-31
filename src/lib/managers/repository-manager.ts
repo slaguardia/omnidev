@@ -28,11 +28,13 @@ import {
   canPushToBranch as gitlabCanPushToBranch,
   extractProjectIdFromUrl as extractGitLabProjectId,
   getGitLabConfig,
+  getRepositoryPermissions as getGitLabRepositoryPermissions,
 } from '@/lib/gitlab';
 import {
   canPushToBranch as githubCanPushToBranch,
   extractOwnerRepoFromUrl as extractGitHubOwnerRepo,
   getGitHubConfig,
+  getRepositoryPermissions as getGitHubRepositoryPermissions,
 } from '@/lib/github';
 
 // Type for workspace manager functions
@@ -194,6 +196,74 @@ export async function cloneRepository(
         ...(options.tags && { tags: options.tags }),
       },
     };
+
+    // Check and cache permissions based on provider
+    console.log('[REPOSITORY MANAGER] Checking repository permissions...');
+    if (provider === 'gitlab' && isGitLabUrl(repoUrl)) {
+      const gitlabConfig = await getGitLabConfig();
+      if (gitlabConfig.token) {
+        const projectId = extractGitLabProjectId(repoUrl);
+        if (projectId) {
+          const permResult = await getGitLabRepositoryPermissions(
+            projectId,
+            actualBranch,
+            gitlabConfig.baseUrl,
+            gitlabConfig.token
+          );
+          if (permResult.success) {
+            workspace.metadata!.permissions = permResult.data;
+            console.log('[REPOSITORY MANAGER] GitLab permissions cached:', {
+              accessLevel: permResult.data.accessLevelName,
+              targetBranchProtected: permResult.data.targetBranchProtected,
+              canPushToProtected: permResult.data.canPushToProtected,
+            });
+            if (permResult.data.warning) {
+              console.warn('[REPOSITORY MANAGER] ⚠️', permResult.data.warning);
+            }
+          } else {
+            console.warn(
+              '[REPOSITORY MANAGER] Could not check GitLab permissions:',
+              permResult.error?.message
+            );
+          }
+        }
+      } else {
+        console.log('[REPOSITORY MANAGER] No GitLab token configured, skipping permission check');
+      }
+    } else if (provider === 'github' && isGitHubUrl(repoUrl)) {
+      const githubConfig = await getGitHubConfig();
+      if (githubConfig.token) {
+        const ownerRepo = extractGitHubOwnerRepo(repoUrl);
+        if (ownerRepo) {
+          const permResult = await getGitHubRepositoryPermissions(
+            ownerRepo.owner,
+            ownerRepo.repo,
+            actualBranch,
+            githubConfig.token
+          );
+          if (permResult.success) {
+            workspace.metadata!.permissions = permResult.data;
+            console.log('[REPOSITORY MANAGER] GitHub permissions cached:', {
+              accessLevel: permResult.data.accessLevelName,
+              targetBranchProtected: permResult.data.targetBranchProtected,
+              canPushToProtected: permResult.data.canPushToProtected,
+            });
+            if (permResult.data.warning) {
+              console.warn('[REPOSITORY MANAGER] ⚠️', permResult.data.warning);
+            }
+          } else {
+            console.warn(
+              '[REPOSITORY MANAGER] Could not check GitHub permissions:',
+              permResult.error?.message
+            );
+          }
+        }
+      } else {
+        console.log('[REPOSITORY MANAGER] No GitHub token configured, skipping permission check');
+      }
+    } else {
+      console.log('[REPOSITORY MANAGER] Unknown provider or URL format, skipping permission check');
+    }
 
     console.log('[REPOSITORY MANAGER] Created workspace object:', {
       id: workspace.id,
@@ -1136,28 +1206,51 @@ export async function initializeGitWorkflow(
         '[GIT WORKFLOW] Source branch is the same as target branch, no MR requested. Checking push permissions...'
       );
 
-      const permissionCheck = await checkBranchPushPermission(workspace.repoUrl, targetBranch);
-      if (!permissionCheck.success) {
-        console.warn(
-          '[GIT WORKFLOW] Could not verify push permissions:',
-          permissionCheck.error?.message
-        );
-        // Continue anyway - let the push fail naturally if there's a permission issue
-      } else if (!permissionCheck.data.canPush) {
-        console.error(
-          `[GIT WORKFLOW] ❌ Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}`
-        );
-        return {
-          success: false,
-          error: new Error(
-            `Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}. ` +
-              `Set createMR=true to create a merge request instead.`
-          ),
-        };
-      } else {
+      // Try to use cached permissions first (no API call overhead)
+      const cachedPermissions = workspace.metadata?.permissions;
+      if (cachedPermissions && targetBranch === workspace.targetBranch) {
+        console.log('[GIT WORKFLOW] Using cached permissions (from clone time)');
+        if (cachedPermissions.targetBranchProtected && !cachedPermissions.canPushToProtected) {
+          console.error(
+            `[GIT WORKFLOW] ❌ Cannot push directly to branch '${targetBranch}': ${cachedPermissions.warning || 'Branch is protected'}`
+          );
+          return {
+            success: false,
+            error: new Error(
+              `Cannot push directly to branch '${targetBranch}': Your ${cachedPermissions.accessLevelName} access cannot push to protected branches. ` +
+                `Set createMR=true to create a merge request instead.`
+            ),
+          };
+        }
         console.log(
-          `[GIT WORKFLOW] ✅ User can push to branch '${targetBranch}': ${permissionCheck.data.reason}`
+          `[GIT WORKFLOW] ✅ User can push to branch '${targetBranch}' (cached: ${cachedPermissions.accessLevelName} access)`
         );
+      } else {
+        // Fall back to API check if no cached permissions or different branch
+        console.log('[GIT WORKFLOW] No cached permissions, checking via API...');
+        const permissionCheck = await checkBranchPushPermission(workspace.repoUrl, targetBranch);
+        if (!permissionCheck.success) {
+          console.warn(
+            '[GIT WORKFLOW] Could not verify push permissions:',
+            permissionCheck.error?.message
+          );
+          // Continue anyway - let the push fail naturally if there's a permission issue
+        } else if (!permissionCheck.data.canPush) {
+          console.error(
+            `[GIT WORKFLOW] ❌ Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}`
+          );
+          return {
+            success: false,
+            error: new Error(
+              `Cannot push directly to branch '${targetBranch}': ${permissionCheck.data.reason}. ` +
+                `Set createMR=true to create a merge request instead.`
+            ),
+          };
+        } else {
+          console.log(
+            `[GIT WORKFLOW] ✅ User can push to branch '${targetBranch}': ${permissionCheck.data.reason}`
+          );
+        }
       }
 
       return {

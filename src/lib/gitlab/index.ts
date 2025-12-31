@@ -12,6 +12,7 @@ export {
   getProjectBranches,
   getProjectMergeRequests,
   canPushToBranch,
+  getRepositoryPermissions,
   GitLabAccessLevel,
   type BranchPushPermissionResult,
 } from '@/lib/gitlab/api';
