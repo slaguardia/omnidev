@@ -1,16 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@heroui/button';
 import { Snippet } from '@heroui/snippet';
 import { addToast } from '@heroui/toast';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { Chip } from '@heroui/chip';
 import { Skeleton } from '@heroui/skeleton';
-import { GitBranch, FolderOpen, Trash2, Clock, Hash, Lock, AlertTriangle, Shield } from 'lucide-react';
+import { GitBranch, FolderOpen, Trash2, Clock, Hash, Lock, AlertTriangle, Shield, Settings } from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Workspace } from '@/lib/dashboard/types';
+import WorkspaceDetailModal from '@/components/dashboard/WorkspaceDetailModal';
 
 interface WorkspacesTabProps {
   workspaces: Workspace[];
@@ -29,6 +30,19 @@ export default function WorkspacesTab({
   onDeleteWorkspace,
   getProjectDisplayName,
 }: WorkspacesTabProps) {
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  const openWorkspaceDetails = (workspace: Workspace) => {
+    setSelectedWorkspace(workspace);
+    setDetailModalOpen(true);
+  };
+
+  const handleWorkspaceUpdated = () => {
+    // Refresh the workspaces list after an update
+    onRefreshWorkspaces();
+  };
+
   const copyWorkspaceId = async (workspaceId: string) => {
     try {
       await navigator.clipboard.writeText(workspaceId);
@@ -173,17 +187,27 @@ export default function WorkspacesTab({
                             </Chip>
                           </Tooltip>
                         </div>
-                        <Button
-                          color="danger"
-                          size="sm"
-                          variant="flat"
-                          onClick={() => onDeleteWorkspace(workspace.id)}
-                          isDisabled={loading}
-                          startContent={<Trash2 className="w-3.5 h-3.5" />}
-                          className="flex-shrink-0"
-                        >
-                          Delete
-                        </Button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            color="default"
+                            size="sm"
+                            variant="flat"
+                            onClick={() => openWorkspaceDetails(workspace)}
+                            startContent={<Settings className="w-3.5 h-3.5" />}
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            color="danger"
+                            size="sm"
+                            variant="flat"
+                            onClick={() => onDeleteWorkspace(workspace.id)}
+                            isDisabled={loading}
+                            startContent={<Trash2 className="w-3.5 h-3.5" />}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardBody className="px-4 pt-1 pb-4">
@@ -285,6 +309,15 @@ export default function WorkspacesTab({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Workspace Detail Modal */}
+      <WorkspaceDetailModal
+        isOpen={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        workspace={selectedWorkspace}
+        onWorkspaceUpdated={handleWorkspaceUpdated}
+        getProjectDisplayName={getProjectDisplayName}
+      />
     </div>
   );
 }
