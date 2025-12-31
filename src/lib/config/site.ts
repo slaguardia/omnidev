@@ -44,7 +44,7 @@ export const siteConfig = {
     },
   ],
   links: {
-    github: 'https://github.com/yourusername/omnidev',
+    github: 'https://github.com/slaguardia/omnidev',
     twitter: 'https://twitter.com/omnidev',
     docs: 'https://docs.omnidev.cloud',
     discord: 'https://discord.gg/omnidev',

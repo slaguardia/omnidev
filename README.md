@@ -1,5 +1,8 @@
 # OmniDev
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GitHub](https://img.shields.io/github/stars/slaguardia/omnidev?style=social)](https://github.com/slaguardia/omnidev)
+
 A single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
 
 ## What is OmniDev?
@@ -59,7 +62,7 @@ OmniDev installs and orchestrates the publicly available Claude Code package. Us
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/slaguardia/omnidev.git
 cd omnidev
 ```
 
@@ -122,10 +125,22 @@ See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
 
 OmniDev is designed to run anywhere — cloud infrastructure, VPS, or local environments.
 
+### Deployment Modes
+
+| Service             | Purpose                                    | Command                                              |
+| ------------------- | ------------------------------------------ | ---------------------------------------------------- |
+| `workflow-app`      | Full application with auth and dashboard   | `docker compose up -d --build workflow-app`          |
+| `workflow-showcase` | Read-only demo mode (no auth, no dashboard) | `docker compose --profile showcase up workflow-showcase --build` |
+| `workflow-dev`      | Development with hot reload                | `docker compose up -d --build workflow-dev`          |
+
+- **workflow-app**: Production deployment. Includes authentication, dashboard, and all features. Use this for self-hosting.
+- **workflow-showcase**: Public demo mode. Hides auth and dashboard, shows only documentation. Use this for publishing a read-only demo.
+- **workflow-dev**: Development mode with hot reload. Bind-mounts source code for fast iteration.
+
 ### Quick Start with Docker
 
 ```bash
-docker-compose up --build -d
+docker compose up -d --build workflow-app
 ```
 
 Access the application at `http://localhost:3000`.
