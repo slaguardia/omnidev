@@ -37,9 +37,24 @@ Next.js App Router API routes using route handlers.
 
 ### Configuration
 
-| Endpoint            | Method | Purpose              | Auth Required |
-| ------------------- | ------ | -------------------- | ------------- |
-| `/api/generate-key` | POST   | Generate new API key | Yes           |
+| Endpoint            | Method | Purpose               | Auth Required |
+| ------------------- | ------ | --------------------- | ------------- |
+| `/api/config`       | GET    | Get app configuration | Yes           |
+| `/api/generate-key` | POST   | Generate new API key  | Yes           |
+| `/api/health`       | GET    | Health check          | No            |
+
+### Workspaces
+
+| Endpoint                              | Method | Purpose                       | Auth Required |
+| ------------------------------------- | ------ | ----------------------------- | ------------- |
+| `/api/workspaces/update`              | POST   | Update workspace settings     | Yes           |
+| `/api/workspaces/refresh-permissions` | POST   | Refresh workspace permissions | Yes           |
+
+### GitLab Integration
+
+| Endpoint      | Method | Purpose             | Auth Required |
+| ------------- | ------ | ------------------- | ------------- |
+| `/api/gitlab` | GET    | GitLab project info | Yes           |
 
 ## Route Handler Structure
 

@@ -58,25 +58,32 @@ workflow/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/                # API route handlers
+│   │   ├── about/              # About page
 │   │   ├── dashboard/          # Dashboard pages
 │   │   ├── docs/               # Documentation pages
+│   │   ├── mcp/                # MCP server pages
 │   │   ├── signin/             # Authentication pages
 │   │   └── layout.tsx          # Root layout
 │   ├── components/             # React components
 │   │   ├── dashboard/          # Dashboard-specific components
-│   │   └── docs/               # Documentation components
+│   │   ├── docs/               # Documentation components
+│   │   └── motion/             # Animation components
 │   ├── hooks/                  # Custom React hooks
 │   └── lib/                    # Core business logic
 │       ├── api/                # API utilities and validation
 │       ├── auth/               # Authentication logic
 │       ├── claudeCode/         # Claude Code CLI integration
+│       ├── common/             # Shared utilities and types
 │       ├── config/             # Configuration management
+│       ├── dashboard/          # Dashboard helpers
+│       ├── docs/               # Documentation utilities
 │       ├── git/                # Git operations (simple-git)
 │       ├── github/             # GitHub API integration
 │       ├── gitlab/             # GitLab API integration
 │       ├── managers/           # Resource managers
 │       ├── queue/              # Job queue system
 │       ├── types/              # TypeScript type definitions
+│       ├── utils/              # General utilities
 │       └── workspace/          # Workspace management
 ├── docs/                       # Markdown docs (served at /docs)
 ├── scripts/                    # Shell scripts

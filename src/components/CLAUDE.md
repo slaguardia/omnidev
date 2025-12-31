@@ -11,6 +11,7 @@ React components built on HeroUI (formerly NextUI) with Tailwind CSS.
 | `dashboard/`      | Dashboard page components and modals |
 | `dashboard/tabs/` | Tab panel content components         |
 | `docs/`           | Documentation page components        |
+| `motion/`         | Animation and motion components      |
 | Root files        | Shared/global components             |
 
 ## Component Inventory
@@ -28,15 +29,16 @@ React components built on HeroUI (formerly NextUI) with Tailwind CSS.
 
 ### Dashboard Components
 
-| Component                     | Purpose                    |
-| ----------------------------- | -------------------------- |
-| `CloneRepositoryModal.tsx`    | Clone git repo form modal  |
-| `ConfigurationStatus.tsx`     | Config status display      |
-| `ChangePasswordModal.tsx`     | Password change form       |
-| `ConfirmClearApiKeyModal.tsx` | API key clear confirmation |
-| `DashboardNavigation.tsx`     | Dashboard tab navigation   |
-| `Enable2FAModal.tsx`          | 2FA setup with QR code     |
-| `Disable2FAModal.tsx`         | 2FA disable confirmation   |
+| Component                     | Purpose                        |
+| ----------------------------- | ------------------------------ |
+| `CloneRepositoryModal.tsx`    | Clone git repo form modal      |
+| `ConfigurationStatus.tsx`     | Config status display          |
+| `ChangePasswordModal.tsx`     | Password change form           |
+| `ConfirmClearApiKeyModal.tsx` | API key clear confirmation     |
+| `DashboardNavigation.tsx`     | Dashboard tab navigation       |
+| `Enable2FAModal.tsx`          | 2FA setup with QR code         |
+| `Disable2FAModal.tsx`         | 2FA disable confirmation       |
+| `WorkspaceDetailModal.tsx`    | Workspace details and settings |
 
 ### Dashboard Tab Components
 
@@ -45,6 +47,7 @@ React components built on HeroUI (formerly NextUI) with Tailwind CSS.
 | `WorkspacesTab.tsx`       | Workspace listing and management |
 | `OperationsTab.tsx`       | Claude Code operations interface |
 | `SettingsTab.tsx`         | App settings configuration       |
+| `SnippetsTab.tsx`         | Code snippets management         |
 | `GitSourceConfigTab.tsx`  | Git source configuration         |
 | `AccountSecurityTab.tsx`  | 2FA and password settings        |
 | `ExecutionHistoryTab.tsx` | Claude execution log viewer      |
@@ -274,14 +277,16 @@ export const useMyData = () => {
 
 ### Available Hooks
 
-| Hook                   | Returns                                                           | Usage                     |
-| ---------------------- | ----------------------------------------------------------------- | ------------------------- |
-| `useWorkspaces`        | `{ workspaces, loading, loadWorkspaces, handleCleanupWorkspace }` | Workspace list management |
-| `useEnvironmentConfig` | `{ config, loading, error }`                                      | App configuration         |
-| `useCloneRepository`   | `{ cloneForm, setCloneForm, handleClone, loading }`               | Repo cloning              |
-| `useBranches`          | `{ branches, loading, currentBranch, switchBranch }`              | Branch operations         |
-| `useChangePassword`    | `{ form, setForm, handleSubmit, loading, error }`                 | Password form             |
-| `useExecutionHistory`  | `{ history, loading, clearHistory }`                              | Execution logs            |
+| Hook                   | Returns                                                           | Usage                      |
+| ---------------------- | ----------------------------------------------------------------- | -------------------------- |
+| `useWorkspaces`        | `{ workspaces, loading, loadWorkspaces, handleCleanupWorkspace }` | Workspace list management  |
+| `useEnvironmentConfig` | `{ config, loading, error }`                                      | App configuration          |
+| `useCloneRepository`   | `{ cloneForm, setCloneForm, handleClone, loading }`               | Repo cloning               |
+| `useBranches`          | `{ branches, loading, currentBranch, switchBranch }`              | Branch operations          |
+| `useChangePassword`    | `{ form, setForm, handleSubmit, loading, error }`                 | Password form              |
+| `useExecutionHistory`  | `{ history, loading, clearHistory }`                              | Execution logs             |
+| `useClaudeOperations`  | `{ ask, edit, loading, error }`                                   | Claude ask/edit operations |
+| `usePersistedState`    | `[value, setValue]`                                               | LocalStorage-backed state  |
 
 ### Using Hooks in Components
 

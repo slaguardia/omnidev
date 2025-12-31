@@ -174,10 +174,13 @@ Wraps simple-git library with typed operations.
 | `branches.ts` | Branch CRUD operations |
 | `commits.ts` | Commit operations |
 | `remotes.ts` | Pull/push operations |
+| `prepare.ts` | Workspace preparation for edit operations |
+| `ref-sync.ts` | Remote ref verification and sync helpers |
 | `workspace.ts` | Clean/reset workspace |
 | `config.ts` | Git config management |
 | `sandbox.ts` | Sandboxed git binary path |
 | `core.ts` | Core simple-git instance creation |
+| `provider-detection.ts` | GitHub/GitLab URL detection |
 
 **Usage:**
 
@@ -190,6 +193,36 @@ const hasChanges = await hasUncommittedChanges(workspacePath);
 if (!hasChanges) {
   await switchBranch(workspacePath, 'feature-branch');
 }
+```
+
+**Workspace Preparation:**
+
+```typescript
+import { prepareWorkspaceForEdit } from '@/lib/git';
+
+// Ensures clean, synced state before edit operations
+const result = await prepareWorkspaceForEdit(workspacePath, 'main');
+if (result.success) {
+  console.log(`Prepared on branch: ${result.data.targetBranch}`);
+  console.log(`Deleted ${result.data.deletedBranches.length} stale branches`);
+}
+```
+
+**Remote Ref Sync (Internal):**
+
+The `ref-sync.ts` module provides helpers to detect and fix stale local refs:
+
+```typescript
+import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git';
+
+// Ensures local origin/branch ref matches actual remote state
+const syncResult = await ensureFreshRemoteRef(git, branchName, '[LOG PREFIX]');
+if (syncResult.wasStale) {
+  console.log('Local ref was stale and has been updated');
+}
+
+// Verifies HEAD matches origin/branch after sync
+const isInSync = await verifySyncState(git, branchName, '[LOG PREFIX]');
 ```
 
 ### `gitlab/` - GitLab API

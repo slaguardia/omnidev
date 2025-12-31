@@ -6,37 +6,49 @@
 
 import type { FilePath, AsyncResult } from '@/lib/common/types';
 import { createSandboxedGit } from '@/lib/git/sandbox';
+import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git/ref-sync';
 
 /**
  * Pull latest changes from remote
  *
  * Uses reset --hard to handle divergent branches by discarding local changes.
  * This ensures the workspace always matches the remote state exactly.
+ *
+ * Includes ls-remote verification to detect and fix stale local refs that
+ * can occur when the remote is updated externally.
  */
 export async function pullChanges(workspacePath: FilePath): Promise<AsyncResult<void>> {
   try {
     const git = createSandboxedGit(workspacePath);
 
-    // Fetch all remotes and prune deleted remote branches
-    await git.fetch(['--all', '--prune']);
-
-    // Get current branch name
+    // Get current branch name first
     const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
     const branchName = currentBranch.trim();
 
-    // Check if the remote tracking branch exists
-    try {
-      await git.revparse([`origin/${branchName}`]);
-    } catch {
-      // Remote branch doesn't exist, nothing to pull
-      console.log(`[GIT] Remote branch origin/${branchName} does not exist, skipping pull`);
-      return { success: true, data: undefined };
+    console.log(`[GIT PULL] Fetching latest for branch: ${branchName}`);
+
+    // Fetch all remotes and prune deleted remote branches
+    await git.fetch(['--all', '--prune', '--force']);
+
+    // Ensure remote ref is fresh and handle non-existent branches
+    const refSync = await ensureFreshRemoteRef(git, branchName, '[GIT PULL]');
+    if (!refSync.branchExists) {
+      // Try local ref as fallback
+      try {
+        await git.revparse([`origin/${branchName}`]);
+      } catch {
+        console.log(`[GIT PULL] Remote branch origin/${branchName} does not exist, skipping pull`);
+        return { success: true, data: undefined };
+      }
     }
 
     // Reset to remote state to handle divergent branches
     // This discards any local commits/changes and matches remote exactly
-    console.log(`[GIT] Resetting to origin/${branchName} to sync with remote`);
+    console.log(`[GIT PULL] Resetting to origin/${branchName} to sync with remote`);
     await git.reset(['--hard', `origin/${branchName}`]);
+
+    // Verify sync was successful
+    await verifySyncState(git, branchName, '[GIT PULL]');
 
     return { success: true, data: undefined };
   } catch (error) {
@@ -49,6 +61,9 @@ export async function pullChanges(workspacePath: FilePath): Promise<AsyncResult<
 
 /**
  * Push changes to remote repository
+ *
+ * Includes ls-remote verification to ensure accurate ahead/behind diagnostics
+ * before push, detecting stale local refs that could cause failed pushes.
  */
 export async function pushChanges(
   workspacePath: FilePath,
@@ -60,13 +75,13 @@ export async function pushChanges(
     const currentBranch = branch || (await git.revparse(['--abbrev-ref', 'HEAD'])).trim();
 
     // Fresh fetch before push to ensure we have the latest remote state
-    // This prevents "non-fast-forward" errors due to stale local refs
     console.log(`[GIT PUSH] Fetching latest state of origin/${currentBranch}...`);
-    try {
-      await git.fetch(['origin', currentBranch]);
-    } catch (fetchError) {
-      console.warn(`[GIT PUSH] Could not fetch origin/${currentBranch}: ${fetchError}`);
-      // Continue anyway - branch might be new
+
+    // Ensure remote ref is fresh (for existing branches) and detect new branches
+    const refSync = await ensureFreshRemoteRef(git, currentBranch, '[GIT PUSH]');
+    const isNewBranch = !refSync.branchExists;
+    if (isNewBranch) {
+      console.log(`[GIT PUSH] Branch ${currentBranch} does not exist on remote (new branch)`);
     }
 
     // Diagnostic logging before push
@@ -77,37 +92,44 @@ export async function pushChanges(
     let isBehind = false;
     let behind = 0;
     let ahead = 0;
-    try {
-      const remoteHead = await git.raw(['rev-parse', `origin/${currentBranch}`]);
-      remoteShort = remoteHead.trim().substring(0, 7);
 
-      // Check if we're ahead/behind
-      const aheadBehind = await git.raw([
-        'rev-list',
-        '--left-right',
-        '--count',
-        `origin/${currentBranch}...HEAD`,
-      ]);
-      const parts = aheadBehind.trim().split(/\s+/).map(Number);
-      behind = parts[0] ?? 0;
-      ahead = parts[1] ?? 0;
-      isBehind = behind > 0;
+    if (!isNewBranch) {
+      try {
+        const remoteHead = await git.raw(['rev-parse', `origin/${currentBranch}`]);
+        remoteShort = remoteHead.trim().substring(0, 7);
 
-      console.log(
-        `[GIT PUSH] Branch ${currentBranch}: local=${localShort}, origin=${remoteShort}, ahead=${ahead}, behind=${behind}`
-      );
+        // Check if we're ahead/behind
+        const aheadBehind = await git.raw([
+          'rev-list',
+          '--left-right',
+          '--count',
+          `origin/${currentBranch}...HEAD`,
+        ]);
+        const parts = aheadBehind.trim().split(/\s+/).map(Number);
+        behind = parts[0] ?? 0;
+        ahead = parts[1] ?? 0;
+        isBehind = behind > 0;
 
-      if (isBehind) {
-        console.warn(
-          `[GIT PUSH] ⚠️ Local branch is ${behind} commit(s) behind remote - push will likely fail!`
+        console.log(
+          `[GIT PUSH] Branch ${currentBranch}: local=${localShort}, origin=${remoteShort}, ahead=${ahead}, behind=${behind}`
         );
-        console.warn(
-          `[GIT PUSH] Remote has commits that local doesn't have. Consider rebasing or using createMR=true.`
+
+        if (isBehind) {
+          console.warn(
+            `[GIT PUSH] ⚠️ Local branch is ${behind} commit(s) behind remote - push will likely fail!`
+          );
+          console.warn(
+            `[GIT PUSH] Remote has commits that local doesn't have. Consider rebasing or using createMR=true.`
+          );
+        }
+      } catch {
+        console.log(
+          `[GIT PUSH] Branch ${currentBranch}: local=${localShort}, origin=${remoteShort} (remote ref not found)`
         );
       }
-    } catch {
+    } else {
       console.log(
-        `[GIT PUSH] Branch ${currentBranch}: local=${localShort}, origin=${remoteShort} (remote ref not found or new branch)`
+        `[GIT PUSH] Branch ${currentBranch}: local=${localShort} (new branch, no remote)`
       );
     }
 

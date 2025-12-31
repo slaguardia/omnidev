@@ -48,10 +48,15 @@ import {
   unsetWorkspaceGitConfig,
 } from '@/lib/git/config';
 import { prepareWorkspaceForEdit } from '@/lib/git/prepare';
+import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git/ref-sync';
 
 // Export prepare types and function
 export type { PrepareWorkspaceResult } from '@/lib/git/prepare';
 export { prepareWorkspaceForEdit };
+
+// Export ref-sync types and helpers (for internal use and diagnostics)
+export type { RefSyncResult } from '@/lib/git/ref-sync';
+export { ensureFreshRemoteRef, verifySyncState };
 
 /**
  * Main Git operations class that provides access to all git operations

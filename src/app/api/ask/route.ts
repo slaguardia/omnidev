@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
-import { loadWorkspace } from '@/lib/managers/workspace-manager';
+import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
 import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { access } from 'node:fs/promises';
 import type { WorkspaceId } from '@/lib/types/index';
 import { executeOrQueue, type ClaudeCodeJobPayload } from '@/lib/queue';
-import { validateAndParseAskRouteParams } from '@/lib/api/route-validation';
+import {
+  validateAndParseAskRouteParams,
+  parseJsonBody,
+  createRequestTimer,
+  notFound,
+  serverError,
+  serviceUnavailable,
+} from '@/lib/api';
 
 // This api route needs either next-auth or api key authentication
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  console.log(`[ASK API] Request started at ${new Date().toISOString()}`);
+  const timer = createRequestTimer('ASK API');
 
   try {
     // Authentication check
@@ -25,15 +30,12 @@ export async function POST(request: NextRequest) {
     );
 
     // Parse and validate request body (Zod)
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch (parseError) {
-      console.error('[ASK API] Failed to parse request body:', parseError);
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    const bodyResult = await parseJsonBody(request, 'ASK API');
+    if (!bodyResult.success) {
+      return bodyResult.response;
     }
 
-    const validationResult = validateAndParseAskRouteParams(body, 'ASK API');
+    const validationResult = validateAndParseAskRouteParams(bodyResult.data, 'ASK API');
     if (!validationResult.success) {
       return validationResult.error!;
     }
@@ -48,10 +50,7 @@ export async function POST(request: NextRequest) {
 
     if (!initResult.success) {
       console.error(`[ASK API] Failed to initialize workspace manager:`, initResult.error?.message);
-      return NextResponse.json(
-        { error: 'Failed to initialize workspace manager', details: initResult.error?.message },
-        { status: 500 }
-      );
+      return serverError(initResult.error, 'Failed to initialize workspace manager');
     }
 
     // Get workspace
@@ -62,10 +61,7 @@ export async function POST(request: NextRequest) {
 
     if (!workspaceResult.success) {
       console.error(`[ASK API] Failed to load workspace:`, workspaceResult.error?.message);
-      return NextResponse.json(
-        { error: 'Failed to load workspace', details: workspaceResult.error?.message },
-        { status: 404 }
-      );
+      return notFound('Failed to load workspace', workspaceResult.error?.message);
     }
 
     const workspace = workspaceResult.data;
@@ -81,10 +77,7 @@ export async function POST(request: NextRequest) {
       console.log(`[ASK API] Workspace directory accessible`);
     } catch (error) {
       console.error(`[ASK API] Workspace directory not accessible:`, error);
-      return NextResponse.json(
-        { error: 'Workspace directory not found. The workspace may have been deleted.' },
-        { status: 404 }
-      );
+      return notFound('Workspace directory not found. The workspace may have been deleted.');
     }
 
     // Check Claude Code availability
@@ -103,12 +96,8 @@ export async function POST(request: NextRequest) {
         ? availabilityCheck.error?.message
         : 'Not installed or not accessible';
       console.error(`[ASK API] Claude Code not available:`, errorMessage);
-      return NextResponse.json(
-        {
-          error:
-            'Claude Code is not available. Please ensure Claude Code is installed and accessible.',
-        },
-        { status: 503 }
+      return serviceUnavailable(
+        'Claude Code is not available. Please ensure Claude Code is installed and accessible.'
       );
     }
 
@@ -149,8 +138,7 @@ export async function POST(request: NextRequest) {
         throw new Error('Unexpected immediate execution with forceQueue enabled');
       }
 
-      const totalTime = Date.now() - startTime;
-      console.log(`[ASK API] 📋 Job queued with ID: ${execution.jobId} in ${totalTime}ms`);
+      console.log(`[ASK API] 📋 Job queued with ID: ${execution.jobId} in ${timer.elapsed()}ms`);
 
       return NextResponse.json({
         success: true,
@@ -163,32 +151,11 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (queueError) {
-      const totalTime = Date.now() - startTime;
-      const errorMessage = queueError instanceof Error ? queueError.message : String(queueError);
-      console.error(`[ASK API] ❌ Failed to queue job after ${totalTime}ms:`, queueError);
-
-      return NextResponse.json(
-        {
-          error: 'Failed to queue job',
-          details: errorMessage,
-        },
-        { status: 500 }
-      );
+      console.error(`[ASK API] ❌ Failed to queue job after ${timer.elapsed()}ms:`, queueError);
+      return serverError(queueError, 'Failed to queue job');
     }
   } catch (error) {
-    const totalTime = Date.now() - startTime;
-    console.error(`[ASK API] ❌ Request failed after ${totalTime}ms:`, {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString(),
-    });
-
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    timer.logError(error);
+    return serverError(error);
   }
 }

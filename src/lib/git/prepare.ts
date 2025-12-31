@@ -15,6 +15,7 @@ import { CleanOptions } from 'simple-git';
 import type { FilePath, AsyncResult } from '@/lib/common/types';
 import { createSandboxedGit } from '@/lib/git/sandbox';
 import { getDefaultBranch, getLocalBranches, deleteBranch } from '@/lib/git/branches';
+import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git/ref-sync';
 
 export interface PrepareWorkspaceResult {
   targetBranch: string;
@@ -135,31 +136,7 @@ export async function prepareWorkspaceForEdit(
     await git.fetch(['--all', '--prune', '--force']);
 
     // Verify we have the correct remote state using ls-remote (bypasses local cache)
-    try {
-      const lsRemote = await git.raw([
-        'ls-remote',
-        'origin',
-        `refs/heads/${effectiveTargetBranch}`,
-      ]);
-      const actualRemoteCommit = lsRemote.split(/\s+/)[0]?.substring(0, 7) || 'unknown';
-      const localRef = await git
-        .raw(['rev-parse', `origin/${effectiveTargetBranch}`])
-        .catch(() => 'not-found');
-      const localRefShort = localRef.trim().substring(0, 7);
-      console.log(
-        `[GIT PREPARE] Remote state check: actual remote=${actualRemoteCommit}, local origin/${effectiveTargetBranch}=${localRefShort}`
-      );
-      if (actualRemoteCommit !== localRefShort && actualRemoteCommit !== 'unknown') {
-        console.warn(`[GIT PREPARE] ⚠️ Local ref is stale! Forcing ref update...`);
-        // Force update the ref
-        await git.fetch([
-          'origin',
-          `+refs/heads/${effectiveTargetBranch}:refs/remotes/origin/${effectiveTargetBranch}`,
-        ]);
-      }
-    } catch (lsRemoteError) {
-      console.warn(`[GIT PREPARE] Could not verify remote state: ${lsRemoteError}`);
-    }
+    await ensureFreshRemoteRef(git, effectiveTargetBranch, '[GIT PREPARE]');
 
     // Step 6: Checkout target branch (create from remote if needed)
     console.log(`[GIT PREPARE] Switching to target branch: ${effectiveTargetBranch}`);
@@ -183,16 +160,9 @@ export async function prepareWorkspaceForEdit(
     try {
       await git.reset(['--hard', `origin/${effectiveTargetBranch}`]);
 
-      // Diagnostic logging: verify sync was successful
-      const localHead = await git.raw(['rev-parse', 'HEAD']);
-      const remoteHead = await git.raw(['rev-parse', `origin/${effectiveTargetBranch}`]);
-      const localShort = localHead.trim().substring(0, 7);
-      const remoteShort = remoteHead.trim().substring(0, 7);
-      const match = localHead.trim() === remoteHead.trim();
-      console.log(
-        `[GIT PREPARE] Sync check: local=${localShort}, origin/${effectiveTargetBranch}=${remoteShort} ${match ? '✅' : '❌ MISMATCH'}`
-      );
-      if (!match) {
+      // Verify sync was successful
+      const syncOk = await verifySyncState(git, effectiveTargetBranch, '[GIT PREPARE]');
+      if (!syncOk) {
         console.error(
           `[GIT PREPARE] ⚠️ Local HEAD does not match remote after reset! This may cause push failures.`
         );

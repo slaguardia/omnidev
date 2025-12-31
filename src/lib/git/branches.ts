@@ -7,6 +7,7 @@
 import type { FilePath, AsyncResult, CommitHash } from '@/lib/common/types';
 import type { GitBranchInfo } from '@/lib/git/types';
 import { createSandboxedGit } from '@/lib/git/sandbox';
+import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git/ref-sync';
 
 /**
  * Add directory to Git safe directories to prevent ownership issues
@@ -338,39 +339,7 @@ export async function switchBranch(
     await git.fetch(['--all', '--prune', '--force']);
 
     // Verify we have the correct remote state using ls-remote
-    try {
-      const lsRemote = await git.raw(['ls-remote', 'origin', `refs/heads/${branchName}`]);
-      if (lsRemote.trim()) {
-        const actualRemoteCommit = lsRemote.split(/\s+/)[0]?.substring(0, 7) || 'unknown';
-        const localRef = await git
-          .raw(['rev-parse', `origin/${branchName}`])
-          .catch(() => 'not-found');
-        const localRefShort = localRef.trim().substring(0, 7);
-        console.log(
-          `[GIT] Remote state: actual origin/${branchName}=${actualRemoteCommit}, local ref=${localRefShort}`
-        );
-        if (
-          actualRemoteCommit !== localRefShort &&
-          actualRemoteCommit !== 'unknown' &&
-          localRefShort !== 'not-fou'
-        ) {
-          console.warn(`[GIT] ⚠️ Local ref is stale! Forcing ref update...`);
-          await git.fetch([
-            'origin',
-            `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
-          ]);
-          // Re-check after force update
-          const updatedRef = await git
-            .raw(['rev-parse', `origin/${branchName}`])
-            .catch(() => 'not-found');
-          console.log(
-            `[GIT] After force update: origin/${branchName}=${updatedRef.trim().substring(0, 7)}`
-          );
-        }
-      }
-    } catch (lsRemoteError) {
-      console.warn(`[GIT] Could not verify remote state for ${branchName}: ${lsRemoteError}`);
-    }
+    await ensureFreshRemoteRef(git, branchName, '[GIT]');
 
     // Check if branch exists locally
     const branches = await git.branch();
@@ -458,28 +427,13 @@ export async function switchBranch(
           await git.checkout(['-b', branchName, `origin/${branchName}`]);
           console.log(`[GIT] ✅ Created local branch ${branchName} tracking origin/${branchName}`);
 
-          // Verify we're synced properly with diagnostic logging
-          const localHead = await git.raw(['rev-parse', 'HEAD']);
-          const remoteHead = await git.raw(['rev-parse', `origin/${branchName}`]);
-          const localShort = localHead.trim().substring(0, 7);
-          const remoteShort = remoteHead.trim().substring(0, 7);
-          const match = localHead.trim() === remoteHead.trim();
-
-          if (!match) {
-            console.log(
-              `[GIT] Heads differ: local=${localShort}, origin/${branchName}=${remoteShort}, forcing sync...`
-            );
+          // Verify we're synced properly
+          const syncOk = await verifySyncState(git, branchName, '[GIT]');
+          if (!syncOk) {
+            console.log(`[GIT] Heads differ, forcing sync...`);
             await git.reset(['--hard', `origin/${branchName}`]);
             // Re-verify after reset
-            const newLocalHead = await git.raw(['rev-parse', 'HEAD']);
-            const newMatch = newLocalHead.trim() === remoteHead.trim();
-            console.log(
-              `[GIT] After reset: local=${newLocalHead.trim().substring(0, 7)}, origin/${branchName}=${remoteShort} ${newMatch ? '✅' : '❌ STILL MISMATCHED'}`
-            );
-          } else {
-            console.log(
-              `[GIT] ✅ Branch ${branchName} synced: local=${localShort}, origin/${branchName}=${remoteShort}`
-            );
+            await verifySyncState(git, branchName, '[GIT]');
           }
         } catch (checkoutError) {
           return {

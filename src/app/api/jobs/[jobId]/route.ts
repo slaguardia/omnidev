@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
 import { deleteFinishedJob, getJob, createJobId } from '@/lib/queue';
+import { badRequest, notFound, serverError, conflict } from '@/lib/api';
 
 /**
  * GET /api/jobs/:jobId
@@ -22,7 +23,7 @@ export async function GET(
     const { jobId } = await params;
 
     if (!jobId) {
-      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+      return badRequest('Job ID is required');
     }
 
     console.log(`[JOBS API] Getting job status for ${jobId}`);
@@ -30,7 +31,7 @@ export async function GET(
     const job = await getJob(createJobId(jobId));
 
     if (!job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      return notFound('Job not found');
     }
 
     // Return job info based on status
@@ -69,13 +70,7 @@ export async function GET(
     return NextResponse.json(response);
   } catch (error) {
     console.error('[JOBS API] Error getting job:', error);
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return serverError(error);
   }
 }
 
@@ -97,7 +92,7 @@ export async function DELETE(
 
     const { jobId } = await params;
     if (!jobId) {
-      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+      return badRequest('Job ID is required');
     }
 
     const result = await deleteFinishedJob(createJobId(jobId));
@@ -107,25 +102,16 @@ export async function DELETE(
     }
 
     if (result.reason === 'not_found') {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      return notFound('Job not found');
     }
 
     if (result.reason === 'not_finished') {
-      return NextResponse.json(
-        { error: 'Job is not finished (pending/processing jobs cannot be deleted)' },
-        { status: 409 }
-      );
+      return conflict('Job is not finished (pending/processing jobs cannot be deleted)');
     }
 
-    return NextResponse.json({ error: 'Failed to delete job' }, { status: 500 });
+    return serverError(new Error('Unknown error'), 'Failed to delete job');
   } catch (error) {
     console.error('[JOBS API] Error deleting job:', error);
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return serverError(error);
   }
 }

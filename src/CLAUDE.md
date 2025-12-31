@@ -97,6 +97,9 @@ src/app/
 │   ├── ask/route.ts    # POST /api/ask
 │   ├── edit/route.ts   # POST /api/edit
 │   └── ...
+├── about/              # About page (/about)
+│   ├── layout.tsx
+│   └── page.tsx
 ├── dashboard/          # Dashboard pages (/dashboard)
 │   ├── layout.tsx      # Dashboard layout
 │   └── page.tsx        # Dashboard home
@@ -104,6 +107,8 @@ src/app/
 │   ├── layout.tsx
 │   ├── page.tsx        # Docs index
 │   └── [slug]/page.tsx # Dynamic doc pages
+├── mcp/                # MCP server pages (/mcp)
+│   └── page.tsx
 └── signin/             # Auth pages (/signin)
     └── layout.tsx
 ```
@@ -140,14 +145,16 @@ interface MyComponentProps {
 
 Custom hooks in `src/hooks/` encapsulate data fetching and state:
 
-| Hook                   | Purpose              | Returns                                       |
-| ---------------------- | -------------------- | --------------------------------------------- |
-| `useWorkspaces`        | Fetch workspace list | `{ workspaces, loading, error, refresh }`     |
-| `useEnvironmentConfig` | App configuration    | `{ config, loading, error }`                  |
-| `useCloneRepository`   | Clone form state     | `{ cloneForm, setCloneForm, clone, loading }` |
-| `useBranches`          | Branch listing       | `{ branches, loading, switchBranch }`         |
-| `useChangePassword`    | Password form        | `{ form, setForm, submit, loading }`          |
-| `useExecutionHistory`  | Claude execution log | `{ history, loading, clear }`                 |
+| Hook                   | Purpose                   | Returns                                       |
+| ---------------------- | ------------------------- | --------------------------------------------- |
+| `useWorkspaces`        | Fetch workspace list      | `{ workspaces, loading, error, refresh }`     |
+| `useEnvironmentConfig` | App configuration         | `{ config, loading, error }`                  |
+| `useCloneRepository`   | Clone form state          | `{ cloneForm, setCloneForm, clone, loading }` |
+| `useBranches`          | Branch listing            | `{ branches, loading, switchBranch }`         |
+| `useChangePassword`    | Password form             | `{ form, setForm, submit, loading }`          |
+| `useExecutionHistory`  | Claude execution log      | `{ history, loading, clear }`                 |
+| `useClaudeOperations`  | Claude ask/edit ops       | `{ ask, edit, loading, error }`               |
+| `usePersistedState`    | LocalStorage-backed state | `[value, setValue]`                           |
 
 ## Common Patterns
 

@@ -1,27 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
 import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
-import {
-  updateWorkspace,
-  loadAllWorkspacesFromStorage,
-} from '@/lib/managers/repository-manager';
-import { isGitLabUrl, isGitHubUrl } from '@/lib/git';
-import {
-  extractProjectIdFromUrl as extractGitLabProjectId,
-  getGitLabConfig,
-  getRepositoryPermissions as getGitLabRepositoryPermissions,
-} from '@/lib/gitlab';
-import {
-  extractOwnerRepoFromUrl as extractGitHubOwnerRepo,
-  getGitHubConfig,
-  getRepositoryPermissions as getGitHubRepositoryPermissions,
-} from '@/lib/github';
+import { updateWorkspace, loadAllWorkspacesFromStorage } from '@/lib/managers/repository-manager';
 import type { WorkspaceId, WorkspacePermissions } from '@/lib/types/index';
 import * as WorkspaceManagerModule from '@/lib/managers/workspace-manager';
+import {
+  badRequest,
+  notFound,
+  serverError,
+  parseJsonBody,
+  createRequestTimer,
+  fetchRepositoryPermissions,
+} from '@/lib/api';
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  console.log(`[WORKSPACE UPDATE API] Request started at ${new Date().toISOString()}`);
+  const timer = createRequestTimer('WORKSPACE UPDATE API');
 
   try {
     // Authentication
@@ -31,17 +24,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse body
-    let body: { workspaceId?: string; targetBranch?: string; refreshPermissions?: boolean };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    const bodyResult = await parseJsonBody<{
+      workspaceId?: string;
+      targetBranch?: string;
+      refreshPermissions?: boolean;
+    }>(request, 'WORKSPACE UPDATE API');
+    if (!bodyResult.success) {
+      return bodyResult.response;
     }
 
-    const { workspaceId, targetBranch, refreshPermissions } = body;
+    const { workspaceId, targetBranch, refreshPermissions } = bodyResult.data;
 
     if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 });
+      return badRequest('workspaceId is required');
     }
 
     // Initialize workspace manager
@@ -52,10 +47,7 @@ export async function POST(request: NextRequest) {
     // Load workspace
     const workspaceResult = await loadWorkspace(workspaceId as WorkspaceId);
     if (!workspaceResult.success) {
-      return NextResponse.json(
-        { error: 'Workspace not found', details: workspaceResult.error?.message },
-        { status: 404 }
-      );
+      return notFound('Workspace not found', workspaceResult.error?.message);
     }
 
     const workspace = workspaceResult.data;
@@ -66,86 +58,41 @@ export async function POST(request: NextRequest) {
 
     if (targetBranch && targetBranch !== workspace.targetBranch) {
       updates.targetBranch = targetBranch;
-      console.log(`[WORKSPACE UPDATE API] Updating targetBranch from ${workspace.targetBranch} to ${targetBranch}`);
+      console.log(
+        `[WORKSPACE UPDATE API] Updating targetBranch from ${workspace.targetBranch} to ${targetBranch}`
+      );
     }
 
     // Refresh permissions if requested or if branch changed
     if (refreshPermissions || (targetBranch && targetBranch !== workspace.targetBranch)) {
       console.log(`[WORKSPACE UPDATE API] Refreshing permissions for branch: ${branchToCheck}`);
 
-      let permissions: WorkspacePermissions | undefined;
+      const permResult = await fetchRepositoryPermissions({
+        repoUrl: workspace.repoUrl,
+        branch: branchToCheck,
+        logPrefix: 'WORKSPACE UPDATE API',
+      });
 
-      if (isGitLabUrl(workspace.repoUrl)) {
-        const gitlabConfig = await getGitLabConfig();
-        if (gitlabConfig.token) {
-          const projectId = extractGitLabProjectId(workspace.repoUrl);
-          if (projectId) {
-            const permResult = await getGitLabRepositoryPermissions(
-              projectId,
-              branchToCheck,
-              gitlabConfig.baseUrl,
-              gitlabConfig.token
-            );
-            if (permResult.success) {
-              permissions = permResult.data;
-              console.log('[WORKSPACE UPDATE API] GitLab permissions refreshed:', {
-                accessLevel: permResult.data.accessLevelName,
-                targetBranchProtected: permResult.data.targetBranchProtected,
-              });
-            } else {
-              console.warn('[WORKSPACE UPDATE API] Could not check GitLab permissions:', permResult.error?.message);
-            }
-          }
-        } else {
-          console.log('[WORKSPACE UPDATE API] No GitLab token configured, skipping permission check');
-        }
-      } else if (isGitHubUrl(workspace.repoUrl)) {
-        const githubConfig = await getGitHubConfig();
-        if (githubConfig.token) {
-          const ownerRepo = extractGitHubOwnerRepo(workspace.repoUrl);
-          if (ownerRepo) {
-            const permResult = await getGitHubRepositoryPermissions(
-              ownerRepo.owner,
-              ownerRepo.repo,
-              branchToCheck,
-              githubConfig.token
-            );
-            if (permResult.success) {
-              permissions = permResult.data;
-              console.log('[WORKSPACE UPDATE API] GitHub permissions refreshed:', {
-                accessLevel: permResult.data.accessLevelName,
-                targetBranchProtected: permResult.data.targetBranchProtected,
-              });
-            } else {
-              console.warn('[WORKSPACE UPDATE API] Could not check GitHub permissions:', permResult.error?.message);
-            }
-          }
-        } else {
-          console.log('[WORKSPACE UPDATE API] No GitHub token configured, skipping permission check');
-        }
+      // Only use permissions if fetch was successful and returned data
+      if (permResult.success && permResult.data.permissions) {
+        updates.metadata = { permissions: permResult.data.permissions };
       }
-
-      if (permissions) {
-        updates.metadata = { permissions };
-      }
+      // Note: We don't fail the update if permissions fetch fails - just log warning
+      // (This matches the original behavior where missing config was not an error)
     }
 
     // Apply updates if there are any
     if (Object.keys(updates).length > 0) {
       const updateResult = await updateWorkspace(workspaceId as WorkspaceId, updates);
       if (!updateResult.success) {
-        return NextResponse.json(
-          { error: 'Failed to update workspace', details: updateResult.error?.message },
-          { status: 500 }
-        );
+        return serverError(updateResult.error, 'Failed to update workspace');
       }
 
       // Persist to WorkspaceManager storage
       const updatedWorkspace = updateResult.data;
       await WorkspaceManagerModule.updateWorkspace(updatedWorkspace);
 
-      const totalTime = Date.now() - startTime;
-      console.log(`[WORKSPACE UPDATE API] Completed in ${totalTime}ms`);
+      timer.logComplete();
 
       return NextResponse.json({
         success: true,
@@ -158,8 +105,8 @@ export async function POST(request: NextRequest) {
     }
 
     // No updates needed
-    const totalTime = Date.now() - startTime;
-    console.log(`[WORKSPACE UPDATE API] No changes needed, completed in ${totalTime}ms`);
+    console.log(`[WORKSPACE UPDATE API] No changes needed`);
+    timer.logComplete();
 
     return NextResponse.json({
       success: true,
@@ -170,13 +117,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error(`[WORKSPACE UPDATE API] Failed:`, error);
-    return NextResponse.json(
-      {
-        error: 'Failed to update workspace',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    timer.logError(error);
+    return serverError(error, 'Failed to update workspace');
   }
 }
