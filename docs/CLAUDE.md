@@ -78,7 +78,7 @@ Include these additional sections:
 
 - **Non-goals** - What this intentionally does NOT do
 - **Roadmap / ideas** - Invite feedback on direction
-- **License** - Apache 2.0
+- **License** - MIT
 
 ### Technical Documentation
 
