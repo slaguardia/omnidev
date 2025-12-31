@@ -7,7 +7,17 @@ import { addToast } from '@heroui/toast';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { Chip } from '@heroui/chip';
 import { Skeleton } from '@heroui/skeleton';
-import { GitBranch, FolderOpen, Trash2, Clock, Hash, Lock, AlertTriangle, Shield, Settings } from 'lucide-react';
+import {
+  GitBranch,
+  FolderOpen,
+  Trash2,
+  Clock,
+  Hash,
+  Lock,
+  AlertTriangle,
+  Shield,
+  Settings,
+} from 'lucide-react';
 import { Tooltip } from '@heroui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Workspace } from '@/lib/dashboard/types';
@@ -175,7 +185,11 @@ export default function WorkspacesTab({
                             <Chip
                               size="sm"
                               variant="flat"
-                              color={workspace.metadata?.permissions?.targetBranchProtected ? 'warning' : 'primary'}
+                              color={
+                                workspace.metadata?.permissions?.targetBranchProtected
+                                  ? 'warning'
+                                  : 'primary'
+                              }
                               className="flex-shrink-0"
                               startContent={
                                 workspace.metadata?.permissions?.targetBranchProtected ? (
@@ -256,7 +270,9 @@ export default function WorkspacesTab({
                           <div className="flex items-center gap-2 text-sm">
                             <Shield className="w-3.5 h-3.5 text-default-400" />
                             <span className="text-default-500">Access:</span>
-                            <span className="text-default-400 italic">Unknown (no credentials)</span>
+                            <span className="text-default-400 italic">
+                              Unknown (no credentials)
+                            </span>
                           </div>
                         )}
 

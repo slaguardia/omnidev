@@ -992,7 +992,12 @@ export async function checkBranchPushPermission(
         };
       }
 
-      const result = await gitlabCanPushToBranch(projectId, branchName, config.baseUrl, config.token);
+      const result = await gitlabCanPushToBranch(
+        projectId,
+        branchName,
+        config.baseUrl,
+        config.token
+      );
       if (!result.success) {
         return result;
       }

@@ -127,11 +127,11 @@ Omnidev is designed to run anywhere — cloud infrastructure, VPS, or local envi
 
 ### Deployment Modes
 
-| Service             | Purpose                                    | Command                                              |
-| ------------------- | ------------------------------------------ | ---------------------------------------------------- |
-| `workflow-app`      | Full application with auth and dashboard   | `docker compose up -d --build workflow-app`          |
+| Service             | Purpose                                     | Command                                                          |
+| ------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `workflow-app`      | Full application with auth and dashboard    | `docker compose up -d --build workflow-app`                      |
 | `workflow-showcase` | Read-only demo mode (no auth, no dashboard) | `docker compose --profile showcase up workflow-showcase --build` |
-| `workflow-dev`      | Development with hot reload                | `docker compose up -d --build workflow-dev`          |
+| `workflow-dev`      | Development with hot reload                 | `docker compose up -d --build workflow-dev`                      |
 
 - **workflow-app**: Production deployment. Includes authentication, dashboard, and all features. Use this for self-hosting.
 - **workflow-showcase**: Public demo mode. Hides auth and dashboard, shows only documentation. Use this for publishing a read-only demo.

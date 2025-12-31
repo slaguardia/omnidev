@@ -248,7 +248,9 @@ export default function WorkspaceDetailModal({
                             {permissions.accessLevelName}
                           </span>
                           {hasPermissionWarning && (
-                            <Tooltip content={permissions.warning || 'MRs required for this branch'}>
+                            <Tooltip
+                              content={permissions.warning || 'MRs required for this branch'}
+                            >
                               <AlertTriangle className="w-4 h-4 text-warning-500" />
                             </Tooltip>
                           )}
@@ -261,9 +263,7 @@ export default function WorkspaceDetailModal({
                           variant="flat"
                           color={permissions.targetBranchProtected ? 'warning' : 'success'}
                           startContent={
-                            permissions.targetBranchProtected ? (
-                              <Lock className="w-3 h-3" />
-                            ) : null
+                            permissions.targetBranchProtected ? <Lock className="w-3 h-3" /> : null
                           }
                         >
                           {permissions.targetBranchProtected ? 'Yes' : 'No'}
@@ -321,12 +321,7 @@ export default function WorkspaceDetailModal({
                         <Hash className="w-4 h-4 text-default-400" />
                         <span className="text-sm text-default-600">Workspace ID</span>
                       </div>
-                      <Snippet
-                        hideSymbol
-                        size="sm"
-                        variant="flat"
-                        classNames={{ pre: 'text-xs' }}
-                      >
+                      <Snippet hideSymbol size="sm" variant="flat" classNames={{ pre: 'text-xs' }}>
                         {workspace.id}
                       </Snippet>
                     </div>

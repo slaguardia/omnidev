@@ -201,7 +201,14 @@ export async function canPushToBranch(
         // User might not be a direct member but could have access through group
         // Try to get effective access level from project
         const project = await gitlab.Projects.show(projectId);
-        const permissions = (project as unknown as { permissions?: { project_access?: { access_level: number } | null; group_access?: { access_level: number } | null } }).permissions;
+        const permissions = (
+          project as unknown as {
+            permissions?: {
+              project_access?: { access_level: number } | null;
+              group_access?: { access_level: number } | null;
+            };
+          }
+        ).permissions;
         if (permissions?.project_access?.access_level) {
           userAccessLevel = permissions.project_access.access_level;
         } else if (permissions?.group_access?.access_level) {
@@ -225,14 +232,14 @@ export async function canPushToBranch(
     let requiredAccessLevel: number = GitLabAccessLevel.MAINTAINER; // Default to maintainer if we can't determine
     try {
       const protectedBranch = await gitlab.ProtectedBranches.show(projectId, branchName);
-      const pushAccessLevels = (protectedBranch as { push_access_levels?: Array<{ access_level: number }> }).push_access_levels;
+      const pushAccessLevels = (
+        protectedBranch as { push_access_levels?: Array<{ access_level: number }> }
+      ).push_access_levels;
 
       if (pushAccessLevels && pushAccessLevels.length > 0) {
         // Find the minimum required access level
         // Note: access_level of 0 means "No one" can push
-        const levels = pushAccessLevels
-          .map((l) => l.access_level)
-          .filter((l) => l > 0);
+        const levels = pushAccessLevels.map((l) => l.access_level).filter((l) => l > 0);
 
         if (levels.length === 0) {
           // No one can push directly
