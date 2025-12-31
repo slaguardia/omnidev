@@ -1,10 +1,10 @@
-# OmniDev — Developer Bot Orchestration Runtime
+# Omnidev — Developer Bot Orchestration Runtime
 
 ## Project Identity
 
-**OmniDev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+**Omnidev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
 
-### What OmniDev Is
+### What Omnidev Is
 
 | Category        | Classification                                                 |
 | --------------- | -------------------------------------------------------------- |
@@ -13,7 +13,7 @@
 | Execution Model | Workspace-scoped behavior, not bot-scoped                      |
 | AI Integration  | Bring your own Claude Code subscription                        |
 
-### What OmniDev Is NOT
+### What Omnidev Is NOT
 
 - Not a SaaS AI product
 - Not a multi-bot system
@@ -22,7 +22,7 @@
 
 ### Bot Model (Critical Constraint)
 
-OmniDev operates **one bot identity** that spans many workspaces (repos, teams, orgs). There must be no assumption of:
+Omnidev operates **one bot identity** that spans many workspaces (repos, teams, orgs). There must be no assumption of:
 
 - one bot per repo
 - one bot per team
@@ -242,13 +242,13 @@ export async function POST(request: NextRequest) {
 
 ## Relationship to Claude Code
 
-OmniDev uses Claude Code as an execution and reasoning engine. OmniDev does not replace, reimplement, or resell Claude Code. Users must bring their own Claude Code subscription.
+Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not replace, reimplement, or resell Claude Code. Users must bring their own Claude Code subscription.
 
 ### Responsibility Boundaries
 
 | Responsible Entity | Responsibilities                                                                                                                                                                                                            |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OmniDev**        | Workflow orchestration, event handling (GitHub, GitLab, CI, n8n, manual triggers), workspace scoping and configuration, permission boundaries and execution context, integration lifecycle, infrastructure/runtime concerns |
+| **Omnidev**        | Workflow orchestration, event handling (GitHub, GitLab, CI, n8n, manual triggers), workspace scoping and configuration, permission boundaries and execution context, integration lifecycle, infrastructure/runtime concerns |
 | **Claude Code**    | Code understanding, command execution, research and reasoning, repo-level operations                                                                                                                                        |
 
 ### Claude Code Treatment
@@ -261,13 +261,13 @@ Claude Code is treated as:
 
 AI agents interacting with this project must:
 
-- Never describe OmniDev as "Claude Code itself"
-- Never assume OmniDev owns or provides AI intelligence
+- Never describe Omnidev as "Claude Code itself"
+- Never assume Omnidev owns or provides AI intelligence
 - Clearly separate orchestration logic from AI execution
 
 ## Workflow Philosophy
 
-OmniDev is **workflow-agnostic**. Users define:
+Omnidev is **workflow-agnostic**. Users define:
 
 - what triggers work
 - what work runs
@@ -275,17 +275,17 @@ OmniDev is **workflow-agnostic**. Users define:
 
 No single "correct" workflow is enforced. Opinionated defaults are allowed, but must be overrideable.
 
-**Guiding rule:** OmniDev adapts to developer workflows, not the other way around.
+**Guiding rule:** Omnidev adapts to developer workflows, not the other way around.
 
 ## Deployment Model
 
-OmniDev is **cloud-first but not cloud-required**. Must be deployable to:
+Omnidev is **cloud-first but not cloud-required**. Must be deployable to:
 
 - cloud infrastructure
 - VPS
 - local environments
 
-No feature may require a hosted OmniDev service. Domain usage (e.g., `.cloud`) must never imply:
+No feature may require a hosted Omnidev service. Domain usage (e.g., `.cloud`) must never imply:
 
 - hosted-only
 - SaaS lock-in
@@ -300,7 +300,7 @@ Users may:
 - extend execution capabilities
 - wire external systems (e.g., n8n)
 
-OmniDev must not obscure or restrict this control. Power-user access is a feature, not a liability.
+Omnidev must not obscure or restrict this control. Power-user access is a feature, not a liability.
 
 ## Documentation Principles
 

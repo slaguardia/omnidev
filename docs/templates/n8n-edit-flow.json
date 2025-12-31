@@ -1,5 +1,5 @@
 {
-  "name": "OmniDev Edit Flow (Template)",
+  "name": "Omnidev Edit Flow (Template)",
   "nodes": [
     {
       "parameters": {
@@ -107,7 +107,7 @@
       "credentials": {
         "httpBearerAuth": {
           "id": "YOUR_BEARER_AUTH_CREDENTIAL_ID",
-          "name": "OmniDev API Key"
+          "name": "Omnidev API Key"
         }
       }
     },

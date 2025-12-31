@@ -1,13 +1,13 @@
-# OmniDev
+# Omnidev
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub](https://img.shields.io/github/stars/slaguardia/omnidev?style=social)](https://github.com/slaguardia/omnidev)
 
 A single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
 
-## What is OmniDev?
+## What is Omnidev?
 
-OmniDev is a **developer automation platform** and **workflow orchestration runtime**. It provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis and editing.
+Omnidev is a **developer automation platform** and **workflow orchestration runtime**. It provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis and editing.
 
 | Attribute       | Description                                                    |
 | --------------- | -------------------------------------------------------------- |
@@ -17,7 +17,7 @@ OmniDev is a **developer automation platform** and **workflow orchestration runt
 | AI Integration  | Bring your own Claude Code subscription                        |
 | Deployment      | Cloud, VPS, or local — runs anywhere                           |
 
-### What OmniDev is NOT
+### What Omnidev is NOT
 
 - Not a SaaS AI product
 - Not a multi-bot system
@@ -26,11 +26,11 @@ OmniDev is a **developer automation platform** and **workflow orchestration runt
 
 ## Claude Code Dependency
 
-OmniDev installs and orchestrates the publicly available Claude Code package. Users must have their own Claude account and active subscription. Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+Omnidev installs and orchestrates the publicly available Claude Code package. Users must have their own Claude account and active subscription. Claude Code is a product of Anthropic PBC and is not affiliated with this project.
 
 ### Responsibility Boundaries
 
-| OmniDev Handles                | Claude Code Handles    |
+| Omnidev Handles                | Claude Code Handles    |
 | ------------------------------ | ---------------------- |
 | Workflow orchestration         | Code understanding     |
 | Event handling (GitHub/GitLab) | Command execution      |
@@ -123,7 +123,7 @@ See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
 
 ## Docker Deployment
 
-OmniDev is designed to run anywhere — cloud infrastructure, VPS, or local environments.
+Omnidev is designed to run anywhere — cloud infrastructure, VPS, or local environments.
 
 ### Deployment Modes
 
@@ -202,7 +202,7 @@ Users may:
 - Extend execution capabilities
 - Wire external systems (e.g., n8n)
 
-OmniDev does not obscure or restrict this control. Power-user access is a feature.
+Omnidev does not obscure or restrict this control. Power-user access is a feature.
 
 ## Testing
 
@@ -254,7 +254,7 @@ When in doubt, prefer:
 - **Transparency** over abstraction
 - **Infrastructure patterns** over product gimmicks
 
-**Guiding rule:** OmniDev adapts to developer workflows, not the other way around.
+**Guiding rule:** Omnidev adapts to developer workflows, not the other way around.
 
 ## License
 
@@ -270,4 +270,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ---
 
-OmniDev is an orchestration layer. Claude Code provides the intelligence. Users bring their own AI subscription.
+Omnidev is an orchestration layer. Claude Code provides the intelligence. Users bring their own AI subscription.

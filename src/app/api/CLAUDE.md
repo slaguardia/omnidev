@@ -1,6 +1,6 @@
-# OmniDev — API Routes
+# Omnidev — API Routes
 
-> OmniDev is a single developer bot orchestration runtime. See root `CLAUDE.md` for project identity and architectural constraints.
+> Omnidev is a single developer bot orchestration runtime. See root `CLAUDE.md` for project identity and architectural constraints.
 
 Next.js App Router API routes using route handlers.
 

@@ -1,20 +1,20 @@
 # Documentation Guidelines
 
-This file establishes design principles and writing standards for OmniDev documentation. These guidelines are subject to change as the project develops.
+This file establishes design principles and writing standards for Omnidev documentation. These guidelines are subject to change as the project develops.
 
 ## Core Principles
 
 ### Project Identity
 
-**OmniDev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+**Omnidev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
 
-OmniDev is:
+Omnidev is:
 
 - A developer automation platform / workflow orchestration runtime
 - One bot identity spanning many workspaces
 - Workflow-agnostic and deploy-anywhere
 
-OmniDev is NOT:
+Omnidev is NOT:
 
 - A SaaS AI product
 - A multi-bot system
@@ -23,7 +23,7 @@ OmniDev is NOT:
 
 ### Project Philosophy
 
-OmniDev adapts to developer workflows, not the other way around. The architecture reflects this principle: one bot, many workspaces, with workspace-scoped behavior.
+Omnidev adapts to developer workflows, not the other way around. The architecture reflects this principle: one bot, many workspaces, with workspace-scoped behavior.
 
 Documentation should:
 
@@ -96,16 +96,16 @@ All public-facing documentation must include this disclosure:
 ```markdown
 ## Claude Code Dependency
 
-OmniDev installs and orchestrates the publicly available Claude Code package.
+Omnidev installs and orchestrates the publicly available Claude Code package.
 Users must have their own Claude account and active subscription.
 Claude Code is a product of Anthropic PBC and is not affiliated with this project.
 ```
 
 ### Relationship to Claude Code
 
-OmniDev uses Claude Code as an execution and reasoning engine. OmniDev does not replace, reimplement, or resell Claude Code.
+Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not replace, reimplement, or resell Claude Code.
 
-| OmniDev Responsibilities | Claude Code Responsibilities |
+| Omnidev Responsibilities | Claude Code Responsibilities |
 | ------------------------ | ---------------------------- |
 | Workflow orchestration   | Code understanding           |
 | Event handling           | Command execution            |
