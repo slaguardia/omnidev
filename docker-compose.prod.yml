@@ -1,0 +1,43 @@
+# Production configuration
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  init-perms:
+    profiles: []  # Override profile to run by default in prod
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-app
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
+    expose:
+      - '3000'
+    # Uncomment to expose directly (without reverse proxy):
+    # ports:
+    #   - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_TOKEN=${GITLAB_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - INITIAL_SIGNUP_TOKEN=${INITIAL_SIGNUP_TOKEN:-}
+      - API_RATE_LIMIT=${API_RATE_LIMIT:-100}
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+    volumes:
+      - workflow_workspaces:/app/workspaces
+      - workflow_secrets:/secrets
+      - workflow_claude_config:/home/nextjs/.claude
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    entrypoint: ['/entrypoint.sh']
+    command: ['node', 'server.js']

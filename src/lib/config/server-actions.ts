@@ -273,7 +273,7 @@ export async function getWorkspaceBaseDir(): Promise<string> {
  * Showcase mode disables authentication and dashboard access for read-only publishing
  */
 export async function isShowcaseMode(): Promise<boolean> {
-  return process.env.SHOWCASE_MODE === 'true';
+  return process.env.NEXT_PUBLIC_SHOWCASE_MODE === 'true';
 }
 
 /**

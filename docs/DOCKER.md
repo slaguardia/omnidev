@@ -1,36 +1,49 @@
 ## Files Overview
 
-- `Dockerfile` - Production-optimized multi-stage build
-- `Dockerfile.dev` - Development build with hot reloading
-- `docker-compose.yml` - Orchestration for production and development
-- `.dockerignore` - Excludes unnecessary files from Docker context
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Production multi-stage build |
+| `Dockerfile.dev` | Development build with hot reload |
+| `docker-compose.yml` | Base configuration (volumes, init service) |
+| `docker-compose.override.yml` | Development overrides (auto-loaded) |
+| `docker-compose.prod.yml` | Production overrides |
+| `docker-compose.showcase.yml` | Showcase mode (read-only, no auth) |
+| `.dockerignore` | Excludes unnecessary files from Docker context |
+| `.env.example` | Environment variable template |
 
 ## Quick Start
 
-### Production Build
+### Development
 
-1. **Build and run with Docker Compose:**
+```bash
+docker compose up
+```
 
-   ```bash
-   docker compose up -d --build workflow-app
-   ```
+This auto-loads `docker-compose.override.yml` which uses `Dockerfile.dev` with hot reload.
 
-2. **Or build and run manually:**
+### Production
 
-   Build the image:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
-   ```bash
-   docker build -t workflow-app .
-   ```
+### Showcase Mode
 
-   Run the container:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.showcase.yml up --build
+```
 
-   ```bash
-   docker run -p 3000:3000 --name workflow-app workflow-app
-   ```
+Showcase mode is read-only with no authentication - for public demos.
 
-3. **Access the application:**
-   Open http://localhost:3000 in your browser
+### Initialize Volumes (first time only)
+
+```bash
+docker compose --profile init run --rm init-perms
+```
+
+### Access the Application
+
+Open http://localhost:3000 in your browser
 
 ## Coolify Deployment (Docker Compose)
 
@@ -43,19 +56,19 @@ Set these in Coolify if it asks for custom commands (or use them when deploying 
 **Build command**
 
 ```bash
-docker compose -f ./docker-compose.yml build workflow-app
+docker compose -f ./docker-compose.yml -f ./docker-compose.prod.yml build app
 ```
 
 **Start command**
 
 ```bash
-docker compose -f ./docker-compose.yml up -d workflow-app
+docker compose -f ./docker-compose.yml -f ./docker-compose.prod.yml up -d app
 ```
 
 Notes:
 
-- `workflow-app` depends on `workflow-init-perms`, so Compose will run the init container automatically.
-- When using Coolify’s proxy, you generally should **not** publish `ports:` to the host (Coolify docs warn it can reduce features like rolling updates).
+- The `app` service depends on `init-perms`, so Compose will run the init container automatically.
+- When using Coolify's proxy, you generally should **not** publish `ports:` to the host (Coolify docs warn it can reduce features like rolling updates).
 
 ### Coolify Domain “:PORT” (very important)
 
@@ -87,70 +100,50 @@ NEXTAUTH_URL=https://codespider.playdate.events
 
 ### Development Setup
 
-You have two dev-friendly options:
-
-1. **Hot reload (recommended): `workflow-dev` (detached)**
-
-   ```bash
-   docker compose up -d --build workflow-dev
-   ```
-
-   This runs `pnpm dev` inside the container with your repo bind-mounted for fast iteration.
-   By default, `workflow-dev` binds to `http://localhost:3000`.
-
-   If you see `Bind for 0.0.0.0:3000 failed: port is already allocated`, it means something else is already using port 3000 (often `workflow-app`).
-   Stop the other service before starting `workflow-dev`:
-
-   ```bash
-   docker compose stop workflow-app
-   docker compose up -d --build workflow-dev
-   ```
-
-2. **Auto-rebuild on file changes (slower): `docker compose watch`**
-
-   The production-like service (`workflow-app`) has `develop.watch` configured in `docker-compose.yml`.
-   This will rebuild/recreate the container when files change:
-
-   ```bash
-   docker compose watch workflow-app
-   ```
-
-## Running Detached (Recommended)
-
-If you want the container logs to show in **Docker Desktop** (not your terminal), run in detached mode:
-
-### Dev (hot reload)
+**Start development with hot reload:**
 
 ```bash
-docker compose up -d --build workflow-dev
+docker compose up
 ```
 
-Open: `http://localhost:3000`
+This runs `pnpm dev` inside the container with your repo bind-mounted for fast iteration.
+The app is available at `http://localhost:3000`.
 
-### App (prod-like)
+If you see `Bind for 0.0.0.0:3000 failed: port is already allocated`, stop any existing containers:
 
 ```bash
-docker compose up -d --build workflow-app
+docker compose down
+docker compose up
 ```
 
-Open: `http://localhost:3000`
+## Running Detached
 
-### Viewing logs
+To run in the background (logs in Docker Desktop instead of terminal):
 
-- **Docker Desktop**: open the container and view the **Logs** tab
-- **CLI (optional)**:
+### Development
 
-  ```bash
-  docker compose logs -f workflow-dev
-  # or:
-  docker compose logs -f workflow-app
-  ```
+```bash
+docker compose up -d
+```
+
+### Production
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+### Viewing Logs
+
+```bash
+docker compose logs -f app
+```
+
+Or open the container in **Docker Desktop** and view the **Logs** tab.
 
 ### Stopping
 
 ```bash
-docker compose stop workflow-dev
-docker compose stop workflow-app
+docker compose down
 ```
 
 ## Environment Variables
@@ -197,9 +190,7 @@ This forces the app to **not pass** `ANTHROPIC_API_KEY` into the `claude` subpro
 1. Exec into the running container:
 
    ```bash
-   docker exec -it workflow-app bash
-   # or (dev):
-   docker exec -it workflow-dev bash
+   docker compose exec app bash
    ```
 
 2. Run an **interactive** Claude CLI session and follow the prompts (it will typically print a URL + code):
@@ -214,7 +205,7 @@ This forces the app to **not pass** `ANTHROPIC_API_KEY` into the `claude` subpro
 
    ```bash
    exit
-   docker compose restart workflow-app
+   docker compose restart app
    ```
 
 ### Persisting the login across rebuilds/restarts
@@ -238,7 +229,7 @@ This project currently supports **only token/API-key based MCP auth** (for examp
 If you want a single consistent location, log in as `nextjs` (recommended):
 
 ```bash
-docker exec -it --user nextjs workflow-app bash
+docker compose exec --user nextjs app bash
 cd /app/workspaces
 claude
 ```
@@ -254,19 +245,10 @@ Per the Claude CLI help, **the workspace trust dialog is skipped in `-p` mode**,
 If you want to "do it the right way" once and have it persist, run an **interactive** Claude session (no `-p`) from `/app/workspaces` and complete the trust prompt once:
 
 ```bash
-# Git Bash / mintty on Windows: use winpty for proper TTY
-winpty docker exec -it --user nextjs workflow-dev bash
-cd /app/workspaces
-claude
-```
-
-Example (dev or prod):
-
-```bash
-docker exec -it --user nextjs workflow-dev bash
+docker compose exec --user nextjs app bash
 cd /app/workspaces
 # run any claude command once to trigger the trust prompt if needed
-claude --help
+claude
 ```
 
 To "log out" / reset Claude CLI credentials, remove the volume (this deletes the stored login):
@@ -333,21 +315,19 @@ docker compose up --build -d
 Access the container shell:
 
 ```bash
-docker exec -it workflow-app bash
-# or (dev):
-docker exec -it workflow-dev bash
+docker compose exec app bash
 ```
 
 Run tests inside container:
 
 ```bash
-docker exec -it workflow-app bash -lc "pnpm test"
+docker compose exec app pnpm test
 ```
 
 Check application health:
 
 ```bash
-docker exec -it workflow-app bash -lc "wget -qO- http://localhost:3000/api/config/validate"
+docker compose exec app wget -qO- http://localhost:3000/api/config/validate
 ```
 
 ### Cleanup
@@ -383,13 +363,13 @@ docker image prune
 If you're deploying to a single VM (no Swarm), and you have a reverse proxy (Traefik/Caddy/nginx) handling TLS:
 
 ```bash
-docker compose up -d --build workflow-app
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 Notes:
 
-- When deploying behind a reverse proxy, `workflow-app` should **not publish** `3000` to the host. The repo `docker-compose.yml` is set up that way by default; your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
-- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in production.
+- When deploying behind a reverse proxy, the app should **not publish** `3000` to the host. The `docker-compose.prod.yml` is set up that way by default; your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in your `.env` file.
 
 ### Docker Swarm
 
@@ -402,13 +382,13 @@ docker swarm init
 Deploy stack:
 
 ```bash
-docker stack deploy -c docker-compose.yml workflow
+docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml workflow
 ```
 
 Notes:
 
-- If you are deploying behind **Traefik/Caddy**, `workflow-app` should **not publish** `3000` to the host. Your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
-- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in production.
+- If you are deploying behind **Traefik/Caddy**, the app should **not publish** `3000` to the host. Your reverse proxy should publish `80/443` and route internally to the app on port 3000.
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in your `.env` file.
 
 ### Kubernetes
 
@@ -463,7 +443,7 @@ spec:
    Fix volume permissions:
 
    ```bash
-   docker compose exec workflow-app chown -R nextjs:nodejs /app/workspaces
+   docker compose exec app chown -R nextjs:nodejs /app/workspaces
    ```
 
 3. **Build failures:**
@@ -478,12 +458,10 @@ spec:
 
 If you want to test webhooks (e.g. n8n callbacks) or access the app from outside your network:
 
-1. Start the app locally (prod or dev):
+1. Start the app locally:
 
    ```bash
-   docker compose up -d workflow-app
-   # or:
-   docker compose up workflow-dev --build
+   docker compose up -d
    ```
 
 2. Expose port 3000:
@@ -525,7 +503,7 @@ The container includes health checks that verify:
 Check health status:
 
 ```bash
-docker-compose ps
+docker compose ps
 docker inspect --format='{{.State.Health.Status}}' workflow-app
 ```
 

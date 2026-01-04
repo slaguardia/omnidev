@@ -22,8 +22,14 @@ interface SearchModalProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-// Static app pages (always available)
-const staticPages: SearchItem[] = [
+// Check if running in showcase mode
+const isShowcaseMode = process.env.NEXT_PUBLIC_SHOWCASE_MODE === 'true';
+
+// Routes blocked in showcase mode
+const showcaseBlockedRoutes = ['/dashboard', '/signin', '/settings'];
+
+// All static app pages
+const allStaticPages: SearchItem[] = [
   { label: 'Home', href: '/', description: 'Go to homepage', category: 'page' },
   { label: 'Dashboard', href: '/dashboard', description: 'View your dashboard', category: 'page' },
   {
@@ -35,6 +41,11 @@ const staticPages: SearchItem[] = [
   { label: 'About', href: '/about', description: 'About Omnidev', category: 'page' },
   { label: 'Sign In', href: '/signin', description: 'Sign in to your account', category: 'page' },
 ];
+
+// Static app pages (filtered based on mode)
+const staticPages: SearchItem[] = isShowcaseMode
+  ? allStaticPages.filter((page) => !showcaseBlockedRoutes.includes(page.href))
+  : allStaticPages;
 
 export const SearchModal = ({ isOpen, onOpenChange }: SearchModalProps) => {
   const [query, setQuery] = useState('');
