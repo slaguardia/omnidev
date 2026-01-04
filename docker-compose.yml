@@ -33,7 +33,7 @@ services:
       - workflow_secrets:/secrets
     restart: 'no'
     profiles:
-      - init  # Only runs when explicitly requested or overridden
+      - init # Only runs when explicitly requested or overridden
 
 volumes:
   workflow_workspaces:

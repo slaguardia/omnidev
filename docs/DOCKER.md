@@ -1,15 +1,15 @@
 ## Files Overview
 
-| File | Purpose |
-|------|---------|
-| `Dockerfile` | Production multi-stage build |
-| `Dockerfile.dev` | Development build with hot reload |
-| `docker-compose.yml` | Base configuration (volumes, init service) |
-| `docker-compose.override.yml` | Development overrides (auto-loaded) |
-| `docker-compose.prod.yml` | Production overrides |
-| `docker-compose.showcase.yml` | Showcase mode (read-only, no auth) |
-| `.dockerignore` | Excludes unnecessary files from Docker context |
-| `.env.example` | Environment variable template |
+| File                          | Purpose                                        |
+| ----------------------------- | ---------------------------------------------- |
+| `Dockerfile`                  | Production multi-stage build                   |
+| `Dockerfile.dev`              | Development build with hot reload              |
+| `docker-compose.yml`          | Base configuration (volumes, init service)     |
+| `docker-compose.override.yml` | Development overrides (auto-loaded)            |
+| `docker-compose.prod.yml`     | Production overrides                           |
+| `docker-compose.showcase.yml` | Showcase mode (read-only, no auth)             |
+| `.dockerignore`               | Excludes unnecessary files from Docker context |
+| `.env.example`                | Environment variable template                  |
 
 ## Quick Start
 
