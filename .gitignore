@@ -84,3 +84,5 @@ repo-*/
 /out/
 
 .config/*
+# Claude Code local settings (personal permissions)
+.claude/settings.local.json

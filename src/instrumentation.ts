@@ -10,6 +10,12 @@
 export async function register() {
   // Only run on the Node.js runtime (not Edge)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Skip queue initialization in showcase mode (read-only)
+    if (process.env.SHOWCASE_MODE === 'true') {
+      console.log('[INSTRUMENTATION] Showcase mode - skipping job queue initialization');
+      return;
+    }
+
     console.log('[INSTRUMENTATION] Initializing job queue...');
 
     try {
