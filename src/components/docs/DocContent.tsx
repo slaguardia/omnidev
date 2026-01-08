@@ -29,13 +29,13 @@ export async function DocContent({ slug }: DocContentProps) {
     <DocContentWrapper>
       {/* Main Content - Column 2 */}
       <main className="min-w-0">
-        <div className="sticky top-16">
+        <div className="sticky top-16 pt-4">
           <div
             data-docs-content
             className="scrollbar-hide"
-            style={{ height: `calc(100vh - ${NAVBAR_HEIGHT})`, overflowY: 'auto' }}
+            style={{ height: `calc(100vh - ${NAVBAR_HEIGHT} - 1rem)`, overflowY: 'auto' }}
           >
-            <article className="h-full">
+            <article>
               <div className="px-6 py-4">
                 <div className="mx-auto max-w-3xl pb-20">
                   {/* Header */}
@@ -103,7 +103,7 @@ export async function DocContent({ slug }: DocContentProps) {
         <aside className="hidden xl:block">
           <div className="sticky top-16">
             <div
-              className="scrollbar-hide pt-4 pl-2"
+              className="scrollbar-hide pt-8 pl-2"
               style={{ maxHeight: `calc(100vh - ${NAVBAR_HEIGHT})`, overflowY: 'auto' }}
             >
               <TableOfContents headings={headings} />

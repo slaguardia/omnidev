@@ -2,10 +2,13 @@
 
 import { Link } from '@heroui/link';
 import { Button } from '@heroui/button';
-import { Zap, BookOpen, Clock, Plug, ListChecks } from 'lucide-react';
+import { Zap, BookOpen, Clock, Plug, ListChecks, Github } from 'lucide-react';
 
 import { title, subtitle } from '@/components/Primitives';
 import { FadeIn, FadeInUp, StaggerContainer, StaggerItem } from '@/components/motion';
+import { siteConfig } from '@/lib/config/site';
+
+const isShowcaseMode = process.env.NEXT_PUBLIC_SHOWCASE_MODE === 'true';
 
 export default function Home() {
   return (
@@ -132,21 +135,23 @@ export default function Home() {
       </div>
 
       {/* Main Landing Content */}
-      <section className="flex flex-col items-center justify-center py-12 md:py-16 text-center relative px-6">
+      <section
+        className="flex flex-col items-center justify-center py-12 md:py-16 text-center relative px-6"
+        aria-label="Introduction to Omnidev"
+      >
         <div className="relative z-10 max-w-4xl mx-auto">
           <FadeIn delay={0.1}>
             <div className="flex items-center justify-center gap-3 mb-8">
               <span className="px-4 py-2 bg-content2/60 border border-divider/60 rounded-full text-sm font-medium text-default-700 dark:text-default-200 flex items-center gap-2">
-                <Zap className="w-4 h-4" /> Using{' '}
+                <Zap className="w-4 h-4" aria-hidden="true" /> Using{' '}
                 <span className="font-semibold text-primary">Claude Code</span>{' '}
-                <Zap className="w-4 h-4" />
+                <Zap className="w-4 h-4" aria-hidden="true" />
               </span>
             </div>
           </FadeIn>
 
           <FadeInUp delay={0.2}>
             <h1 className="mb-8">
-              <span className={title({ size: 'lg' })}>Welcome to&nbsp;</span>
               <span
                 className={
                   title({ size: 'lg' }) +
@@ -159,23 +164,30 @@ export default function Home() {
           </FadeInUp>
 
           <FadeInUp delay={0.3}>
-            <div className={subtitle({ class: 'mb-12 max-w-2xl mx-auto' })}>
+            <p className={subtitle({ class: 'mb-12 max-w-2xl mx-auto' })}>
               Turn your Claude subscription into a 24/7 development assistant. Queue tasks from your
               phone, wake up to merge requests.
-            </div>
+            </p>
           </FadeInUp>
 
           <FadeInUp delay={0.4}>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button
                 as={Link}
-                href="/dashboard"
+                href={isShowcaseMode ? siteConfig.links.github : '/dashboard'}
+                isExternal={isShowcaseMode}
                 size="lg"
                 color="primary"
                 variant="shadow"
                 className="font-semibold px-7 hover:scale-[1.02] transition-transform flex items-center gap-2"
               >
-                Get Started
+                {isShowcaseMode ? (
+                  <>
+                    View on GitHub <Github className="w-4 h-4" />
+                  </>
+                ) : (
+                  'Get Started'
+                )}
               </Button>
               <Button
                 as={Link}
@@ -192,11 +204,15 @@ export default function Home() {
       </section>
 
       {/* Feature highlights with better spacing */}
-      <section className="py-12 px-6 relative">
+      <section className="py-12 px-6 relative" aria-label="Key features">
         <div className="max-w-5xl mx-auto text-center relative z-10">
+          <h2 className="sr-only">Omnidev Developer Automation Features</h2>
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-8" delay={0.5}>
             <StaggerItem className="group p-8 glass-card">
-              <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
+              <div
+                className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center"
+                aria-hidden="true"
+              >
                 <Clock className="w-12 h-12 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-4 text-foreground">Async Job Queue</h3>
@@ -207,7 +223,10 @@ export default function Home() {
             </StaggerItem>
 
             <StaggerItem className="group p-8 glass-card">
-              <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
+              <div
+                className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center"
+                aria-hidden="true"
+              >
                 <Plug className="w-12 h-12 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-4 text-foreground">API-First Design</h3>
@@ -218,7 +237,10 @@ export default function Home() {
             </StaggerItem>
 
             <StaggerItem className="group p-8 glass-card">
-              <div className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center">
+              <div
+                className="text-4xl mb-6 transition-transform duration-300 group-hover:scale-110 flex justify-center"
+                aria-hidden="true"
+              >
                 <ListChecks className="w-12 h-12 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-4 text-foreground">Faster Backlog Triage</h3>

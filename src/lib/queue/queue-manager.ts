@@ -23,7 +23,21 @@ const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESSING_LOCK_FILENAME = 'processing.lock.json';
 const PROCESSING_LOCK_STALE_MS = 60 * 60 * 1000; // 1 hour
 
-let initPromise: Promise<void> | null = null;
+// Use globalThis to persist across hot module reloads in development
+const globalKey = Symbol.for('omnidev.queue.initPromise');
+type GlobalWithInit = typeof globalThis & { [globalKey]?: Promise<void> };
+
+/**
+ * Get or create the initialization promise (singleton pattern).
+ * Ensures initialization runs exactly once, even across hot reloads.
+ */
+function getOrCreateInitPromise(): Promise<void> {
+  const g = globalThis as GlobalWithInit;
+  if (!g[globalKey]) {
+    g[globalKey] = performQueueInitialization();
+  }
+  return g[globalKey];
+}
 
 /**
  * Get the base queue directory path
@@ -58,10 +72,7 @@ function getProcessingLockPath(): string {
 }
 
 async function ensureQueueInitialized(): Promise<void> {
-  if (!initPromise) {
-    initPromise = initializeQueue();
-  }
-  await initPromise;
+  await getOrCreateInitPromise();
 }
 
 /**
@@ -95,9 +106,17 @@ function getFinishedPointerPath(jobId: JobId, status: 'completed' | 'failed'): s
 }
 
 /**
- * Initialize queue directories and job store if they don't exist
+ * Initialize queue directories and job store if they don't exist.
+ * Safe to call multiple times - only runs once.
  */
 export async function initializeQueue(): Promise<void> {
+  await getOrCreateInitPromise();
+}
+
+/**
+ * Internal initialization logic - only called once via getOrCreateInitPromise()
+ */
+async function performQueueInitialization(): Promise<void> {
   console.log('[QUEUE] Initializing queue directories and job store...');
 
   const queueBasePath = getQueueBasePath();

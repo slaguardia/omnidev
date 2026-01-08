@@ -1,0 +1,27 @@
+# Omnidev - Self-Hosted AI Developer Bot
+# https://omnidev.cloud
+# Automate code tasks with Claude Code integration
+
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /docs/
+
+# Disallow authenticated/private areas
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /signin
+Disallow: /signin/
+Disallow: /mcp
+Disallow: /mcp/
+
+# Disallow session and auth-related paths
+Disallow: /*?callbackUrl=
+Disallow: /*?error=
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://omnidev.cloud/sitemap.xml
