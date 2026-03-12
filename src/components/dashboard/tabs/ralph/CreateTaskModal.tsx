@@ -6,6 +6,7 @@ import { Chip } from '@heroui/chip';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/dropdown';
 import { Input, Textarea } from '@heroui/input';
 import { Modal, ModalContent, ModalBody, ModalFooter } from '@heroui/modal';
+import { Switch } from '@heroui/switch';
 import {
   GitBranch,
   Folder,
@@ -14,6 +15,7 @@ import {
   Loader2,
   BookOpen,
   ChevronDown,
+  Zap,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRalphWorkspaces } from '@/hooks/queries/useRalphWorkspaces';
@@ -38,6 +40,7 @@ interface CreateTaskForm {
   parentTitle: string | null;
   projectId: string | null;
   playbookId: string | null;
+  autoRun: boolean;
 }
 
 const INITIAL_CREATE_FORM: CreateTaskForm = {
@@ -53,6 +56,7 @@ const INITIAL_CREATE_FORM: CreateTaskForm = {
   parentTitle: null,
   projectId: null,
   playbookId: null,
+  autoRun: false,
 };
 
 /**
@@ -336,6 +340,7 @@ export default function CreateTaskModal({
       parentId: form.parentId || null,
       projectId: form.projectId || null,
       playbookId: form.playbookId || null,
+      autoRun: form.playbookId ? form.autoRun : false,
       _workspaceName: selectedWorkspace?.name ?? '',
     });
 
@@ -646,6 +651,7 @@ export default function CreateTaskModal({
                         setForm((prev) => ({
                           ...prev,
                           playbookId: id === '__none__' ? null : id,
+                          autoRun: id === '__none__' ? false : prev.autoRun,
                         }));
                       }}
                     >
@@ -673,6 +679,25 @@ export default function CreateTaskModal({
                       ]}
                     </DropdownMenu>
                   </Dropdown>
+                )}
+
+                {/* Auto Run Switch */}
+                {playbookOptions.length > 0 && (
+                  <Switch
+                    size="sm"
+                    isSelected={form.autoRun}
+                    isDisabled={!form.playbookId}
+                    onValueChange={(checked) => setForm((prev) => ({ ...prev, autoRun: checked }))}
+                    classNames={{
+                      base: 'inline-flex flex-row-reverse gap-2 items-center',
+                      wrapper: 'h-4 w-7 mr-0',
+                    }}
+                  >
+                    <span className="text-xs flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Auto Run
+                    </span>
+                  </Switch>
                 )}
 
                 {/* Delivery Method Dropdown */}

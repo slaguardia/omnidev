@@ -134,11 +134,19 @@ export async function pushChanges(
     }
 
     if (branch) {
-      // Push specific branch
-      await git.push('origin', branch);
+      // Push specific branch, set upstream if new
+      if (isNewBranch) {
+        await git.push(['--set-upstream', 'origin', branch]);
+      } else {
+        await git.push('origin', branch);
+      }
     } else {
       // Push current branch
-      await git.push();
+      if (isNewBranch) {
+        await git.push(['--set-upstream', 'origin', currentBranch]);
+      } else {
+        await git.push();
+      }
     }
 
     console.log(`[GIT PUSH] ✅ Successfully pushed ${currentBranch} to origin`);

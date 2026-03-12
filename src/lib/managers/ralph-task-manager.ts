@@ -2625,17 +2625,25 @@ export interface RalphPlaybook {
   name: string;
   description: string;
   stageIds: string[];
+  promptOverrides: Record<string, string>;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 function dbPlaybookToRalphPlaybook(p: DbPlaybook): RalphPlaybook {
+  let promptOverrides: Record<string, string> = {};
+  try {
+    promptOverrides = p.prompt_overrides ? JSON.parse(p.prompt_overrides) : {};
+  } catch {
+    promptOverrides = {};
+  }
   return {
     id: p.id,
     name: p.name,
     description: p.description,
     stageIds: JSON.parse(p.stage_ids) as string[],
+    promptOverrides,
     isDefault: p.is_default === 1,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
@@ -2646,6 +2654,7 @@ export async function createRalphPlaybook(input: {
   name: string;
   description?: string;
   stageIds: string[];
+  promptOverrides?: Record<string, string>;
   isDefault?: boolean;
 }): Promise<AsyncResult<RalphPlaybook>> {
   try {
@@ -2656,6 +2665,7 @@ export async function createRalphPlaybook(input: {
       name: input.name,
       description: input.description ?? '',
       stage_ids: JSON.stringify(input.stageIds),
+      prompt_overrides: JSON.stringify(input.promptOverrides ?? {}),
       is_default: input.isDefault ? 1 : 0,
       created_at: now,
       updated_at: now,
@@ -2691,18 +2701,27 @@ export async function getRalphPlaybook(id: string): Promise<AsyncResult<RalphPla
 
 export async function updateRalphPlaybook(
   id: string,
-  updates: { name?: string; description?: string; stageIds?: string[]; isDefault?: boolean }
+  updates: {
+    name?: string;
+    description?: string;
+    stageIds?: string[];
+    promptOverrides?: Record<string, string>;
+    isDefault?: boolean;
+  }
 ): Promise<AsyncResult<RalphPlaybook>> {
   try {
     const dbUpdates: {
       name?: string;
       description?: string;
       stage_ids?: string;
+      prompt_overrides?: string;
       is_default?: number;
     } = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.stageIds !== undefined) dbUpdates.stage_ids = JSON.stringify(updates.stageIds);
+    if (updates.promptOverrides !== undefined)
+      dbUpdates.prompt_overrides = JSON.stringify(updates.promptOverrides);
     if (updates.isDefault !== undefined) dbUpdates.is_default = updates.isDefault ? 1 : 0;
 
     const updated = dbUpdatePlaybook(id, dbUpdates);

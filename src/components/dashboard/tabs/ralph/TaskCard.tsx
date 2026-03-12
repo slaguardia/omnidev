@@ -361,18 +361,32 @@ export default function TaskCard({
         {/* Row 5: Execution one-liner (if executing) */}
         {isExecuting && (
           <div className="flex items-center gap-2 mt-2 text-xs text-default-500">
-            <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            {task.executionJobInfo ? (
+            {hasExecutionError || task.executionJobInfo?.status === 'failed' ? (
               <>
-                <span>Job {task.executionJobInfo.status}</span>
-                {task.executionJobInfo.startedAt && (
-                  <span>- {formatRelativeTime(task.executionJobInfo.startedAt)}</span>
-                )}
+                <AlertTriangle className="w-3 h-3 text-danger" />
+                <span className="text-danger">
+                  {task.executionJobInfo?.error
+                    ? `Failed: ${task.executionJobInfo.error.slice(0, 80)}${task.executionJobInfo.error.length > 80 ? '...' : ''}`
+                    : task.executionError
+                      ? `Failed: ${task.executionError.slice(0, 80)}${task.executionError.length > 80 ? '...' : ''}`
+                      : 'Execution failed'}
+                </span>
               </>
             ) : (
-              <span>Starting...</span>
+              <>
+                <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                {task.executionJobInfo ? (
+                  <>
+                    <span>Job {task.executionJobInfo.status}</span>
+                    {task.executionJobInfo.startedAt && (
+                      <span>- {formatRelativeTime(task.executionJobInfo.startedAt)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span>Starting...</span>
+                )}
+              </>
             )}
-            {hasExecutionError && <AlertTriangle className="w-3 h-3 text-danger" />}
           </div>
         )}
 
@@ -795,16 +809,27 @@ export default function TaskCard({
             </span>
           )}
           {isExecuting && (
-            <span className="flex items-center gap-1 text-xs text-default-400 flex-shrink-0">
-              <Loader2 className="w-3 h-3 animate-spin text-primary" />
-              {task.executionJobInfo ? (
+            <span className="flex items-center gap-1 text-xs flex-shrink-0">
+              {hasExecutionError || task.executionJobInfo?.status === 'failed' ? (
                 <>
-                  {task.executionJobInfo.status}
-                  {task.executionJobInfo.startedAt &&
-                    ` · ${formatRelativeTime(task.executionJobInfo.startedAt)}`}
+                  <AlertTriangle className="w-3 h-3 text-danger" />
+                  <span className="text-danger">Failed</span>
                 </>
               ) : (
-                'Starting...'
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                  <span className="text-default-400">
+                    {task.executionJobInfo ? (
+                      <>
+                        {task.executionJobInfo.status}
+                        {task.executionJobInfo.startedAt &&
+                          ` · ${formatRelativeTime(task.executionJobInfo.startedAt)}`}
+                      </>
+                    ) : (
+                      'Starting...'
+                    )}
+                  </span>
+                </>
               )}
             </span>
           )}

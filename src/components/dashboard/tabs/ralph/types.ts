@@ -263,6 +263,8 @@ export interface RalphPlaybook {
   name: string;
   description: string;
   stageIds: string[];
+  /** Per-stage prompt overrides. Key is stage ID, value is the prompt template. */
+  promptOverrides: Record<string, string>;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;

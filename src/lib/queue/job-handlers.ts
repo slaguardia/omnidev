@@ -457,6 +457,30 @@ export async function executeRalphStageJob(
     const { getRalphTask, updateRalphTask } = await import('@/lib/managers/ralph-task-manager');
     const { parseQuestionsFromOutput } = await import('@/lib/workflow/prompt-template');
 
+    // Pre-flight: verify git identity is configured for edit-mode stages
+    if (payload.editRequest) {
+      const { getConfig } = await import('@/lib/config/server-actions');
+      const { setWorkspaceGitConfig } = await import('@/lib/git/config');
+      const appConfig = await getConfig();
+      const commitName = appConfig.gitlab?.commitName || appConfig.github?.commitName || '';
+      const commitEmail = appConfig.gitlab?.commitEmail || appConfig.github?.commitEmail || '';
+
+      if (!commitName || !commitEmail) {
+        throw new Error(
+          `Pre-flight failed: git commit identity not configured. ` +
+            `Set Commit Name and Commit Email in Settings > Git Source Config. ` +
+            `(commitName=${commitName || 'unset'}, commitEmail=${commitEmail || 'unset'})`
+        );
+      }
+
+      // Ensure workspace has the git config set (may have been lost during workspace prep)
+      await setWorkspaceGitConfig(payload.workspacePath as FilePath, {
+        userName: commitName,
+        userEmail: commitEmail,
+      });
+      console.log(`[JOB] Git identity: ${commitName} <${commitEmail}>`);
+    }
+
     const taskResult = await getRalphTask(payload.taskId);
     if (!taskResult.success) {
       throw new Error(`Failed to load task: ${taskResult.error?.message}`);
@@ -536,10 +560,29 @@ export async function executeRalphStageJob(
     let effectiveSourceBranch: string | undefined;
 
     if (isEditMode) {
-      console.log(`[JOB] 🔄 Initializing git workflow for edit-mode stage: ${payload.stageName}`);
-      const initResult = await initializeGitWorkflow({
-        workspaceId: payload.workspaceId,
+      // Resolve source branch: prefer task.featureBranch, fall back to auto-generated
+      // name for merge-request tasks (defensive against missing data)
+      let sourceBranch = task.featureBranch;
+      if (!sourceBranch && task.deliveryMethod === 'merge-request') {
+        sourceBranch = `ralph/${payload.taskId}`;
+        console.warn(
+          `[JOB] ⚠️ Task ${payload.taskId} has deliveryMethod=merge-request but no featureBranch — using fallback: ${sourceBranch}`
+        );
+      }
+
+      console.log(`[JOB] 🔄 Initializing git workflow for edit-mode stage: ${payload.stageName}`, {
+        featureBranch: task.featureBranch,
+        deliveryMethod: task.deliveryMethod,
+        sourceBranch,
       });
+      const gitWorkflowOpts: Parameters<typeof initializeGitWorkflow>[0] = {
+        workspaceId: payload.workspaceId,
+      };
+      if (sourceBranch) {
+        gitWorkflowOpts.sourceBranch = sourceBranch;
+        gitWorkflowOpts.createMR = true;
+      }
+      const initResult = await initializeGitWorkflow(gitWorkflowOpts);
 
       if (!initResult.success) {
         const errorMsg = initResult.error?.message || 'Unknown git workflow error';
@@ -547,9 +590,10 @@ export async function executeRalphStageJob(
         throw new Error(`Git workflow initialization failed: ${errorMsg}`);
       }
 
+      const isDirectCommit = (task.deliveryMethod ?? 'merge-request') === 'direct-commit';
       gitInitResult = {
         ...initResult.data,
-        mergeRequestRequired: false, // PR creation handled by complete route
+        mergeRequestRequired: !isDirectCommit && initResult.data.mergeRequestRequired,
       };
       effectiveSourceBranch = initResult.data.sourceBranch;
     }
@@ -599,6 +643,7 @@ export async function executeRalphStageJob(
       };
 
       await updateRalphTask(payload.taskId, {
+        executionError: result.error?.message || 'Stage execution failed',
         stageOutputs: {
           ...task.stageOutputs,
           [payload.stageName]: updatedErrorStageOutput,
@@ -624,21 +669,29 @@ export async function executeRalphStageJob(
           gitInitResult,
           payload.repoUrl as GitUrl,
           undefined,
-          { id: payload.taskId, title: payload.stageName }
+          { id: payload.taskId, title: task.title }
         );
 
         if (postResult.success && postResult.data) {
-          // Update task with feature branch if created
+          // Update task with feature branch, and PR URL if created
+          const taskUpdates: Record<string, unknown> = {};
           if (gitInitResult.sourceBranch) {
-            await updateRalphTask(payload.taskId, {
-              featureBranch: gitInitResult.sourceBranch,
-              baseBranch: gitInitResult.targetBranch,
-            });
+            taskUpdates.featureBranch = gitInitResult.sourceBranch;
+            taskUpdates.baseBranch = gitInitResult.targetBranch;
+          }
+          if (postResult.data.mergeRequestUrl) {
+            taskUpdates.prUrl = postResult.data.mergeRequestUrl;
+          }
+          if (Object.keys(taskUpdates).length > 0) {
+            await updateRalphTask(payload.taskId, taskUpdates);
           }
           console.log(`[JOB] Post-execution completed:`, {
             hasChanges: postResult.data.hasChanges,
             pushedBranch: postResult.data.pushedBranch,
+            mergeRequestUrl: postResult.data.mergeRequestUrl,
           });
+        } else if (!postResult.success) {
+          console.warn(`[JOB] Post-execution failed:`, postResult.error?.message);
         }
       } catch (postError) {
         console.warn(`[JOB] Post-execution error (non-fatal):`, postError);
@@ -728,12 +781,21 @@ export async function executeRalphStageJob(
       }
     }
 
+    // For manual (non-auto-loop) continuation iterations, the new iteration
+    // is a strict superset of the previous one (it includes the prior output +
+    // answered questions in its prompt context). Replace rather than append so
+    // the user isn't left with a stale, uninformed first iteration.
+    const isManualContinuation = !payload.autoLoop && payload.iteration > 1;
+    const updatedIterations = isManualContinuation
+      ? [iterationRecord]
+      : [...(existingOutput?.iterations ?? []), iterationRecord];
+
     const updatedStageOutput = {
       prompt: existingOutput?.prompt ?? payload.prompt,
       currentIteration: payload.iteration,
       maxIterations: payload.maxIterations,
       returnQuestions: payload.returnQuestions,
-      iterations: [...(existingOutput?.iterations ?? []), iterationRecord],
+      iterations: updatedIterations,
       pendingQuestions: newPendingQuestions,
       activeJobId: nextActiveJobId,
       autoLoopActive,
@@ -742,6 +804,7 @@ export async function executeRalphStageJob(
     };
 
     await updateRalphTask(payload.taskId, {
+      executionError: null,
       stageOutputs: {
         ...task.stageOutputs,
         [payload.stageName]: updatedStageOutput,
@@ -810,33 +873,38 @@ export async function executeRalphStageJob(
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[JOB] Ralph stage job failed:`, errorMessage);
 
-    // For auto-loop errors, stop the loop
-    if (payload.autoLoop) {
-      try {
-        const { getRalphTask: getTask, updateRalphTask: updateTask } = await import(
-          '@/lib/managers/ralph-task-manager'
-        );
-        const currentTask = await getTask(payload.taskId);
-        if (currentTask.success) {
-          const currentStageOutput = currentTask.data.stageOutputs?.[payload.stageName];
-          if (currentStageOutput) {
-            await updateTask(payload.taskId, {
-              stageOutputs: {
-                ...currentTask.data.stageOutputs,
-                [payload.stageName]: {
-                  ...currentStageOutput,
-                  autoLoopActive: false,
-                  completionReason: 'error',
-                  activeJobId: undefined,
-                  lastUpdated: new Date().toISOString(),
-                },
-              },
-            });
-          }
+    // Always update task state on failure: record error in executionError,
+    // stop auto-loop if active, and keep activeJobId so the UI can fetch
+    // the failed job's status (shows "Job failed" instead of "Starting...")
+    try {
+      const { getRalphTask: getTask, updateRalphTask: updateTask } = await import(
+        '@/lib/managers/ralph-task-manager'
+      );
+      const currentTask = await getTask(payload.taskId);
+      if (currentTask.success) {
+        const currentStageOutput = currentTask.data.stageOutputs?.[payload.stageName];
+        const taskUpdates: Record<string, unknown> = {
+          executionError: errorMessage,
+        };
+
+        if (currentStageOutput) {
+          taskUpdates.stageOutputs = {
+            ...currentTask.data.stageOutputs,
+            [payload.stageName]: {
+              ...currentStageOutput,
+              autoLoopActive: payload.autoLoop ? false : currentStageOutput.autoLoopActive,
+              completionReason: 'error' as const,
+              lastUpdated: new Date().toISOString(),
+              // Keep activeJobId — the failed job record still exists in the queue,
+              // and the UI enrichment uses it to show "Job failed" with the error message
+            },
+          };
         }
-      } catch (updateError) {
-        console.error(`[JOB] Failed to update auto-loop error state:`, updateError);
+
+        await updateTask(payload.taskId, taskUpdates);
       }
+    } catch (updateError) {
+      console.error(`[JOB] Failed to update task error state:`, updateError);
     }
 
     return {

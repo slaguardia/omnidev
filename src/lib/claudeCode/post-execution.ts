@@ -60,9 +60,9 @@ function generateCommitMessage(taskContext?: TaskContext): string {
 /**
  * Handle post-Claude Code execution git operations
  * This function runs after Claude Code completes and handles:
- * - Checking for changes
- * - Committing changes
- * - Creating merge/pull requests or pushing changes
+ * - Checking for uncommitted changes and committing them
+ * - Pushing the branch to remote (even if Claude already committed)
+ * - Creating merge/pull requests when configured
  *
  * @param workspacePath - Path to the workspace directory
  * @param gitInitResult - Result from git workflow initialization
@@ -78,7 +78,7 @@ export async function handlePostClaudeCodeExecution(
   taskContext?: TaskContext
 ): Promise<AsyncResult<PostExecutionResult>> {
   try {
-    // Check if there are any changes to commit
+    // Check if there are any uncommitted changes to commit
     const changesResult = await hasUncommittedChanges(workspacePath);
     if (!changesResult.success) {
       return {
@@ -87,43 +87,41 @@ export async function handlePostClaudeCodeExecution(
       };
     }
 
-    // If no changes, return early
-    if (!changesResult.data) {
-      return {
-        success: true,
-        data: {
-          hasChanges: false,
-        },
-      };
-    }
-
-    // Add all files to staging
-    const addResult = await addAllFiles(workspacePath);
-    if (!addResult.success) {
-      return {
-        success: false,
-        error: new Error(`Failed to add files: ${addResult.error?.message}`),
-      };
-    }
-
-    // Commit changes with semantic message if task context provided
-    const commitMessage = generateCommitMessage(taskContext);
-    const commitResult = await commitChanges(workspacePath, commitMessage);
-    if (!commitResult.success) {
-      return {
-        success: false,
-        error: new Error(`Failed to commit changes: ${commitResult.error?.message}`),
-      };
-    }
-
     const result: PostExecutionResult = {
-      hasChanges: true,
-      commitHash: commitResult.data,
+      hasChanges: false,
     };
 
-    // Handle merge request vs direct push
+    // If there are uncommitted changes, stage and commit them.
+    // Claude Code's executing prompt tells it to commit, so often there are
+    // no uncommitted changes — but there ARE unpushed commits on the branch.
+    if (changesResult.data) {
+      const addResult = await addAllFiles(workspacePath);
+      if (!addResult.success) {
+        console.warn(`[POST-EXECUTION] Failed to stage files: ${addResult.error?.message}`);
+        // Continue to push — Claude's commits are more important than leftovers
+      } else {
+        const commitMessage = generateCommitMessage(taskContext);
+        const commitResult = await commitChanges(workspacePath, commitMessage);
+        if (!commitResult.success) {
+          console.warn(
+            `[POST-EXECUTION] Failed to commit leftover changes: ${commitResult.error?.message}. Continuing to push existing commits.`
+          );
+        } else {
+          result.hasChanges = true;
+          result.commitHash = commitResult.data;
+        }
+      }
+    }
+
+    // Push the branch to remote. This runs regardless of whether we committed
+    // above — Claude Code may have committed directly, leaving unpushed commits.
+    console.log(`[POST-EXECUTION] Push decision:`, {
+      mergeRequestRequired: gitInitResult.mergeRequestRequired,
+      sourceBranch: gitInitResult.sourceBranch,
+      targetBranch: gitInitResult.targetBranch,
+      hasChanges: result.hasChanges,
+    });
     if (gitInitResult.mergeRequestRequired) {
-      // Push source branch to remote
       const pushResult = await pushChanges(workspacePath, gitInitResult.sourceBranch);
       if (!pushResult.success) {
         return {
@@ -134,21 +132,22 @@ export async function handlePostClaudeCodeExecution(
 
       // Create PR/MR if repo URL is provided
       if (repoUrl) {
-        // Determine provider from parameter or detect from URL
         const effectiveProvider = provider || detectProviderFromUrl(repoUrl);
         console.log(`[POST-EXECUTION] Creating PR/MR for provider: ${effectiveProvider}`);
 
         if (effectiveProvider === 'github') {
-          // Create GitHub Pull Request
           const ownerRepo = extractOwnerRepoFromUrl(repoUrl);
           if (ownerRepo) {
+            const prTitle = taskContext
+              ? `[${taskContext.id}] ${taskContext.title}`
+              : 'Automated changes from Claude Code';
             const prResult = await createPullRequest({
               owner: ownerRepo.owner,
               repo: ownerRepo.repo,
               head: gitInitResult.sourceBranch,
               base: gitInitResult.targetBranch,
-              title: `Automated changes from Claude Code`,
-              body: await formatPullRequestDescription(commitResult.data),
+              title: prTitle,
+              body: await formatPullRequestDescription(result.commitHash ?? 'unknown'),
             });
 
             if (prResult.success) {
@@ -161,15 +160,17 @@ export async function handlePostClaudeCodeExecution(
             console.warn('Could not extract owner/repo from repository URL:', repoUrl);
           }
         } else if (effectiveProvider === 'gitlab') {
-          // Create GitLab Merge Request
           const projectId = extractProjectIdFromUrl(repoUrl);
           if (projectId) {
+            const mrTitle = taskContext
+              ? `[${taskContext.id}] ${taskContext.title}`
+              : 'Automated changes from Claude Code';
             const mrResult = await createMergeRequest({
               projectId,
               sourceBranch: gitInitResult.sourceBranch,
               targetBranch: gitInitResult.targetBranch,
-              title: `Automated changes from Claude Code`,
-              description: `This merge request contains automated changes made by Claude Code.\n\nCommit: ${commitResult.data}\nTimestamp: ${new Date().toISOString()}`,
+              title: mrTitle,
+              description: `This merge request contains automated changes made by Claude Code.\n\nCommit: ${result.commitHash ?? 'unknown'}\nTimestamp: ${new Date().toISOString()}`,
             });
 
             if (mrResult.success) {
@@ -187,8 +188,15 @@ export async function handlePostClaudeCodeExecution(
       }
     } else {
       // Push directly to source branch (no merge request needed)
+      console.log(
+        `[POST-EXECUTION] Pushing branch '${gitInitResult.sourceBranch}' to remote (no MR)...`
+      );
       const pushResult = await pushChanges(workspacePath, gitInitResult.sourceBranch);
       if (!pushResult.success) {
+        console.warn(
+          `[POST-EXECUTION] Push failed for branch '${gitInitResult.sourceBranch}':`,
+          pushResult.error?.message
+        );
         return {
           success: false,
           error: new Error(`Failed to push changes: ${pushResult.error?.message}`),
@@ -196,6 +204,7 @@ export async function handlePostClaudeCodeExecution(
       }
 
       result.pushedBranch = gitInitResult.sourceBranch;
+      console.log(`[POST-EXECUTION] ✅ Pushed branch '${gitInitResult.sourceBranch}' to remote`);
     }
 
     return { success: true, data: result };

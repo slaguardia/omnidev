@@ -23,8 +23,9 @@ if [ -f /home/nextjs/.claude/.claude.json.backup ]; then
   ln -sf /home/nextjs/.claude/.claude.json.backup /home/nextjs/.claude.json.backup 2>/dev/null || true
 fi
 
-# Fix permissions
-chown -R nextjs:nodejs /app/workspaces /app/data /home/nextjs 2>/dev/null || true
+# Fix permissions — include .next cache and node_modules so nextjs user can write
+chown -R nextjs:nodejs /app/workspaces /app/data /home/nextjs /app/.next 2>/dev/null || true
+chown -R nextjs:nodejs /app/node_modules 2>/dev/null || true
 
 # Install dependencies
 pnpm install --frozen-lockfile
@@ -37,5 +38,13 @@ if compgen -G "$bs3_dir" > /dev/null; then
   cd /app
 fi
 
-# Start dev server
-exec pnpm exec next dev --hostname 0.0.0.0 --port 3000
+# Start dev server as nextjs user.
+# The entrypoint runs as root for pnpm install and chown above,
+# then drops privileges so Claude Code can use --dangerously-skip-permissions
+# (which refuses to run under root/sudo).
+if [ "$(id -u)" = "0" ] && command -v gosu >/dev/null 2>&1; then
+  echo "[DEV] Dropping privileges to nextjs for dev server"
+  exec gosu nextjs pnpm exec next dev --hostname 0.0.0.0 --port 3000
+else
+  exec pnpm exec next dev --hostname 0.0.0.0 --port 3000
+fi

@@ -28,6 +28,7 @@ export function useCreateRalphPlaybook() {
       name: string;
       description?: string;
       stageIds: string[];
+      promptOverrides?: Record<string, string>;
       isDefault?: boolean;
     }) => {
       const response = await fetch('/api/ralph/playbooks', {
@@ -51,6 +52,7 @@ export function useCreateRalphPlaybook() {
         name: input.name,
         description: input.description ?? '',
         stageIds: input.stageIds,
+        promptOverrides: input.promptOverrides ?? {},
         isDefault: input.isDefault ?? false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -82,6 +84,7 @@ export function useUpdateRalphPlaybook() {
       name?: string;
       description?: string;
       stageIds?: string[];
+      promptOverrides?: Record<string, string>;
       isDefault?: boolean;
     }) => {
       const response = await fetch(`/api/ralph/playbooks/${id}`, {

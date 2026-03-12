@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
 import {
   getFeatureExecutionStatus,
+  updateRalphTask,
   type RalphTask,
   type PlanningQuestion,
   type FeatureExecutionStatus,
@@ -107,8 +108,15 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
 
   // 2. Load execution job info and feature statuses in parallel
   const jobPromises = tasks.map((task) => {
-    if (task.executionJobId && task.status === 'executing') {
-      return getJob(createJobId(task.executionJobId));
+    // Check executionJobId first, then fall back to stageOutputs[currentStage].activeJobId
+    const jobId =
+      task.executionJobId ||
+      (task.status !== 'draft' &&
+        task.status !== 'complete' &&
+        task.stageOutputs?.[task.status]?.activeJobId) ||
+      null;
+    if (jobId) {
+      return getJob(createJobId(jobId));
     }
     return Promise.resolve(null);
   });
@@ -123,6 +131,68 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
     Promise.all(jobPromises),
     Promise.all(featureStatusPromises),
   ]);
+
+  // 2b. Self-healing: clear stale activeJobId in ANY stage output where the job
+  // is done or missing. Also detect orphaned 'executing' status (no active job
+  // anywhere, no executionJobId) and surface an error so the UI doesn't show
+  // an infinite spinner.
+  const staleCleanups: Promise<unknown>[] = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i]!;
+    if (!task.stageOutputs) continue;
+
+    let taskPatched = false;
+    const patchedOutputs = { ...task.stageOutputs };
+
+    for (const [stageName, stageOutput] of Object.entries(patchedOutputs)) {
+      if (!stageOutput.activeJobId) continue;
+
+      // Look up the job by activeJobId
+      const job = await getJob(createJobId(stageOutput.activeJobId));
+      const jobGone = !job;
+      const jobDone = job && (job.status === 'completed' || job.status === 'failed');
+
+      if (jobGone || jobDone) {
+        const isFailed = jobGone || job?.status === 'failed';
+        const errorMsg = job?.error ?? (jobGone ? 'Job no longer exists' : null);
+
+        patchedOutputs[stageName] = {
+          ...stageOutput,
+          activeJobId: undefined,
+          autoLoopActive: false,
+          completionReason: stageOutput.completionReason ?? (isFailed ? 'error' : undefined),
+          lastUpdated: new Date().toISOString(),
+        };
+        if (isFailed && !task.executionError) {
+          task.executionError = errorMsg ?? 'Job failed';
+        }
+        taskPatched = true;
+      }
+    }
+
+    // Orphan detection: task is in 'executing' with no active job anywhere
+    if (!taskPatched && task.status === 'executing' && !task.executionJobId) {
+      const hasAnyActiveJob = Object.values(patchedOutputs).some((so) => so.activeJobId);
+      if (!hasAnyActiveJob && !task.executionError) {
+        task.executionError = 'Execution ended without result';
+        taskPatched = true;
+      }
+    }
+
+    if (taskPatched) {
+      task.stageOutputs = patchedOutputs;
+      staleCleanups.push(
+        updateRalphTask(task.id, {
+          executionError: task.executionError,
+          stageOutputs: patchedOutputs,
+        }).catch((err) => console.error('[RALPH TASKS API] Failed to clear stale job state:', err))
+      );
+    }
+  }
+  // Fire-and-forget DB writes — response is already corrected in-memory
+  if (staleCleanups.length > 0) {
+    Promise.all(staleCleanups).catch(() => {});
+  }
 
   // 3. Build enriched response objects
   const enrichedTasks: RalphTaskResponse[] = tasks.map((task, i) => {

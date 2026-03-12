@@ -1,3 +1,6 @@
+# Task files (ephemeral planning artifacts)
+.tasks/
+
 # Dependencies
 node_modules/
 .pnpm-store/

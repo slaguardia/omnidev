@@ -73,4 +73,13 @@ cd "$WORKSPACE_PATH" || {
 
 # Run Claude Code with all passed arguments
 # Note: @anthropic-ai/claude-code installs as 'claude' binary
-exec claude "$@"
+# Claude Code refuses --dangerously-skip-permissions under root/sudo,
+# so drop privileges to the 'nextjs' user when running as root (e.g. dev container).
+if [ "$(id -u)" = "0" ]; then
+  echo "[CLAUDE-WRAPPER] Running as root — dropping privileges to 'nextjs' via gosu"
+  # Ensure workspace is writable by nextjs (root-created files in dev mode)
+  chown -R nextjs:nodejs "$WORKSPACE_PATH" 2>/dev/null || true
+  exec gosu nextjs claude "$@"
+else
+  exec claude "$@"
+fi

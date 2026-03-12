@@ -29,6 +29,8 @@ interface StageOutputSectionProps {
   isRunning: boolean;
   onClearIteration?: (iterationIndex: number) => void;
   onCancelLoop?: () => void;
+  /** Task-level execution error (shown when completionReason is 'error' and no iteration captured it) */
+  executionError?: string | null;
 }
 
 /**
@@ -127,6 +129,7 @@ export default function StageOutputSection({
   isRunning,
   onClearIteration,
   onCancelLoop,
+  executionError,
 }: StageOutputSectionProps) {
   const hasPrompt = !!stageDef.config.prompt;
   const hasActiveJob = !!stageOutput?.activeJobId;
@@ -235,6 +238,14 @@ export default function StageOutputSection({
       {/* Expanded content */}
       {isExpanded && (
         <div className="p-3 space-y-3">
+          {/* Execution error banner */}
+          {completionReason === 'error' && executionError && (
+            <div className="p-3 rounded-lg bg-danger-50 dark:bg-danger-500/10 border border-danger-200 dark:border-danger-500/20">
+              <p className="text-sm text-danger-700 dark:text-danger-400 whitespace-pre-wrap">
+                {executionError}
+              </p>
+            </div>
+          )}
           {/* Existing iterations */}
           {iterations.map((iteration: StageIteration, idx: number) => (
             <div key={idx} className="p-3 bg-content2 rounded-lg space-y-2">

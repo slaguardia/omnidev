@@ -13,6 +13,7 @@ interface CreateTaskInput {
   parentId: string | null;
   projectId?: string | null;
   playbookId?: string | null;
+  autoRun?: boolean;
   /** Client-only field — workspace name for optimistic UI. Not sent to API. */
   _workspaceName: string;
 }

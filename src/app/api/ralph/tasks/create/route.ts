@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
-import { createRalphTask, addChildToRalphTask } from '@/lib/managers/ralph-task-manager';
+import {
+  createRalphTask,
+  addChildToRalphTask,
+  getRalphPlaybook,
+} from '@/lib/managers/ralph-task-manager';
 import { getWorkspaceReadonly } from '@/lib/managers/workspace-manager';
 import { fetchRepositoryPermissions } from '@/lib/api';
+import { startStageRun } from '@/lib/ralph/stage-runner';
 import type { WorkspaceId } from '@/lib/types';
 
 /**
@@ -23,6 +28,10 @@ const CreateTaskRequestSchema = z.object({
   parentId: z.string().nullable().optional(),
   // Optional project ID to associate with a project
   projectId: z.string().nullable().optional(),
+  // Optional playbook ID to associate with a playbook
+  playbookId: z.string().nullable().optional(),
+  // If true and playbookId is set, auto-start the first playbook stage after creation
+  autoRun: z.boolean().default(false),
 });
 
 /**
@@ -122,8 +131,32 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[RALPH TASKS CREATE API] Task created:', createResult.data.id);
+
+    // Auto-run: if autoRun is true and a playbook is set, start the first stage
+    let autoRunJobId: string | undefined;
+    if (taskData.autoRun && createResult.data.playbookId) {
+      try {
+        const pbResult = await getRalphPlaybook(createResult.data.playbookId);
+        if (pbResult.success && pbResult.data.stageIds.length > 0) {
+          const firstStage = pbResult.data.stageIds[0]!;
+          console.log(
+            `[RALPH TASKS CREATE API] Auto-run: starting stage '${firstStage}' for task ${createResult.data.id}`
+          );
+          const stageResult = await startStageRun(createResult.data.id, firstStage);
+          if (stageResult.error) {
+            console.warn(`[RALPH TASKS CREATE API] Auto-run stage failed: ${stageResult.error}`);
+          } else {
+            autoRunJobId = stageResult.jobId;
+          }
+        }
+      } catch (err) {
+        console.warn('[RALPH TASKS CREATE API] Auto-run failed, task still created:', err);
+      }
+    }
+
     return NextResponse.json({
       task: createResult.data,
+      autoRunJobId,
       message: taskData.parentId ? 'Subtask created successfully' : 'Task created successfully',
     });
   } catch (error) {

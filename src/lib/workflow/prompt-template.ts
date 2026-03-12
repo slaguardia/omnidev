@@ -7,6 +7,10 @@ export interface PromptTemplateVariables {
   title: string;
   description: string | null;
   filePaths: string[];
+  /** Output from the immediately preceding stage (last iteration) */
+  previousStageOutput?: string | null;
+  /** All stage outputs keyed by stage name (last iteration output for each) */
+  stageOutputs?: Record<string, string>;
 }
 
 /**
@@ -27,6 +31,7 @@ export function resolvePromptTemplate(
     // Legacy alias: {prompt} resolves to the same value as {description}
     prompt: vars.description ?? '',
     filePaths: vars.filePaths.length > 0 ? vars.filePaths.map((f) => `- ${f}`).join('\n') : '',
+    previousStageOutput: vars.previousStageOutput ?? '',
   };
 
   const lines = template.split('\n');
@@ -35,14 +40,28 @@ export function resolvePromptTemplate(
   for (const line of lines) {
     // Check if this line contains any template variables
     const variablesInLine: string[] = [];
-    const replaced = line.replace(/\{(\w+)\}/g, (_match, key: string) => {
-      variablesInLine.push(key);
-      return replacements[key] ?? '';
-    });
+    // Match both {variable} and {stageOutput:stageName} patterns
+    const replaced = line.replace(
+      /\{(\w+)(?::(\w[\w-]*))?\}/g,
+      (_match, key: string, param?: string) => {
+        if (key === 'stageOutput' && param && vars.stageOutputs) {
+          variablesInLine.push(`stageOutput:${param}`);
+          return vars.stageOutputs[param] ?? '';
+        }
+        variablesInLine.push(key);
+        return replacements[key] ?? '';
+      }
+    );
 
     // If the line had template variables and ALL resolved to empty, skip the line
     if (variablesInLine.length > 0) {
-      const allEmpty = variablesInLine.every((key) => !replacements[key]);
+      const allEmpty = variablesInLine.every((key) => {
+        if (key.startsWith('stageOutput:')) {
+          const stageName = key.slice('stageOutput:'.length);
+          return !vars.stageOutputs?.[stageName];
+        }
+        return !replacements[key];
+      });
       if (allEmpty) {
         continue;
       }

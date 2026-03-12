@@ -7,6 +7,7 @@
 
 import {
   getRalphTask,
+  getRalphPlaybook,
   updateRalphTask,
   transitionRalphTask,
   resolveBaseBranch,
@@ -145,11 +146,17 @@ export async function startStageRun(
         }
       }
 
-      await updateRalphTask(taskId, {
+      const branchUpdateResult = await updateRalphTask(taskId, {
         baseBranch,
         featureBranch,
         prTargetBranch: resolvePrTargetBranch(task, workspace.targetBranch),
       });
+      if (!branchUpdateResult.success) {
+        return {
+          error: `Failed to persist feature branch: ${branchUpdateResult.error.message}`,
+          statusCode: 500,
+        };
+      }
     }
   }
 
@@ -165,17 +172,56 @@ export async function startStageRun(
     }
   }
 
-  // Resolve prompt: override > stage config prompt
+  // Resolve prompt: API override > playbook override > stage config prompt
+  // Check playbook for a prompt override for this stage
+  let playbookPromptOverride: string | null = null;
+  if (task.playbookId) {
+    const pbResult = await getRalphPlaybook(task.playbookId);
+    if (pbResult.success && pbResult.data.promptOverrides[stageName]) {
+      playbookPromptOverride = pbResult.data.promptOverrides[stageName];
+    }
+  }
+
+  const promptTemplate =
+    options?.promptOverride ?? playbookPromptOverride ?? stageDef.config.prompt;
+
   let resolvedPrompt: string | null = null;
-  if (options?.promptOverride) {
-    resolvedPrompt = options.promptOverride;
-  } else if (stageDef.config.prompt) {
+  if (promptTemplate) {
+    // Build stage output variables for template resolution
+    const stageOutputVars: Record<string, string> = {};
+    let previousStageOutput: string | null = null;
+
+    if (task.stageOutputs) {
+      // Extract last iteration output from each stage
+      for (const [sid, so] of Object.entries(task.stageOutputs)) {
+        const lastIter = so.iterations[so.iterations.length - 1];
+        if (lastIter?.output) {
+          stageOutputVars[sid] = lastIter.output;
+        }
+      }
+
+      // Find the previous stage in the workflow definition
+      const currentIdx = definition.stages.findIndex((s) => s.id === stageName);
+      if (currentIdx > 0) {
+        // Walk backwards to find the most recent stage that has output
+        for (let i = currentIdx - 1; i >= 0; i--) {
+          const prevId = definition.stages[i]!.id;
+          if (stageOutputVars[prevId]) {
+            previousStageOutput = stageOutputVars[prevId];
+            break;
+          }
+        }
+      }
+    }
+
     resolvedPrompt = resolvePromptTemplate(
-      stageDef.config.prompt,
+      promptTemplate,
       {
         title: task.title,
         description: task.description ?? null,
         filePaths: task.filePaths ?? [],
+        previousStageOutput,
+        stageOutputs: stageOutputVars,
       },
       stageDef.config.returnQuestions
     );
@@ -224,6 +270,7 @@ export async function startStageRun(
     const currentOutputs = currentTask.success ? (currentTask.data.stageOutputs ?? {}) : {};
     const currentStage = currentOutputs[stageName];
     await updateRalphTask(taskId, {
+      executionError: null,
       stageOutputs: {
         ...currentOutputs,
         [stageName]: {

@@ -8,6 +8,7 @@ const CreatePlaybookSchema = z.object({
   name: z.string().min(1, 'Playbook name is required').max(100),
   description: z.string().max(500).optional(),
   stageIds: z.array(z.string().min(1)).min(1, 'At least one stage is required'),
+  promptOverrides: z.record(z.string(), z.string()).optional(),
   isDefault: z.boolean().optional(),
 });
 
@@ -72,12 +73,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const input: { name: string; description?: string; stageIds: string[]; isDefault?: boolean } = {
+    const input: {
+      name: string;
+      description?: string;
+      stageIds: string[];
+      promptOverrides?: Record<string, string>;
+      isDefault?: boolean;
+    } = {
       name: parseResult.data.name,
       stageIds: parseResult.data.stageIds,
     };
     if (parseResult.data.description !== undefined)
       input.description = parseResult.data.description;
+    if (parseResult.data.promptOverrides !== undefined)
+      input.promptOverrides = parseResult.data.promptOverrides;
     if (parseResult.data.isDefault !== undefined) input.isDefault = parseResult.data.isDefault;
     const result = await createRalphPlaybook(input);
     if (!result.success) {
