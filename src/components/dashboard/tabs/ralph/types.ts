@@ -128,6 +128,16 @@ export interface RalphTaskDetail {
   updatedAt: string;
 }
 
+// Dependency info from GET /api/ralph/tasks/[taskId]/dependencies
+export interface DependencyInfo {
+  taskId: string;
+  blockedBy: string[];
+  blocks: string[];
+  isBlocked: boolean;
+  blockerDetails: Array<{ id: string; title: string; status: string }>;
+  blocksDetails: Array<{ id: string; title: string; status: string }>;
+}
+
 // Override info for manual status changes
 export interface ManualOverrideInfo {
   isNonStandard: boolean;
