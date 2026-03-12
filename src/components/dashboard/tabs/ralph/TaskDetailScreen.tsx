@@ -50,6 +50,7 @@ import {
   useInvalidateRalphTaskDetail,
 } from '@/hooks/queries/useInvalidation';
 import StageOutputSection from './StageOutputSection';
+import DependencySection from './DependencySection';
 import { ChatMarkdown } from '@/components/dashboard/tabs/chat/ChatMarkdown';
 
 /**
@@ -1312,6 +1313,15 @@ export default function TaskDetailScreen({
                   </div>
                 </div>
               )}
+
+              {/* Dependencies */}
+              <DependencySection
+                taskId={taskId}
+                workspaceId={task.workspaceId}
+                childIds={task.childIds}
+                canEdit={canEdit}
+                onNavigateToTask={onNavigateToTask}
+              />
 
               <Divider />
 

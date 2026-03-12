@@ -24,3 +24,14 @@ export function useInvalidateRalphTaskDetail(): (taskId: string) => void {
     queryClient.invalidateQueries({ queryKey: ['ralph-task-detail', taskId] });
   };
 }
+
+/**
+ * Invalidates the task dependencies cache for a specific task.
+ * Use after adding/removing blockers.
+ */
+export function useInvalidateRalphTaskDependencies(): (taskId: string) => void {
+  const queryClient = useQueryClient();
+  return (taskId: string) => {
+    queryClient.invalidateQueries({ queryKey: ['ralph-task-dependencies', taskId] });
+  };
+}
