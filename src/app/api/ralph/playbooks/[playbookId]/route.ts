@@ -12,6 +12,7 @@ const UpdatePlaybookSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   stageIds: z.array(z.string().min(1)).min(1).optional(),
+  promptOverrides: z.record(z.string(), z.string()).optional(),
   isDefault: z.boolean().optional(),
 });
 
@@ -76,6 +77,7 @@ export async function PATCH(
       !updates.name &&
       !updates.description &&
       !updates.stageIds &&
+      !updates.promptOverrides &&
       updates.isDefault === undefined
     ) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
@@ -101,11 +103,14 @@ export async function PATCH(
       name?: string;
       description?: string;
       stageIds?: string[];
+      promptOverrides?: Record<string, string>;
       isDefault?: boolean;
     } = {};
     if (updates.name !== undefined) updatePayload.name = updates.name;
     if (updates.description !== undefined) updatePayload.description = updates.description;
     if (updates.stageIds !== undefined) updatePayload.stageIds = updates.stageIds;
+    if (updates.promptOverrides !== undefined)
+      updatePayload.promptOverrides = updates.promptOverrides;
     if (updates.isDefault !== undefined) updatePayload.isDefault = updates.isDefault;
 
     const result = await updateRalphPlaybook(playbookId, updatePayload);

@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { Button } from '@heroui/button';
-import { Input } from '@heroui/input';
+import { Input, Textarea } from '@heroui/input';
 import { Chip } from '@heroui/chip';
 import { Checkbox } from '@heroui/checkbox';
-import { Trash2, Pencil, Star, Plus, X, Check } from 'lucide-react';
+import { Trash2, Pencil, Star, Plus, X, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useWorkflowDefinition } from '@/hooks/queries/useWorkflowDefinition';
 import {
   useRalphPlaybooks,
@@ -30,6 +30,8 @@ export default function PlaybooksSubtab() {
   const [newDescription, setNewDescription] = useState('');
   const [newStageIds, setNewStageIds] = useState<string[]>([]);
   const [newIsDefault, setNewIsDefault] = useState(false);
+  const [newPromptOverrides, setNewPromptOverrides] = useState<Record<string, string>>({});
+  const [newShowOverrides, setNewShowOverrides] = useState(false);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,6 +39,8 @@ export default function PlaybooksSubtab() {
   const [editDescription, setEditDescription] = useState('');
   const [editStageIds, setEditStageIds] = useState<string[]>([]);
   const [editIsDefault, setEditIsDefault] = useState(false);
+  const [editPromptOverrides, setEditPromptOverrides] = useState<Record<string, string>>({});
+  const [editShowOverrides, setEditShowOverrides] = useState(false);
 
   // Delete confirmation
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -48,17 +52,29 @@ export default function PlaybooksSubtab() {
     setNewDescription('');
     setNewStageIds([]);
     setNewIsDefault(false);
+    setNewPromptOverrides({});
+    setNewShowOverrides(false);
     setIsCreating(false);
   };
 
   const handleCreate = async () => {
     const trimmed = newName.trim();
     if (!trimmed || newStageIds.length === 0) return;
+    // Only send non-empty prompt overrides for selected stages
+    const filteredOverrides: Record<string, string> = {};
+    for (const [stageId, prompt] of Object.entries(newPromptOverrides)) {
+      if (prompt.trim() && newStageIds.includes(stageId)) {
+        filteredOverrides[stageId] = prompt.trim();
+      }
+    }
     try {
       await createPlaybook.mutateAsync({
         name: trimmed,
         description: newDescription.trim(),
         stageIds: newStageIds,
+        ...(Object.keys(filteredOverrides).length > 0
+          ? { promptOverrides: filteredOverrides }
+          : {}),
         isDefault: newIsDefault,
       });
       resetCreateForm();
@@ -73,16 +89,26 @@ export default function PlaybooksSubtab() {
     setEditDescription(playbook.description);
     setEditStageIds([...playbook.stageIds]);
     setEditIsDefault(playbook.isDefault);
+    setEditPromptOverrides({ ...playbook.promptOverrides });
+    setEditShowOverrides(Object.keys(playbook.promptOverrides).length > 0);
   };
 
   const handleUpdate = async () => {
     if (!editingId || !editName.trim() || editStageIds.length === 0) return;
+    // Only send non-empty prompt overrides for selected stages
+    const filteredOverrides: Record<string, string> = {};
+    for (const [stageId, prompt] of Object.entries(editPromptOverrides)) {
+      if (prompt.trim() && editStageIds.includes(stageId)) {
+        filteredOverrides[stageId] = prompt.trim();
+      }
+    }
     try {
       await updatePlaybook.mutateAsync({
         id: editingId,
         name: editName.trim(),
         description: editDescription.trim(),
         stageIds: editStageIds,
+        promptOverrides: filteredOverrides,
         isDefault: editIsDefault,
       });
       setEditingId(null);
@@ -121,6 +147,72 @@ export default function PlaybooksSubtab() {
         </Chip>
       );
     });
+  };
+
+  const renderPromptOverrides = (
+    selectedStageIds: string[],
+    overrides: Record<string, string>,
+    setOverrides: (overrides: Record<string, string>) => void,
+    showOverrides: boolean,
+    setShowOverrides: (show: boolean) => void
+  ) => {
+    if (selectedStageIds.length === 0) return null;
+    return (
+      <div>
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs font-medium text-default-500 hover:text-default-700 transition-colors"
+          onClick={() => setShowOverrides(!showOverrides)}
+        >
+          {showOverrides ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
+          Prompt Overrides
+          {Object.values(overrides).filter((v) => v.trim()).length > 0 && (
+            <Chip size="sm" variant="flat" color="secondary" className="ml-1">
+              {Object.values(overrides).filter((v) => v.trim()).length}
+            </Chip>
+          )}
+        </button>
+        {showOverrides && (
+          <div className="mt-2 space-y-3 pl-4 border-l-2 border-default-200">
+            <p className="text-xs text-default-400">
+              Override the default prompt for specific stages. Leave empty to use the stage default.
+              Use <code className="text-xs bg-default-100 px-1 rounded">{'{title}'}</code>,{' '}
+              <code className="text-xs bg-default-100 px-1 rounded">{'{description}'}</code>,{' '}
+              <code className="text-xs bg-default-100 px-1 rounded">{'{previousStageOutput}'}</code>
+              ,{' '}
+              <code className="text-xs bg-default-100 px-1 rounded">
+                {'{stageOutput:stageName}'}
+              </code>{' '}
+              as template variables.
+            </p>
+            {selectedStageIds.map((stageId) => {
+              const stage = allStages.find((s) => s.id === stageId);
+              if (!stage) return null;
+              return (
+                <div key={stageId}>
+                  <label className="text-xs font-medium text-default-500 mb-1.5 block">
+                    {stage.label}
+                  </label>
+                  <Textarea
+                    placeholder={`Custom prompt for ${stage.label} stage...`}
+                    value={overrides[stageId] ?? ''}
+                    onChange={(e) => setOverrides({ ...overrides, [stageId]: e.target.value })}
+                    variant="bordered"
+                    size="sm"
+                    minRows={2}
+                    maxRows={8}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderStagePicker = (selectedIds: string[], onToggle: (stageId: string) => void) => {
@@ -170,25 +262,27 @@ export default function PlaybooksSubtab() {
 
       {/* Create form */}
       {isCreating && (
-        <div className="rounded-lg border dark:border-white/[0.06] border-gray-200 p-4 space-y-3 bg-content2/30">
-          <Input
-            label="Name"
-            labelPlacement="outside"
-            placeholder="e.g. Quick Fix"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            variant="bordered"
-            size="sm"
-          />
-          <Input
-            label="Description"
-            labelPlacement="outside"
-            placeholder="Optional description"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            variant="bordered"
-            size="sm"
-          />
+        <div className="rounded-lg border dark:border-white/[0.06] border-gray-200 p-4 space-y-4 bg-content2/30">
+          <div>
+            <label className="text-xs font-medium text-default-500 mb-1.5 block">Name</label>
+            <Input
+              placeholder="e.g. Quick Fix"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              variant="bordered"
+              size="sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-default-500 mb-1.5 block">Description</label>
+            <Input
+              placeholder="Optional description"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              variant="bordered"
+              size="sm"
+            />
+          </div>
           <div>
             <div className="text-xs font-medium text-default-500 mb-1.5">
               Stages (click to toggle)
@@ -198,6 +292,13 @@ export default function PlaybooksSubtab() {
               <p className="text-xs text-danger mt-1">Select at least one stage</p>
             )}
           </div>
+          {renderPromptOverrides(
+            newStageIds,
+            newPromptOverrides,
+            setNewPromptOverrides,
+            newShowOverrides,
+            setNewShowOverrides
+          )}
           <Checkbox size="sm" isSelected={newIsDefault} onValueChange={setNewIsDefault}>
             <span className="text-xs">Set as default playbook</span>
           </Checkbox>
@@ -233,24 +334,30 @@ export default function PlaybooksSubtab() {
               return (
                 <div
                   key={pb.id}
-                  className="rounded-lg border dark:border-white/[0.06] border-gray-200 p-4 space-y-3 bg-content2/30"
+                  className="rounded-lg border dark:border-white/[0.06] border-gray-200 p-4 space-y-4 bg-content2/30"
                 >
-                  <Input
-                    label="Name"
-                    labelPlacement="outside"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    variant="bordered"
-                    size="sm"
-                  />
-                  <Input
-                    label="Description"
-                    labelPlacement="outside"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    variant="bordered"
-                    size="sm"
-                  />
+                  <div>
+                    <label className="text-xs font-medium text-default-500 mb-1.5 block">
+                      Name
+                    </label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      variant="bordered"
+                      size="sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-default-500 mb-1.5 block">
+                      Description
+                    </label>
+                    <Input
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      variant="bordered"
+                      size="sm"
+                    />
+                  </div>
                   <div>
                     <div className="text-xs font-medium text-default-500 mb-1.5">
                       Stages (click to toggle)
@@ -262,6 +369,13 @@ export default function PlaybooksSubtab() {
                       <p className="text-xs text-danger mt-1">Select at least one stage</p>
                     )}
                   </div>
+                  {renderPromptOverrides(
+                    editStageIds,
+                    editPromptOverrides,
+                    setEditPromptOverrides,
+                    editShowOverrides,
+                    setEditShowOverrides
+                  )}
                   <Checkbox size="sm" isSelected={editIsDefault} onValueChange={setEditIsDefault}>
                     <span className="text-xs">Set as default playbook</span>
                   </Checkbox>
@@ -309,6 +423,14 @@ export default function PlaybooksSubtab() {
                   </div>
                   {pb.description && <p className="text-xs text-default-400">{pb.description}</p>}
                   <div className="flex flex-wrap gap-1">{renderStageChips(pb.stageIds)}</div>
+                  {Object.keys(pb.promptOverrides ?? {}).length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Chip size="sm" variant="flat" color="secondary">
+                        {Object.keys(pb.promptOverrides).length} prompt override
+                        {Object.keys(pb.promptOverrides).length !== 1 ? 's' : ''}
+                      </Chip>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {confirmDeleteId === pb.id ? (

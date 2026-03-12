@@ -38,7 +38,7 @@ export const WorkflowStageDefinitionSchema = z.object({
     prompt: z.string().nullable(),
     maxIterations: z.number().int().min(1),
     returnQuestions: z.boolean(),
-    autoLoop: z.boolean(),
+    autoLoop: z.boolean().default(false),
   }),
   onEnter: z.enum(['branch-creation', 'confirm-pr']).optional(),
 });
@@ -134,6 +134,9 @@ const DEFAULT_PLANNING_PROMPT = `You are creating an implementation plan for a t
 ### Relevant Files
 {filePaths}
 
+### Triage Analysis
+{previousStageOutput}
+
 ---
 
 ## Steps
@@ -194,13 +197,16 @@ const DEFAULT_RESEARCH_PROMPT = `You are reviewing an implementation plan. Valid
 ### Relevant Files
 {filePaths}
 
+### Implementation Plan
+{previousStageOutput}
+
 ---
 
 ## Steps
 
 ### 1. Read the Plan
 
-Review the implementation plan from the previous stage output above.
+Review the implementation plan above.
 
 ### 2. Verify File Paths
 
@@ -257,6 +263,11 @@ const DEFAULT_EXECUTING_PROMPT = `You are executing one iteration of implementat
 ### Relevant Files
 {filePaths}
 
+### Previous Stage Output
+{previousStageOutput}
+
+### Constraints
+
 ---
 
 ## Steps
@@ -270,7 +281,7 @@ Also read the relevant source files to understand the current state of the imple
 ### 2. Decide What To Do This Iteration
 
 Pick ONE logical unit of work:
-- If an implementation plan exists from earlier stages, follow the next uncompleted step
+- If a plan or analysis was provided in the Previous Stage Output above, follow the next uncompleted step
 - If no plan exists, identify the smallest meaningful change that moves the task forward
 - If previous iterations had errors, fix those first
 

@@ -122,6 +122,11 @@ function runMigrations(database: Database.Database): void {
     migrateV3Playbooks(database);
     setSchemaVersion(database, 3);
   }
+
+  if (version < 4) {
+    migrateV4PlaybookPromptOverrides(database);
+    setSchemaVersion(database, 4);
+  }
 }
 
 function getSchemaVersion(database: Database.Database): number {
@@ -273,6 +278,18 @@ function migrateV3Playbooks(database: Database.Database): void {
         updated_at: now,
       });
     console.log('[RALPH TASK DB] Seeded default playbooks');
+  }
+}
+
+/** V4: Add prompt_overrides column to playbooks */
+function migrateV4PlaybookPromptOverrides(database: Database.Database): void {
+  console.log('[RALPH TASK DB] Running migration v4: playbook prompt overrides');
+
+  const cols = database.prepare('PRAGMA table_info(ralph_playbooks)').all() as Array<{
+    name: string;
+  }>;
+  if (!cols.some((c) => c.name === 'prompt_overrides')) {
+    database.exec("ALTER TABLE ralph_playbooks ADD COLUMN prompt_overrides TEXT DEFAULT '{}'");
   }
 }
 
@@ -796,6 +813,7 @@ export interface DbPlaybook {
   name: string;
   description: string;
   stage_ids: string; // JSON text
+  prompt_overrides: string; // JSON text: Record<stageId, promptTemplate>
   is_default: number;
   created_at: string;
   updated_at: string;
@@ -805,8 +823,8 @@ export function dbCreatePlaybook(playbook: DbPlaybook): void {
   const database = getDb();
   database
     .prepare(
-      `INSERT INTO ralph_playbooks (id, name, description, stage_ids, is_default, created_at, updated_at)
-     VALUES (@id, @name, @description, @stage_ids, @is_default, @created_at, @updated_at)`
+      `INSERT INTO ralph_playbooks (id, name, description, stage_ids, prompt_overrides, is_default, created_at, updated_at)
+     VALUES (@id, @name, @description, @stage_ids, @prompt_overrides, @is_default, @created_at, @updated_at)`
     )
     .run(playbook);
 }
@@ -815,7 +833,7 @@ export function dbListPlaybooks(): DbPlaybook[] {
   const database = getDb();
   return database
     .prepare(
-      'SELECT id, name, description, stage_ids, is_default, created_at, updated_at FROM ralph_playbooks ORDER BY name ASC'
+      'SELECT id, name, description, stage_ids, prompt_overrides, is_default, created_at, updated_at FROM ralph_playbooks ORDER BY name ASC'
     )
     .all() as DbPlaybook[];
 }
@@ -825,7 +843,7 @@ export function dbGetPlaybook(id: string): DbPlaybook | null {
   return (
     (database
       .prepare(
-        'SELECT id, name, description, stage_ids, is_default, created_at, updated_at FROM ralph_playbooks WHERE id = ?'
+        'SELECT id, name, description, stage_ids, prompt_overrides, is_default, created_at, updated_at FROM ralph_playbooks WHERE id = ?'
       )
       .get(id) as DbPlaybook | undefined) ?? null
   );
@@ -833,7 +851,13 @@ export function dbGetPlaybook(id: string): DbPlaybook | null {
 
 export function dbUpdatePlaybook(
   id: string,
-  updates: { name?: string; description?: string; stage_ids?: string; is_default?: number }
+  updates: {
+    name?: string;
+    description?: string;
+    stage_ids?: string;
+    prompt_overrides?: string;
+    is_default?: number;
+  }
 ): boolean {
   const database = getDb();
 
@@ -858,6 +882,10 @@ export function dbUpdatePlaybook(
     if (updates.stage_ids !== undefined) {
       sets.push('stage_ids = ?');
       values.push(updates.stage_ids);
+    }
+    if (updates.prompt_overrides !== undefined) {
+      sets.push('prompt_overrides = ?');
+      values.push(updates.prompt_overrides);
     }
     if (updates.is_default !== undefined) {
       sets.push('is_default = ?');

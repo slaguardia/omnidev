@@ -9,6 +9,7 @@ import {
 } from '@/lib/managers/ralph-task-manager';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
+import { getJob, createJobId } from '@/lib/queue';
 import type { WorkspaceId } from '@/lib/types';
 
 /**
@@ -102,6 +103,46 @@ export async function GET(
       }
     }
 
+    // Self-healing: clear stale activeJobId in ANY stage output where the job is done/missing
+    if (task.stageOutputs) {
+      let needsUpdate = false;
+      const patchedOutputs = { ...task.stageOutputs };
+
+      for (const [stageName, stageOutput] of Object.entries(patchedOutputs)) {
+        if (!stageOutput.activeJobId) continue;
+
+        const job = await getJob(createJobId(stageOutput.activeJobId));
+        const jobGone = !job;
+        const jobDone = job && (job.status === 'completed' || job.status === 'failed');
+
+        if (jobGone || jobDone) {
+          const isFailed = jobGone || job?.status === 'failed';
+          patchedOutputs[stageName] = {
+            ...stageOutput,
+            activeJobId: undefined,
+            autoLoopActive: false,
+            completionReason: stageOutput.completionReason ?? (isFailed ? 'error' : undefined),
+            lastUpdated: new Date().toISOString(),
+          };
+          if (isFailed && !task.executionError) {
+            task.executionError = job?.error ?? 'Job no longer exists';
+          }
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        task.stageOutputs = patchedOutputs;
+        // Fire-and-forget DB write
+        updateRalphTask(taskId, {
+          executionError: task.executionError,
+          stageOutputs: patchedOutputs,
+        }).catch((err) =>
+          console.error('[RALPH TASK DETAIL API] Failed to clear stale activeJobId:', err)
+        );
+      }
+    }
+
     // Return full task with enriched data
     return NextResponse.json({
       task: {
@@ -151,14 +192,6 @@ export async function PATCH(
 
     const existingTask = taskResult.data;
 
-    // Check if task is in a locked status
-    if (LOCKED_STATUSES.includes(existingTask.status as (typeof LOCKED_STATUSES)[number])) {
-      return NextResponse.json(
-        { error: `Cannot update task in '${existingTask.status}' status` },
-        { status: 400 }
-      );
-    }
-
     // Parse and validate request body
     const body = await request.json();
     const parseResult = UpdateTaskRequestSchema.safeParse(body);
@@ -179,6 +212,19 @@ export async function PATCH(
 
     if (Object.keys(filteredUpdates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    // Check if task is in a locked status — stageOutputs updates are always
+    // allowed (clearing iterations, cancelling loops) but other field changes
+    // (title, branches, delivery method, etc.) are blocked.
+    if (LOCKED_STATUSES.includes(existingTask.status as (typeof LOCKED_STATUSES)[number])) {
+      const nonStageKeys = Object.keys(filteredUpdates).filter((k) => k !== 'stageOutputs');
+      if (nonStageKeys.length > 0) {
+        return NextResponse.json(
+          { error: `Cannot update task in '${existingTask.status}' status` },
+          { status: 400 }
+        );
+      }
     }
 
     // Update the task

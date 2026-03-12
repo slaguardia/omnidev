@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     gnupg \
     wget \
+    gosu \
     git \
     openssl \
     python3 \

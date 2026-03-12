@@ -211,6 +211,7 @@ export default function TaskDetailScreen({
       ...task,
       status: optimisticStatus,
       stageOutputs: optimisticStageOutputs,
+      executionError: null,
     });
 
     // Fire the API call in the background
@@ -455,7 +456,19 @@ export default function TaskDetailScreen({
     );
   };
 
-  const allStatuses = ['draft', ...definition.stages.map((s) => s.id), 'complete'];
+  const taskPlaybook = useMemo(
+    () => (task?.playbookId ? allPlaybooks.find((p) => p.id === task.playbookId) : null),
+    [task?.playbookId, allPlaybooks]
+  );
+  const allStatuses = useMemo(() => {
+    const stages = definition.stages.map((s) => s.id);
+    if (taskPlaybook) {
+      // Only show draft + playbook stages + complete
+      const pbStages = taskPlaybook.stageIds.filter((id) => stages.includes(id));
+      return ['draft', ...pbStages, 'complete'];
+    }
+    return ['draft', ...stages, 'complete'];
+  }, [definition.stages, taskPlaybook]);
 
   // Aggregate questions from all stage outputs
   const aggregatedQuestions = useMemo(() => {
@@ -657,6 +670,54 @@ export default function TaskDetailScreen({
                 <span>Created {formatRelativeTime(task.createdAt)}</span>
                 <span>Updated {formatRelativeTime(task.updatedAt)}</span>
               </div>
+
+              {/* Draft + Playbook: Run Playbook action */}
+              {task.status === 'draft' &&
+                taskPlaybook &&
+                (() => {
+                  const firstStage = taskPlaybook.stageIds[0];
+                  if (!firstStage) return null;
+                  return (
+                    <div className="p-3 bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30 rounded-lg space-y-2.5">
+                      <div className="flex items-center gap-3">
+                        <Zap className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            Ready to run{' '}
+                            <span className="text-primary-600 dark:text-primary-400">
+                              {taskPlaybook.name}
+                            </span>
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          color="primary"
+                          startContent={<Zap className="w-3.5 h-3.5" />}
+                          onPress={() => handleRunStage(firstStage)}
+                        >
+                          Run Playbook
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {taskPlaybook.stageIds.map((stageId, idx) => {
+                          const stageLabel =
+                            taskStates.find((s) => s.key === stageId)?.label ?? stageId;
+                          const color = statusColors[stageId] ?? 'default';
+                          return (
+                            <React.Fragment key={stageId}>
+                              {idx > 0 && (
+                                <ArrowRight className="w-3 h-3 text-default-300 flex-shrink-0" />
+                              )}
+                              <Chip size="sm" variant="flat" color={color}>
+                                {stageLabel}
+                              </Chip>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
               {/* Child Tasks Section */}
               {task.childIds && task.childIds.length > 0 && (
@@ -926,6 +987,7 @@ export default function TaskDetailScreen({
                       handleClearIteration(stageDef.id, iterationIndex)
                     }
                     onCancelLoop={() => handleCancelLoop(stageDef.id)}
+                    executionError={isCurrentStage ? task.executionError : null}
                   />
                 );
               })}
@@ -1170,7 +1232,7 @@ export default function TaskDetailScreen({
                   <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
                     Playbook
                   </div>
-                  <Dropdown>
+                  <Dropdown isDisabled={task.status !== 'draft'}>
                     <DropdownTrigger>
                       {task.playbookId ? (
                         (() => {
@@ -1181,7 +1243,12 @@ export default function TaskDetailScreen({
                               size={chipSize}
                               variant="flat"
                               classNames={infoChipClasses}
-                              className="cursor-pointer"
+                              className={
+                                task.status === 'draft'
+                                  ? 'cursor-pointer'
+                                  : 'cursor-default opacity-70'
+                              }
+                              isDisabled={task.status !== 'draft'}
                               startContent={<BookOpen className="w-3 h-3 text-default-500" />}
                             >
                               {playbook?.name ?? 'Unknown Playbook'}
@@ -1194,7 +1261,10 @@ export default function TaskDetailScreen({
                           size={chipSize}
                           variant="flat"
                           classNames={infoChipClasses}
-                          className="cursor-pointer"
+                          className={
+                            task.status === 'draft' ? 'cursor-pointer' : 'cursor-default opacity-70'
+                          }
+                          isDisabled={task.status !== 'draft'}
                           startContent={<BookOpen className="w-3 h-3 text-default-400" />}
                         >
                           No Playbook
