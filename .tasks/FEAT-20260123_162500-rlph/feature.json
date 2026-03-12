@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-20260123_162500-rlph",
+  "title": "Feature: Implement Ralph Board kanban/list task management interface",
+  "summary": "A kanban/list board interface ('Ralph Board' tab) for managing AI-assisted development tasks through a multi-stage workflow with human-in-the-loop control. Tasks flow through Draft, Triage, Planning/Research loops, Ready, Executing, and Complete states, with async question handling, sub-story generation for complex features, and full git flow integration.",
+  "status": "complete",
+  "completedAt": "2026-01-23T18:32:00.000Z",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "outOfScope": [
+    "Multi-user collaboration/assignment (single-bot model)",
+    "Real-time sync across browser tabs",
+    "Task templates/presets (future enhancement)",
+    "Integration with external issue trackers (GitHub Issues, Linear, etc.)",
+    "Mobile-optimized views",
+    "Auto-routing or auto-decisions - human decides at every gate"
+  ],
+  "technicalConsiderations": [
+    "New dashboard tab component alongside existing tabs",
+    "New data model for Ralph tasks with parent/child hierarchy",
+    "New background job type for planning loops (distinct from edit/ask jobs)",
+    "State machine with transition validation and audit trail",
+    "Persistent storage in data/ralph-tasks/",
+    "WebSocket or polling for async question updates",
+    "Integration with existing git operations (lib/git/)",
+    "Integration with existing GitHub/GitLab PR creation",
+    "Planning/Research prompts from ralph-local-team plugin"
+  ],
+  "storiesCount": 28
+}

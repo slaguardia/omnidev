@@ -1,0 +1,20 @@
+{
+  "id": "US-016",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Auto-create PR on task completion",
+  "userStory": "As a developer, I want PRs created when tasks complete so that code review can begin immediately.",
+  "acceptanceCriteria": [
+    "On task completion, user prompted to create PR",
+    "PR title from task title, body from task summary + acceptance criteria",
+    "Uses existing GitHub/GitLab integration",
+    "PR URL stored on task record",
+    "Option to skip PR creation (for tasks that don't need it)",
+    "Works for both GitHub and GitLab workspaces",
+    "User can edit PR details before creation"
+  ],
+  "dependencies": ["US-015"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T16:47:00.000Z",
+  "iteration": 16
+}

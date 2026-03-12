@@ -1,0 +1,20 @@
+{
+  "id": "US-024",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Execute sub-stories individually or in sequence",
+  "userStory": "As a developer, I want to execute stories one at a time or batch them so that I control the execution pace.",
+  "acceptanceCriteria": [
+    "Individual 'Execute' button on each Ready story",
+    "'Execute Next' on parent runs next unblocked story (user must click)",
+    "'Execute All Ready' batch option on parent (with confirmation)",
+    "Sequential execution respects dependency order",
+    "Parallel execution option for independent stories (with explicit user opt-in)",
+    "Parent status reflects: 'Executing 2/12 stories'",
+    "User can pause batch execution between stories"
+  ],
+  "dependencies": ["US-020"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T18:02:00.000Z",
+  "iteration": 24
+}

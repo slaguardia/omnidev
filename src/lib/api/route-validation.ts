@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { AskRouteParams, EditRouteParams } from '@/lib/api/types';
 import { z } from 'zod';
 import type { WorkspaceId } from '@/lib/common/types';
+import type { GitProvider } from '@/lib/types/index';
 
 // Zod schemas for route params
 const AskRouteParamsSchema = z.object({
@@ -137,4 +138,58 @@ export function validateAndParseEditRouteParams(
     success: true,
     data: parsedData,
   };
+}
+
+// Discovery route validation
+const DiscoveryRouteParamsSchema = z.object({
+  provider: z.enum(['github', 'gitlab', 'all']),
+  token: z.string().optional(),
+  gitlabUrl: z.string().url().optional(),
+});
+
+export interface DiscoveryRouteParams {
+  provider: 'github' | 'gitlab' | 'all';
+  token?: string;
+  gitlabUrl?: string;
+}
+
+/**
+ * Validates and parses discovery route parameters using Zod
+ */
+export function validateAndParseDiscoveryRouteParams(
+  body: unknown,
+  logPrefix: string
+): { success: boolean; data?: DiscoveryRouteParams; error?: NextResponse } {
+  const { provider } = (body as Record<string, unknown>) || {};
+  console.log(`[${logPrefix}] Request payload:`, {
+    provider,
+    timestamp: new Date().toISOString(),
+  });
+
+  const result = DiscoveryRouteParamsSchema.safeParse(body);
+  if (!result.success) {
+    console.log(`[${logPrefix}] Invalid request - Zod errors`, result.error.flatten());
+    return {
+      success: false,
+      error: NextResponse.json(
+        { error: 'Invalid request', details: result.error.flatten() },
+        { status: 400 }
+      ),
+    };
+  }
+
+  return {
+    success: true,
+    data: result.data as DiscoveryRouteParams,
+  };
+}
+
+/**
+ * Parse the provider query param for GET /api/discovery
+ */
+export function parseDiscoveryProviderParam(provider: string | null): GitProvider | undefined {
+  if (provider === 'github' || provider === 'gitlab') {
+    return provider;
+  }
+  return undefined;
 }

@@ -2,7 +2,7 @@
 
 import { writeFile, readFile, access, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { getWorkspaceBaseDir } from '@/lib/config/server-actions';
+import { getDataDir } from '@/lib/config/server-actions';
 import type { WorkspaceId, FilePath, AsyncResult } from '@/lib/common/types';
 import type { Workspace } from './types';
 
@@ -26,8 +26,8 @@ let workspaceIndexPath: FilePath | null = null;
  */
 async function getWorkspaceIndexPath(): Promise<FilePath> {
   if (!workspaceIndexPath) {
-    const workspaceBaseDir = await getWorkspaceBaseDir();
-    workspaceIndexPath = join(workspaceBaseDir, '.workspace-index.json') as FilePath;
+    const dataDir = await getDataDir();
+    workspaceIndexPath = join(dataDir, '.workspace-index.json') as FilePath;
   }
   return workspaceIndexPath;
 }

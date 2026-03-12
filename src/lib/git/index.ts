@@ -21,7 +21,6 @@ export {
 
 import {
   getCurrentBranch,
-  getBranches,
   getDefaultBranch,
   getLocalBranches,
   getAllRemoteBranches,
@@ -66,10 +65,6 @@ export class GitOperations {
   // Branch operations
   async getCurrentBranch(...args: Parameters<typeof getCurrentBranch>) {
     return getCurrentBranch(...args);
-  }
-
-  async getBranches(...args: Parameters<typeof getBranches>) {
-    return getBranches(...args);
   }
 
   async getDefaultBranch(...args: Parameters<typeof getDefaultBranch>) {

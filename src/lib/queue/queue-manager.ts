@@ -16,12 +16,13 @@ import type { Job, JobId, JobType, JobStatus, QueueFolder } from './types';
 import { createJobId, isJob } from './types';
 
 // Queue configuration
-const QUEUE_BASE_DIR = 'workspaces/queue';
-const JOBS_BASE_DIR = 'workspaces/jobs';
+const QUEUE_BASE_DIR = 'data/queue';
+const JOBS_BASE_DIR = 'data/jobs';
 const QUEUE_FOLDERS: QueueFolder[] = ['pending', 'processing']; // Only active queue folders
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESSING_LOCK_FILENAME = 'processing.lock.json';
-const PROCESSING_LOCK_STALE_MS = 60 * 60 * 1000; // 1 hour
+const PROCESSING_LOCK_STALE_MS = 10 * 60 * 1000; // 10 minutes (margin above Claude Code's ~5min inactivity timeout)
+const STUCK_JOB_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 
 // Use globalThis to persist across hot module reloads in development
 const globalKey = Symbol.for('omnidev.queue.initPromise');
@@ -162,6 +163,9 @@ async function performQueueInitialization(): Promise<void> {
 
   // Run migration from legacy layout if needed
   await migrateLegacyLayout();
+
+  // Recover any orphaned jobs left in processing/ from a previous crash
+  await recoverOrphanedJobs();
 }
 
 /**
@@ -171,7 +175,7 @@ async function performQueueInitialization(): Promise<void> {
 async function migrateLegacyLayout(): Promise<void> {
   const legacyDonePath = resolve(getQueueBasePath(), 'done');
   const legacyFailedPath = resolve(getQueueBasePath(), 'failed');
-  const legacyHistoryPath = resolve(process.cwd(), 'workspaces', 'execution-history.json');
+  const legacyHistoryPath = resolve(process.cwd(), 'data', 'execution-history.json');
 
   let migrated = 0;
   let errors = 0;
@@ -328,7 +332,12 @@ async function readJobRecord(jobId: JobId): Promise<Job | null> {
  */
 async function updateJobRecord(
   jobId: JobId,
-  updates: Partial<Pick<Job, 'status' | 'startedAt' | 'completedAt' | 'result' | 'error'>>
+  updates: Partial<
+    Pick<
+      Job,
+      'status' | 'startedAt' | 'completedAt' | 'result' | 'error' | 'retryCount' | 'retryAfter'
+    >
+  >
 ): Promise<boolean> {
   const job = await readJobRecord(jobId);
   if (!job) {
@@ -365,6 +374,27 @@ async function _removeFinishedPointer(jobId: JobId, status: 'completed' | 'faile
 /**
  * Create a new job in the pending folder
  */
+/**
+ * Get default max retries for a job type
+ */
+function getDefaultMaxRetries(type: JobType): number {
+  switch (type) {
+    case 'claude-code':
+    case 'ralph-stage':
+      return 2; // Expensive Claude Code-backed jobs, can fail transiently
+    case 'git-push':
+    case 'git-mr':
+      return 1; // Quick network ops, single retry
+    case 'workspace-cleanup':
+      return 0; // Best-effort, not critical
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Create a new job in the pending folder
+ */
 export async function enqueueJob<T>(type: JobType, payload: T): Promise<JobId> {
   await ensureQueueInitialized();
   const jobId = createJobId(crypto.randomUUID().substring(0, 8));
@@ -375,6 +405,8 @@ export async function enqueueJob<T>(type: JobType, payload: T): Promise<JobId> {
     payload,
     status: 'pending',
     createdAt: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: getDefaultMaxRetries(type),
   };
 
   // Write canonical job record
@@ -405,6 +437,8 @@ export async function createProcessingJob<T>(type: JobType, payload: T): Promise
     status: 'processing',
     createdAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: getDefaultMaxRetries(type),
   };
 
   // Write canonical job record
@@ -478,6 +512,48 @@ export async function getJob(jobId: JobId): Promise<Job | null> {
 }
 
 /**
+ * Get multiple pending jobs that are ready to process (oldest first).
+ * Respects retry backoff — jobs with a future retryAfter are skipped.
+ */
+export async function getPendingJobs(limit: number = 10): Promise<Job[]> {
+  await ensureQueueInitialized();
+  const pendingPath = getQueueFolderPath('pending');
+  const jobs: Job[] = [];
+
+  try {
+    const files = await readdir(pendingPath);
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json')).sort(); // Oldest first
+
+    if (pointerFiles.length === 0) return [];
+
+    const now = Date.now();
+
+    for (const pointerFilename of pointerFiles) {
+      if (jobs.length >= limit) break;
+
+      const pointerPath = resolve(pendingPath, pointerFilename);
+      const pointerContent = await readFile(pointerPath, 'utf-8');
+      const pointer = JSON.parse(pointerContent) as { jobId: string };
+
+      const job = await readJobRecord(createJobId(pointer.jobId));
+      if (!job) continue;
+
+      // Skip jobs that are waiting for retry backoff
+      if (job.retryAfter) {
+        const retryAfterTime = new Date(job.retryAfter).getTime();
+        if (now < retryAfterTime) continue;
+      }
+
+      jobs.push(job);
+    }
+  } catch (error) {
+    console.error('[QUEUE] Error getting pending jobs:', error);
+  }
+
+  return jobs;
+}
+
+/**
  * Get the next pending job (oldest first based on filename sort)
  */
 export async function getNextPendingJob(): Promise<Job | null> {
@@ -492,18 +568,27 @@ export async function getNextPendingJob(): Promise<Job | null> {
       return null;
     }
 
-    const firstFile = pointerFiles[0];
-    if (!firstFile) {
-      return null;
+    const now = Date.now();
+
+    // Iterate through pending jobs to find one that's ready to process
+    for (const pointerFilename of pointerFiles) {
+      const pointerPath = resolve(pendingPath, pointerFilename);
+      const pointerContent = await readFile(pointerPath, 'utf-8');
+      const pointer = JSON.parse(pointerContent) as { jobId: string };
+
+      const job = await readJobRecord(createJobId(pointer.jobId));
+      if (!job) continue;
+
+      // Skip jobs that are waiting for retry backoff
+      if (job.retryAfter) {
+        const retryAfterTime = new Date(job.retryAfter).getTime();
+        if (now < retryAfterTime) {
+          continue; // Not ready yet, try next job
+        }
+      }
+
+      return job;
     }
-
-    // Read pointer to get jobId
-    const pointerPath = resolve(pendingPath, firstFile);
-    const pointerContent = await readFile(pointerPath, 'utf-8');
-    const pointer = JSON.parse(pointerContent) as { jobId: string };
-
-    // Load canonical job record
-    return await readJobRecord(createJobId(pointer.jobId));
   } catch (error) {
     console.error('[QUEUE] Error getting next pending job:', error);
   }
@@ -879,4 +964,280 @@ export async function acquireProcessingLock(
   }
 
   return { acquired: false, release };
+}
+
+/**
+ * Calculate exponential backoff delay for retries: 30s, 60s, 120s
+ */
+function getRetryBackoffMs(retryCount: number): number {
+  return 30_000 * Math.pow(2, retryCount);
+}
+
+/**
+ * Requeue a job for retry after a transient failure.
+ *
+ * - Increments retryCount
+ * - Sets retryAfter with exponential backoff
+ * - Resets status to pending
+ * - Moves pointer from processing/ back to pending/
+ */
+export async function requeueJobForRetry(jobId: JobId, errorMessage: string): Promise<boolean> {
+  await ensureQueueInitialized();
+
+  const job = await readJobRecord(jobId);
+  if (!job) {
+    console.error(`[QUEUE] Cannot requeue job ${jobId}: record not found`);
+    return false;
+  }
+
+  const newRetryCount = (job.retryCount ?? 0) + 1;
+  const backoffMs = getRetryBackoffMs(job.retryCount ?? 0);
+  const retryAfter = new Date(Date.now() + backoffMs).toISOString();
+
+  // Update canonical record (startedAt will be overwritten when job re-enters processing)
+  const updated = await updateJobRecord(jobId, {
+    status: 'pending',
+    retryCount: newRetryCount,
+    retryAfter,
+    error: errorMessage,
+  });
+
+  if (!updated) {
+    console.error(`[QUEUE] Failed to update job record ${jobId} for retry`);
+    return false;
+  }
+
+  // Move pointer from processing to pending (create new pointer, delete old)
+  const processingPointer = await findPointerInQueueFolder(jobId, 'processing');
+  if (processingPointer) {
+    await unlink(processingPointer.path);
+  }
+
+  // Create new pending pointer
+  const pointerFilename = generatePointerFilename(jobId);
+  const pointerPath = resolve(getQueueFolderPath('pending'), pointerFilename);
+  const pointer = { jobId, status: 'pending', createdAt: new Date().toISOString() };
+  await writeFile(pointerPath, JSON.stringify(pointer, null, 2), 'utf-8');
+
+  console.log(
+    `[QUEUE] Requeued job ${jobId} for retry ${newRetryCount}/${job.maxRetries ?? 0} (backoff ${Math.round(backoffMs / 1000)}s): ${errorMessage}`
+  );
+
+  return true;
+}
+
+/**
+ * Recover orphaned jobs found in the processing folder at startup.
+ *
+ * If the server crashes while processing a job, the processing pointer stays
+ * in processing/ and blocks the queue. This function runs during initialization
+ * to recover those jobs.
+ */
+export async function recoverOrphanedJobs(): Promise<{ recovered: number; failed: number }> {
+  const processingPath = getQueueFolderPath('processing');
+  let recovered = 0;
+  let failed = 0;
+
+  try {
+    const files = await readdir(processingPath);
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
+
+    if (pointerFiles.length === 0) {
+      return { recovered: 0, failed: 0 };
+    }
+
+    console.log(`[QUEUE] Found ${pointerFiles.length} orphaned job(s) in processing folder`);
+
+    for (const pointerFilename of pointerFiles) {
+      try {
+        const pointerPath = resolve(processingPath, pointerFilename);
+        const pointerContent = await readFile(pointerPath, 'utf-8');
+        const pointer = JSON.parse(pointerContent) as { jobId: string };
+        const jobId = createJobId(pointer.jobId);
+        const job = await readJobRecord(jobId);
+
+        if (!job) {
+          // No canonical record — delete orphaned pointer
+          console.warn(`[QUEUE] Orphaned pointer for missing job ${pointer.jobId}, removing`);
+          await unlink(pointerPath);
+          failed++;
+          continue;
+        }
+
+        const retriesRemaining = (job.maxRetries ?? 0) - (job.retryCount ?? 0);
+
+        if (retriesRemaining > 0) {
+          // Requeue for retry
+          const newRetryCount = (job.retryCount ?? 0) + 1;
+          const backoffMs = getRetryBackoffMs(job.retryCount ?? 0);
+          const retryAfter = new Date(Date.now() + backoffMs).toISOString();
+
+          await updateJobRecord(jobId, {
+            status: 'pending',
+            retryCount: newRetryCount,
+            retryAfter,
+            error: 'Server restarted during processing',
+          });
+
+          // Delete processing pointer and create pending pointer
+          await unlink(pointerPath);
+          const newPointerFilename = generatePointerFilename(jobId);
+          const newPointerPath = resolve(getQueueFolderPath('pending'), newPointerFilename);
+          const newPointer = {
+            jobId: String(jobId),
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          };
+          await writeFile(newPointerPath, JSON.stringify(newPointer, null, 2), 'utf-8');
+
+          console.log(
+            `[QUEUE] Recovered orphaned job ${jobId} (${job.type}) — requeued for retry ${newRetryCount}/${job.maxRetries}`
+          );
+          recovered++;
+        } else {
+          // No retries left — mark as failed
+          await updateJobRecord(jobId, {
+            status: 'failed',
+            completedAt: new Date().toISOString(),
+            error: 'Server restarted during processing (no retries remaining)',
+          });
+
+          // Delete processing pointer, create finished pointer
+          await unlink(pointerPath);
+          await addFinishedPointer(jobId, 'failed');
+
+          console.log(
+            `[QUEUE] Orphaned job ${jobId} (${job.type}) marked as failed (no retries remaining)`
+          );
+          failed++;
+        }
+      } catch (error) {
+        console.error(`[QUEUE] Error recovering orphaned pointer ${pointerFilename}:`, error);
+        failed++;
+      }
+    }
+  } catch (error) {
+    console.error('[QUEUE] Error scanning processing folder for orphans:', error);
+  }
+
+  // Also delete any stale lock file at startup — guaranteed stale since we just booted
+  const lockPath = getProcessingLockPath();
+  if (existsSync(lockPath)) {
+    try {
+      await unlink(lockPath);
+      console.log('[QUEUE] Deleted stale processing lock from previous run');
+    } catch {
+      // Ignore — non-critical
+    }
+  }
+
+  if (recovered > 0 || failed > 0) {
+    console.log(`[QUEUE] Orphan recovery complete: ${recovered} requeued, ${failed} failed`);
+  }
+
+  return { recovered, failed };
+}
+
+/**
+ * Detect and handle jobs stuck in the processing state.
+ *
+ * Scans processing/ for pointer files and checks if the canonical job record's
+ * startedAt is older than STUCK_JOB_THRESHOLD_MS. Stuck jobs are retried or
+ * marked as failed.
+ */
+export async function detectStuckJobs(): Promise<{ requeued: number; failed: number }> {
+  await ensureQueueInitialized();
+  const processingPath = getQueueFolderPath('processing');
+  let requeued = 0;
+  let failed = 0;
+  const now = Date.now();
+
+  try {
+    const files = await readdir(processingPath);
+    const pointerFiles = files.filter((f) => f.endsWith('.ref.json'));
+
+    for (const pointerFilename of pointerFiles) {
+      try {
+        const pointerPath = resolve(processingPath, pointerFilename);
+        const pointerContent = await readFile(pointerPath, 'utf-8');
+        const pointer = JSON.parse(pointerContent) as { jobId: string };
+        const jobId = createJobId(pointer.jobId);
+        const job = await readJobRecord(jobId);
+
+        if (!job) {
+          // Orphaned pointer with no job record — clean up
+          await unlink(pointerPath);
+          failed++;
+          continue;
+        }
+
+        if (!job.startedAt) continue;
+
+        const startedAtTime = new Date(job.startedAt).getTime();
+        const elapsed = now - startedAtTime;
+
+        if (elapsed <= STUCK_JOB_THRESHOLD_MS) {
+          continue; // Not stuck yet
+        }
+
+        const elapsedMin = Math.round(elapsed / 60_000);
+        const retriesRemaining = (job.maxRetries ?? 0) - (job.retryCount ?? 0);
+
+        if (retriesRemaining > 0) {
+          // Delete processing pointer first, then requeue
+          await unlink(pointerPath);
+
+          const newRetryCount = (job.retryCount ?? 0) + 1;
+          const backoffMs = getRetryBackoffMs(job.retryCount ?? 0);
+          const retryAfter = new Date(Date.now() + backoffMs).toISOString();
+
+          await updateJobRecord(jobId, {
+            status: 'pending',
+            retryCount: newRetryCount,
+            retryAfter,
+            error: `Job exceeded maximum processing time (${elapsedMin}min)`,
+          });
+
+          const newPointerFilename = generatePointerFilename(jobId);
+          const newPointerPath = resolve(getQueueFolderPath('pending'), newPointerFilename);
+          const newPointer = {
+            jobId: String(jobId),
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          };
+          await writeFile(newPointerPath, JSON.stringify(newPointer, null, 2), 'utf-8');
+
+          console.warn(
+            `[QUEUE] Stuck job ${jobId} (${job.type}, ${elapsedMin}min) requeued for retry ${newRetryCount}/${job.maxRetries}`
+          );
+          requeued++;
+        } else {
+          // No retries — mark as failed
+          await updateJobRecord(jobId, {
+            status: 'failed',
+            completedAt: new Date().toISOString(),
+            error: `Job exceeded maximum processing time (${elapsedMin}min, no retries remaining)`,
+          });
+
+          await unlink(pointerPath);
+          await addFinishedPointer(jobId, 'failed');
+
+          console.warn(
+            `[QUEUE] Stuck job ${jobId} (${job.type}, ${elapsedMin}min) marked as failed (no retries remaining)`
+          );
+          failed++;
+        }
+      } catch (error) {
+        console.error(`[QUEUE] Error checking stuck job ${pointerFilename}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[QUEUE] Error scanning for stuck jobs:', error);
+  }
+
+  if (requeued > 0 || failed > 0) {
+    console.log(`[QUEUE] Stuck job detection: ${requeued} requeued, ${failed} failed`);
+  }
+
+  return { requeued, failed };
 }

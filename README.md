@@ -116,7 +116,6 @@ Optional variables (also configurable via UI):
 ```env
 GITLAB_TOKEN=your_gitlab_token_here
 GITHUB_TOKEN=your_github_token_here
-ANTHROPIC_API_KEY=your_claude_api_key_here
 ```
 
 See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
@@ -125,43 +124,57 @@ See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
 
 Omnidev is designed to run anywhere — cloud infrastructure, VPS, or local environments.
 
-### Deployment Modes
+Docker Compose uses override files for different environments. Running `docker compose up` automatically loads `docker-compose.yml` (base) + `docker-compose.override.yml` (dev).
 
-| Service             | Purpose                                     | Command                                                          |
-| ------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
-| `workflow-app`      | Full application with auth and dashboard    | `docker compose up -d --build workflow-app`                      |
-| `workflow-showcase` | Read-only demo mode (no auth, no dashboard) | `docker compose --profile showcase up workflow-showcase --build` |
-| `workflow-dev`      | Development with hot reload                 | `docker compose up -d --build workflow-dev`                      |
-
-- **workflow-app**: Production deployment. Includes authentication, dashboard, and all features. Use this for self-hosting.
-- **workflow-showcase**: Public demo mode. Hides auth and dashboard, shows only documentation. Use this for publishing a read-only demo.
-- **workflow-dev**: Development mode with hot reload. Bind-mounts source code for fast iteration.
-
-### Quick Start with Docker
+### Development (Default)
 
 ```bash
-docker compose up -d --build workflow-app
+# First time, or after changing dependencies / Dockerfile.dev:
+docker compose up --build --remove-orphans
+
+# Subsequent runs (reuses cached image, fast startup):
+docker compose up
 ```
 
-Access the application at `http://localhost:3000`.
+Source code is bind-mounted into the container. Next.js Turbopack watches for file changes automatically — no restart needed for code edits.
+
+- **Client components** (`'use client'`): True hot module replacement — browser updates instantly.
+- **Server files** (API routes, `src/lib/`, server components): Recompiled on the next request. Save the file, hit the endpoint or reload the page, and the change is picked up.
+
+`docker compose watch` is not needed. It exists for setups where source is copied into the image; the dev bind mount makes it redundant.
+
+**When to restart vs rebuild:**
+
+| Change                           | Action                                |
+| -------------------------------- | ------------------------------------- |
+| Edit `.ts`, `.tsx`, `.css` files | Nothing — auto-reload on next request |
+| Edit `next.config.*` or `.env`   | Restart: `docker compose restart`     |
+| Add/remove dependencies          | Rebuild: `docker compose up --build`  |
+| Change `Dockerfile.dev`          | Rebuild: `docker compose up --build`  |
+
+### Production
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Includes authentication, dashboard, health checks, and all features. Uses the production `Dockerfile` with multi-stage build.
+
+### Showcase (Read-Only Demo)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.showcase.yml up --build
+```
+
+Read-only demo mode with no auth and no dashboard. For publishing a public-facing demo.
 
 ### Docker Features
 
 - Ubuntu-based for full Claude Code compatibility
-- Multi-stage build for optimized image size
+- Multi-stage build for optimized production image
 - Runs as non-root user for security
 - Workspace data persistence via volumes
-- Built-in health checks
-
-### Manual Docker Commands
-
-```bash
-docker build -t omnidev .
-
-docker run -p 3000:3000 \
-  -v omnidev_workspaces:/app/workspaces \
-  omnidev
-```
+- Built-in health checks (production/showcase)
 
 See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker documentation.
 

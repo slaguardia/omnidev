@@ -34,7 +34,6 @@ export function usePersistedState<T>(
   // Persist to localStorage whenever value changes (after hydration)
   useEffect(() => {
     if (!isHydrated) return;
-
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch {

@@ -11,16 +11,30 @@ import type { AppConfig, ClientSafeAppConfig, FilePath } from '@/lib/types/index
 import { DEFAULT_CONFIG, validateConfig, validateClientSafeConfig } from './client-settings';
 import { getAllWorkspaces } from '@/lib/managers/workspace-manager';
 import { setWorkspaceGitConfig } from '@/lib/git/config';
+import { discoverGitLabRepositories } from '@/lib/gitlab/discovery';
+import { discoverGitHubRepositories } from '@/lib/github/discovery';
+import {
+  mergeDiscoveredRepos,
+  clearProviderRepos,
+} from '@/lib/managers/discovery-registry-manager';
+import { encryptValue, decryptValue } from '@/lib/auth/crypto';
 
 /**
- * Configuration file path in workspaces directory
+ * Server action: Get data directory (app-managed files only, not accessible to Claude Code)
+ */
+export async function getDataDir(): Promise<string> {
+  return resolve(process.cwd(), 'data');
+}
+
+/**
+ * Configuration file path in data directory
  */
 function getConfigFilePath(): string {
-  const workspaceDir = resolve(process.cwd(), 'workspaces');
-  if (!existsSync(workspaceDir)) {
-    mkdirSync(workspaceDir, { recursive: true });
+  const dataDir = resolve(process.cwd(), 'data');
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
   }
-  return resolve(workspaceDir, 'app-config.json');
+  return resolve(dataDir, 'app-config.json');
 }
 
 /**
@@ -38,7 +52,7 @@ function loadConfigFromFile(): AppConfig {
     const savedConfig = JSON.parse(configData) as Partial<AppConfig>;
 
     // Merge with defaults to ensure all fields exist
-    return {
+    const merged: AppConfig = {
       gitlab: { ...DEFAULT_CONFIG.gitlab, ...savedConfig.gitlab },
       github: { ...DEFAULT_CONFIG.github, ...savedConfig.github },
       claude: { ...DEFAULT_CONFIG.claude, ...savedConfig.claude },
@@ -46,6 +60,12 @@ function loadConfigFromFile(): AppConfig {
       security: { ...DEFAULT_CONFIG.security, ...savedConfig.security },
       logging: { ...DEFAULT_CONFIG.logging, ...savedConfig.logging },
     };
+
+    // Decrypt tokens (migration-safe: plaintext values pass through unchanged)
+    if (merged.gitlab.token) merged.gitlab.token = decryptValue(merged.gitlab.token);
+    if (merged.github.token) merged.github.token = decryptValue(merged.github.token);
+
+    return merged;
   } catch (error) {
     console.warn('Failed to load config file, using defaults:', error);
     return { ...DEFAULT_CONFIG };
@@ -63,7 +83,7 @@ export async function getConfig(): Promise<AppConfig> {
  * Convert full config to client-safe config (removes sensitive data)
  */
 function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
-  return {
+  const result: ClientSafeAppConfig = {
     gitlab: {
       url: config.gitlab.url,
       username: config.gitlab.username || '',
@@ -79,8 +99,6 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
       tokenSet: !!config.github.token,
     },
     claude: {
-      apiKeySet: !!config.claude.apiKey,
-      authMode: config.claude.authMode,
       maxTokens: config.claude.maxTokens,
       defaultTemperature: config.claude.defaultTemperature,
     },
@@ -88,6 +106,7 @@ function sanitizeConfigForClient(config: AppConfig): ClientSafeAppConfig {
     security: config.security,
     logging: config.logging,
   };
+  return result;
 }
 
 /**
@@ -115,8 +134,18 @@ export async function saveConfig(
       };
     }
 
+    // Strip legacy workflow key if present (now stored separately)
+    const toSave = { ...config };
+    delete (toSave as Record<string, unknown>).workflow;
+
+    // Encrypt tokens before writing to disk
+    toSave.gitlab = { ...toSave.gitlab };
+    toSave.github = { ...toSave.github };
+    if (toSave.gitlab.token) toSave.gitlab.token = encryptValue(toSave.gitlab.token);
+    if (toSave.github.token) toSave.github.token = encryptValue(toSave.github.token);
+
     const configPath = getConfigFilePath();
-    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    writeFileSync(configPath, JSON.stringify(toSave, null, 2), 'utf-8');
 
     console.log('Configuration saved successfully to:', configPath);
     return {
@@ -181,7 +210,6 @@ export async function updateConfigFromClient(
   sensitiveData?: {
     gitlabToken?: string;
     githubToken?: string;
-    claudeApiKey?: string;
   }
 ): Promise<{ success: boolean; message: string; errors?: string[] }> {
   try {
@@ -226,11 +254,6 @@ export async function updateConfigFromClient(
             : currentConfig.github.token,
       },
       claude: {
-        apiKey:
-          sensitiveData?.claudeApiKey !== undefined
-            ? sensitiveData.claudeApiKey
-            : currentConfig.claude.apiKey,
-        authMode: clientConfig.claude.authMode,
         maxTokens: clientConfig.claude.maxTokens,
         defaultTemperature: clientConfig.claude.defaultTemperature,
       },
@@ -249,6 +272,51 @@ export async function updateConfigFromClient(
         clientConfig.gitlab.commitName,
         clientConfig.gitlab.commitEmail
       );
+    }
+
+    // Auto-trigger repository discovery when tokens change
+    if (saveResult.success) {
+      // GitLab token changed
+      if (sensitiveData?.gitlabToken !== undefined) {
+        if (sensitiveData.gitlabToken) {
+          // Token was set/changed — fire-and-forget discovery
+          discoverGitLabRepositories(updatedConfig.gitlab.url, sensitiveData.gitlabToken)
+            .then((result) => {
+              if (result.success) {
+                void mergeDiscoveredRepos('gitlab', result.data);
+              }
+            })
+            .catch((err: unknown) =>
+              console.warn('[CONFIG] Background GitLab discovery failed:', err)
+            );
+        } else {
+          // Token was cleared
+          clearProviderRepos('gitlab').catch((err) =>
+            console.warn('[CONFIG] Failed to clear GitLab repos:', err)
+          );
+        }
+      }
+
+      // GitHub token changed
+      if (sensitiveData?.githubToken !== undefined) {
+        if (sensitiveData.githubToken) {
+          // Token was set/changed — fire-and-forget discovery
+          discoverGitHubRepositories(sensitiveData.githubToken)
+            .then((result) => {
+              if (result.success) {
+                void mergeDiscoveredRepos('github', result.data);
+              }
+            })
+            .catch((err: unknown) =>
+              console.warn('[CONFIG] Background GitHub discovery failed:', err)
+            );
+        } else {
+          // Token was cleared
+          clearProviderRepos('github').catch((err) =>
+            console.warn('[CONFIG] Failed to clear GitHub repos:', err)
+          );
+        }
+      }
     }
 
     return saveResult;
@@ -285,6 +353,12 @@ export async function initializeConfigSystem(): Promise<void> {
     const workspaceDir = await getWorkspaceBaseDir();
     if (!existsSync(workspaceDir)) {
       mkdirSync(workspaceDir, { recursive: true });
+    }
+
+    // Ensure data directory exists
+    const dataDir = await getDataDir();
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true });
     }
 
     // Load configuration (creates defaults if none exist)

@@ -87,8 +87,8 @@ workflow/
 │       └── workspace/          # Workspace management
 ├── docs/                       # Markdown docs (served at /docs)
 ├── scripts/                    # Shell scripts
-├── data/                       # Runtime data (jobs, history)
-└── workspaces/                 # Cloned repositories (Docker volume)
+├── data/                       # App server data (config, auth, metadata, jobs)
+└── workspaces/                 # Cloned repositories (Claude Code accessible)
 ```
 
 ## Key Commands
@@ -138,12 +138,12 @@ docker compose watch      # Dev mode with hot reload
 
 ### Data Storage
 
-| Data              | Location                           | Format             |
-| ----------------- | ---------------------------------- | ------------------ |
-| Workspace index   | `workspaces/.workspace-index.json` | JSON array         |
-| Job data          | `data/jobs/`                       | JSON files per job |
-| Execution history | `data/execution-history.json`      | JSON array         |
-| App config        | `workspaces/app-config.json`       | JSON object        |
+| Data              | Location                      | Format             |
+| ----------------- | ----------------------------- | ------------------ |
+| Workspace index   | `data/.workspace-index.json`  | JSON array         |
+| Job data          | `data/jobs/`                  | JSON files per job |
+| Execution history | `data/execution-history.json` | JSON array         |
+| App config        | `data/app-config.json`        | JSON object        |
 
 ## Coding Standards
 
@@ -236,16 +236,15 @@ export async function POST(request: NextRequest) {
 
 ## Environment Variables
 
-| Variable            | Required | Description                      |
-| ------------------- | -------- | -------------------------------- |
-| `NEXTAUTH_SECRET`   | Yes      | Session encryption key           |
-| `NEXTAUTH_URL`      | Yes      | App URL for auth callbacks       |
-| `ANTHROPIC_API_KEY` | Yes      | Claude API key                   |
-| `GITLAB_URL`        | No       | GitLab instance URL              |
-| `GITLAB_TOKEN`      | No       | GitLab personal access token     |
-| `GITHUB_TOKEN`      | No       | GitHub personal access token     |
-| `API_RATE_LIMIT`    | No       | Requests per hour (default: 100) |
-| `ALLOWED_IPS`       | No       | IP whitelist (\* for all)        |
+| Variable          | Required | Description                      |
+| ----------------- | -------- | -------------------------------- |
+| `NEXTAUTH_SECRET` | Yes      | Session encryption key           |
+| `NEXTAUTH_URL`    | Yes      | App URL for auth callbacks       |
+| `GITLAB_URL`      | No       | GitLab instance URL              |
+| `GITLAB_TOKEN`    | No       | GitLab personal access token     |
+| `GITHUB_TOKEN`    | No       | GitHub personal access token     |
+| `API_RATE_LIMIT`  | No       | Requests per hour (default: 100) |
+| `ALLOWED_IPS`     | No       | IP whitelist (\* for all)        |
 
 ## Relationship to Claude Code
 

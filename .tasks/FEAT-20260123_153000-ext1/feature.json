@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-20260123_153000-ext1",
+  "title": "Feature: Merge Execution History & Queue into External Tasking History",
+  "summary": "Consolidate the separate Execution History and Request Queue tabs into a single unified External Tasking History tab with pagination, status/workspace/date filtering, and a pinned view for currently processing jobs.",
+  "status": "complete",
+  "createdAt": "2026-01-23T15:30:00Z",
+  "outOfScope": [
+    "Non-claude-code job types (git-push, git-mr, workspace-cleanup)",
+    "Infinite scroll or load more pagination styles",
+    "Full-text search across job content",
+    "Bulk actions (delete multiple jobs at once)",
+    "Export/download history functionality"
+  ],
+  "technicalConsiderations": [
+    "Both tabs currently derive data from the same job queue storage (/workspaces/jobs/)",
+    "ExecutionHistoryTab is prop-driven; QueueTab is self-contained — new component should be self-contained",
+    "Existing detail modal pattern and usage/cost display can be reused",
+    "API endpoint needs to support pagination, filtering, and sorting parameters",
+    "Current loadExecutionHistory() server action limited to 100 items — needs pagination support"
+  ],
+  "storiesCount": 9
+}

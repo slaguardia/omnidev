@@ -1,3 +1,19 @@
 {
-  "enabledPlugins": {}
+  "enabledPlugins": {
+    "ralph-local-team@slaguardia-plugins": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:\\Users\\steve\\Repositories\\workflow\\.claude\\metadata-updater.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
 }

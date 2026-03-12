@@ -4,14 +4,14 @@ import path from 'path';
 import crypto from 'crypto';
 import { hash } from 'bcryptjs';
 
-const workspaceDir = path.resolve(process.cwd(), 'workspaces');
-const file = path.resolve(workspaceDir, 'api-keys.json');
+const dataDir = path.resolve(process.cwd(), 'data');
+const file = path.resolve(dataDir, 'api-keys.json');
 
-async function ensureWorkspaceDir() {
+async function ensureDataDir() {
   try {
-    await fs.access(workspaceDir);
+    await fs.access(dataDir);
   } catch {
-    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(dataDir, { recursive: true });
   }
 }
 
@@ -64,7 +64,7 @@ function parseStoredKeys(data: unknown): AnyStoredKeyRecord[] {
 
 export async function getApiKeys() {
   try {
-    await ensureWorkspaceDir();
+    await ensureDataDir();
     const data = await fs.readFile(file, 'utf-8');
     return parseStoredKeys(JSON.parse(data) as unknown);
   } catch {
@@ -78,7 +78,7 @@ export async function saveApiKey(userId: string) {
   const key = crypto.randomBytes(64).toString('base64url');
   const keyHash = await hash(key, 10);
 
-  await ensureWorkspaceDir();
+  await ensureDataDir();
 
   // Revoke all existing keys by creating a new array with only the new key
   const keys: StoredApiKeyRecord[] = [{ keyHash, userId, createdAt: new Date().toISOString() }];

@@ -24,6 +24,7 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
     volumes:
       - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
       - workflow_secrets:/secrets
       - workflow_claude_config:/home/nextjs/.claude
     restart: unless-stopped

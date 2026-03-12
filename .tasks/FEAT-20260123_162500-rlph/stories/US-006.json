@@ -1,0 +1,19 @@
+{
+  "id": "US-006",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Implement state machine with transitions",
+  "userStory": "As a developer, I want tasks to follow defined state transitions so that the workflow is predictable and controlled.",
+  "acceptanceCriteria": [
+    "Valid transitions: Draft->Triage, Triage->Planning, Triage->Ready (simple), Planning<->Research (loop), Planning->Ready, Ready->Executing, Executing->Complete, Any->Draft (reset)",
+    "Invalid transitions rejected with error message",
+    "Transition history logged on task (audit trail)",
+    "Status change triggers appropriate background jobs only when user initiates",
+    "UI buttons only show valid next-state actions",
+    "All transitions require explicit user action"
+  ],
+  "dependencies": ["US-002"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T09:35:00.000Z",
+  "iteration": 6
+}

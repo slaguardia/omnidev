@@ -1,5 +1,5 @@
 /**
- * Core type definitions for GitLab Claude Manager
+ * Core type definitions for Omnidev
  */
 
 // Branded types for better type safety
@@ -224,6 +224,47 @@ export enum WorkspaceErrorCode {
 }
 
 /**
+ * Stage configuration for workflow stages
+ */
+export interface StageConfig {
+  /** Prompt template. Supports {title}, {description}, {filePaths}. Legacy alias: {prompt} also resolves to description. */
+  prompt: string | null;
+  /** Number of ralph loop iterations (1 = single pass, default: 1) */
+  maxIterations: number;
+  /** Whether to pause and return questions for human-in-the-loop (default: false) */
+  returnQuestions: boolean;
+  /** Whether the stage auto-loops iterations until completion signal or maxIterations (default: false) */
+  autoLoop: boolean;
+}
+
+/**
+ * Workflow stage definition — an execution agent with prompt, config, and mode
+ */
+export interface WorkflowStageDefinition {
+  /** Unique key, e.g. 'triage', 'code-review' */
+  id: string;
+  /** Display name */
+  label: string;
+  /** Chip/column color */
+  color: 'default' | 'warning' | 'secondary' | 'success' | 'primary' | 'danger';
+  /** Claude Code execution mode */
+  executionMode: 'readonly' | 'edit';
+  /** Stage execution configuration */
+  config: StageConfig;
+  /** Optional hook triggered when a task enters this stage via transition */
+  onEnter?: 'branch-creation' | 'confirm-pr' | undefined;
+}
+
+/**
+ * Complete workflow definition — ordered stages with settings
+ */
+export interface WorkflowDefinition {
+  version: number;
+  /** Ordered list of stages (determines kanban column order) */
+  stages: WorkflowStageDefinition[];
+}
+
+/**
  * Configuration types
  */
 export interface AppConfig {
@@ -280,20 +321,11 @@ export interface ClientSafeGitHubConfig {
 }
 
 export interface ClaudeConfig {
-  apiKey: string;
-  /**
-   * How to authenticate the `claude` CLI subprocess.
-   * - auto: use API key if available; otherwise rely on CLI login
-   * - cli: never pass ANTHROPIC_API_KEY to the subprocess (subscription/manual login)
-   */
-  authMode: 'auto' | 'cli';
   maxTokens: number;
   defaultTemperature: number;
 }
 
 export interface ClientSafeClaudeConfig {
-  apiKeySet: boolean; // Instead of the actual API key
-  authMode: 'auto' | 'cli';
   maxTokens: number;
   defaultTemperature: number;
 }
@@ -351,7 +383,44 @@ export interface GitCredentials {
 
 export interface GitCloneRequestOptions {
   branch?: string;
-  depth?: number;
-  singleBranch?: boolean;
   credentials?: GitCredentials;
+}
+
+/**
+ * Repository discovery types
+ */
+export interface DiscoveredRepository {
+  id: string; // "github:owner/repo" or "gitlab:group/project"
+  provider: GitProvider;
+  name: string;
+  fullPath: string; // "owner/repo" or "group/subgroup/project"
+  description: string | null;
+  httpUrl: string;
+  sshUrl: string | null;
+  defaultBranch: string;
+  visibility: 'public' | 'private' | 'internal';
+  lastActivityAt: string; // ISO date
+  topics?: string[];
+  language?: string | null;
+  starCount?: number;
+  forksCount?: number;
+  archived?: boolean;
+  isCloned?: boolean; // annotated at read time
+  workspaceId?: WorkspaceId; // annotated at read time
+}
+
+export interface DiscoveredRepoRegistry {
+  version: string;
+  lastDiscoveredAt: Partial<Record<GitProvider, string>>;
+  repositories: DiscoveredRepository[];
+}
+
+export interface DiscoveryResult {
+  provider: GitProvider;
+  discovered: number;
+  added: number;
+  updated: number;
+  removed: number;
+  errors: string[];
+  durationMs: number;
 }

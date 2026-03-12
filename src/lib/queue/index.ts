@@ -11,11 +11,15 @@ export {
   initializeQueue,
   isProcessing,
   hasPendingJobs,
+  getPendingJobs,
   enqueueJob,
   getJob,
   listJobs,
   cleanupOldJobs,
   deleteFinishedJob,
+  requeueJobForRetry,
+  recoverOrphanedJobs,
+  detectStuckJobs,
 } from './queue-manager';
 
 // Worker functions
@@ -24,6 +28,7 @@ export {
   startWorker,
   stopWorker,
   isWorkerRunning,
+  getRunningJobCount,
   type ExecuteOrQueueOptions,
 } from './worker';
 
@@ -39,6 +44,8 @@ export type {
   GitPushJobPayload,
   GitMRJobPayload,
   WorkspaceCleanupJobPayload,
+  RalphStageJobPayload,
+  RalphStageJobResult,
 } from './types';
 
 export { createJobId } from './types';

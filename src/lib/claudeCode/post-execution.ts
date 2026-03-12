@@ -16,6 +16,48 @@ import type { AsyncResult, FilePath, GitUrl, GitProvider } from '@/lib/types/ind
 import type { PostExecutionResult } from './types';
 
 /**
+ * Task context for generating semantic commit messages.
+ *
+ * This represents a **user story** or **simple task**, not a parent feature.
+ * Each story is executed independently and gets its own commit with this context.
+ *
+ * @example
+ * // User story within a feature
+ * { id: "US-028", title: "Manual state override with audit trail" }
+ *
+ * // Simple standalone task
+ * { id: "TASK-001", title: "Fix login redirect bug" }
+ */
+export interface TaskContext {
+  /** Story or task identifier (e.g., "US-001", "TASK-123") - not the parent feature ID */
+  id: string;
+  /** Human-readable story/task title */
+  title: string;
+}
+
+/**
+ * Generate a commit message from task context or fall back to generic message.
+ *
+ * With task context (user story or simple task):
+ * ```
+ * feat: [US-028] Manual state override with audit trail
+ *
+ * Co-Authored-By: Claude <noreply@anthropic.com>
+ * ```
+ *
+ * Without task context (generic jobs from /api/ask or /api/edit):
+ * ```
+ * Automated changes via Claude Code - 2026-01-23T12:00:00.000Z
+ * ```
+ */
+function generateCommitMessage(taskContext?: TaskContext): string {
+  if (taskContext) {
+    return `feat: [${taskContext.id}] ${taskContext.title}\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
+  }
+  return `Automated changes via Claude Code - ${new Date().toISOString()}`;
+}
+
+/**
  * Handle post-Claude Code execution git operations
  * This function runs after Claude Code completes and handles:
  * - Checking for changes
@@ -26,12 +68,14 @@ import type { PostExecutionResult } from './types';
  * @param gitInitResult - Result from git workflow initialization
  * @param repoUrl - Repository URL (optional, for PR/MR creation)
  * @param provider - Git provider ('gitlab' | 'github' | 'other'), auto-detected from URL if not provided
+ * @param taskContext - Optional task context for semantic commit messages
  */
 export async function handlePostClaudeCodeExecution(
   workspacePath: FilePath,
   gitInitResult: GitInitResult,
   repoUrl?: GitUrl,
-  provider?: GitProvider
+  provider?: GitProvider,
+  taskContext?: TaskContext
 ): Promise<AsyncResult<PostExecutionResult>> {
   try {
     // Check if there are any changes to commit
@@ -62,9 +106,9 @@ export async function handlePostClaudeCodeExecution(
       };
     }
 
-    // Commit changes
-    const defaultCommitMessage = `Automated changes via Claude Code - ${new Date().toISOString()}`;
-    const commitResult = await commitChanges(workspacePath, defaultCommitMessage);
+    // Commit changes with semantic message if task context provided
+    const commitMessage = generateCommitMessage(taskContext);
+    const commitResult = await commitChanges(workspacePath, commitMessage);
     if (!commitResult.success) {
       return {
         success: false,

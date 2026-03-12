@@ -1,72 +1,268 @@
 'use client';
 
+import { useState } from 'react';
 import {
   FolderOpen,
   Bot,
   Settings,
   GitBranch,
   Lock,
-  History,
-  ListOrdered,
-  Code,
+  Clock,
+  Zap,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  LogOut,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { Tooltip } from '@heroui/tooltip';
+import { Kbd } from '@heroui/kbd';
+import NextLink from 'next/link';
+import { signOut } from 'next-auth/react';
+import { usePersistedState } from '@/hooks';
+import { motion, AnimatePresence } from '@/components/motion';
+import { siteConfig } from '@/lib/config/site';
+import { ThemeSwitch } from '@/components/ThemeSwitch';
+import type { LucideIcon } from 'lucide-react';
 
 interface DashboardNavigationProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  collapsed?: boolean;
+  onOpenPalette: () => void;
 }
 
-const navItems = [
-  { key: 'workspaces', title: 'Workspaces', icon: FolderOpen },
+interface NavItem {
+  key: string;
+  title: string;
+  icon: LucideIcon;
+}
+
+const topNavItems: NavItem[] = [
+  { key: 'ralph-board', title: 'Ralph Board', icon: Zap },
+  { key: 'chat', title: 'Chat', icon: MessageSquare },
   { key: 'operations', title: 'Operations', icon: Bot },
-  { key: 'queue', title: 'Request Queue', icon: ListOrdered },
-  { key: 'history', title: 'Execution History', icon: History },
+  { key: 'external-tasking', title: 'External Tasking', icon: Clock },
+];
+
+const configNavItems: NavItem[] = [
+  { key: 'workspaces', title: 'Workspaces', icon: FolderOpen },
   { key: 'git-source', title: 'Git Source Config', icon: GitBranch },
-  { key: 'snippets', title: 'Snippets', icon: Code },
   { key: 'settings', title: 'Environment Settings', icon: Settings },
   { key: 'security', title: 'Account Security', icon: Lock },
 ];
 
-export function DashboardNavigation({ activeTab, onTabChange }: DashboardNavigationProps) {
-  return (
-    <nav className="w-full">
-      <ul className="space-y-0.5">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.key;
-          const Icon = item.icon;
+const configTabKeys = new Set(configNavItems.map((item) => item.key));
 
-          return (
-            <li key={item.key}>
-              <button
-                onClick={() => onTabChange(item.key)}
-                className={clsx(
-                  'group relative w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors text-left',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                  isActive
-                    ? 'bg-content2 text-foreground shadow-sm'
-                    : 'text-default-600 hover:text-foreground hover:bg-content2/60'
-                )}
-              >
-                <span
-                  className={clsx(
-                    'absolute left-1.5 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-primary transition-opacity',
-                    isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'
-                  )}
-                  aria-hidden="true"
-                />
-                <Icon
-                  className={clsx(
-                    'w-4 h-4 transition-colors',
-                    isActive ? 'text-primary' : 'text-default-400 group-hover:text-default-600'
-                  )}
-                />
-                {item.title}
-              </button>
-            </li>
-          );
-        })}
+function NavButton({
+  item,
+  isActive,
+  collapsed,
+  onTabChange,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  collapsed?: boolean;
+  onTabChange: (tab: string) => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <li>
+      <Tooltip content={item.title} placement="right" isDisabled={!collapsed}>
+        <button
+          onClick={() => onTabChange(item.key)}
+          className={clsx(
+            'group w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap overflow-hidden text-left',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            isActive
+              ? 'bg-content2/80 text-foreground border-l-2 border-primary'
+              : 'text-default-500 hover:text-foreground hover:bg-content2/40'
+          )}
+        >
+          <Icon
+            className={clsx(
+              'w-4 h-4 shrink-0 transition-colors',
+              isActive ? 'text-primary' : 'text-default-400 group-hover:text-default-600'
+            )}
+          />
+          {item.title}
+        </button>
+      </Tooltip>
+    </li>
+  );
+}
+
+export function DashboardNavigation({
+  activeTab,
+  onTabChange,
+  collapsed,
+  onOpenPalette,
+}: DashboardNavigationProps) {
+  const [configExpanded, setConfigExpanded] = usePersistedState(
+    'dashboard-nav-config-expanded',
+    false
+  );
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
+
+  // Auto-expand config section if active tab is inside it (but only once per mount to avoid fighting user)
+  if (!hasAutoExpanded && !configExpanded && configTabKeys.has(activeTab)) {
+    setConfigExpanded(true);
+    setHasAutoExpanded(true);
+  }
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/signin' });
+  };
+
+  return (
+    <nav className="h-full flex flex-col w-full">
+      {/* Brand */}
+      {collapsed ? (
+        <div className="flex justify-center mb-4">
+          <NextLink
+            href="/"
+            className="font-title font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400"
+          >
+            O
+          </NextLink>
+        </div>
+      ) : (
+        <NextLink href="/" className="block px-3 mb-4">
+          <span className="font-title font-semibold tracking-tight text-xl bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">
+            {siteConfig.name}
+          </span>
+        </NextLink>
+      )}
+
+      {/* Search button */}
+      <div className="mb-4 px-0">
+        <Tooltip content="Search" placement="right" isDisabled={!collapsed}>
+          <button
+            onClick={onOpenPalette}
+            className={clsx(
+              'w-full flex items-center gap-2 rounded-md bg-content2/60 hover:bg-content2 border border-divider/60 transition-colors text-sm text-default-500',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+              collapsed ? 'justify-center px-2' : 'px-3',
+              'h-9'
+            )}
+          >
+            <Search className="w-4 h-4 text-default-400 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">Search...</span>
+                <Kbd className="hidden lg:inline-block" keys={['command']}>
+                  K
+                </Kbd>
+              </>
+            )}
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* Top-level tabs */}
+      <ul className="space-y-0.5">
+        {topNavItems.map((item) => (
+          <NavButton
+            key={item.key}
+            item={item}
+            isActive={activeTab === item.key}
+            collapsed={collapsed ?? false}
+            onTabChange={onTabChange}
+          />
+        ))}
       </ul>
+
+      {/* Configuration section */}
+      <div className="mt-4">
+        {collapsed ? (
+          // Collapsed sidebar: show a divider then items
+          <>
+            <Tooltip content="Configuration" placement="right">
+              <div className="flex justify-center py-1.5 mb-1">
+                <div className="w-6 h-px bg-divider" />
+              </div>
+            </Tooltip>
+            <ul className="space-y-0.5">
+              {configNavItems.map((item) => (
+                <NavButton
+                  key={item.key}
+                  item={item}
+                  isActive={activeTab === item.key}
+                  collapsed={collapsed ?? false}
+                  onTabChange={onTabChange}
+                />
+              ))}
+            </ul>
+          </>
+        ) : (
+          // Expanded sidebar: collapsible section
+          <>
+            <button
+              onClick={() => setConfigExpanded((prev) => !prev)}
+              className="w-full flex items-center px-3 py-1.5 text-xs font-semibold text-default-500 uppercase tracking-wider hover:text-default-700 transition-colors rounded-lg"
+              aria-expanded={configExpanded}
+            >
+              <span className="flex items-center gap-1">
+                Configuration
+                {configExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </span>
+            </button>
+            <AnimatePresence initial={false}>
+              {configExpanded && (
+                <motion.ul
+                  key="config-items"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="overflow-hidden space-y-0.5"
+                >
+                  {configNavItems.map((item) => (
+                    <NavButton
+                      key={item.key}
+                      item={item}
+                      isActive={activeTab === item.key}
+                      collapsed={collapsed ?? false}
+                      onTabChange={onTabChange}
+                    />
+                  ))}
+                </motion.ul>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </div>
+
+      {/* Theme switch — above divider */}
+      <div
+        className={clsx(
+          'mt-auto flex items-center h-9 pb-3',
+          collapsed ? 'justify-center' : 'px-3'
+        )}
+      >
+        <ThemeSwitch />
+      </div>
+
+      {/* Sign out — below divider */}
+      <div className="pt-3 border-t border-divider/60">
+        <Tooltip content="Sign out" placement="right" isDisabled={!collapsed}>
+          <button
+            onClick={handleSignOut}
+            className={clsx(
+              'group w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-danger-500 hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-50/10 transition-colors whitespace-nowrap overflow-hidden text-left',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+            )}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && 'Sign Out'}
+          </button>
+        </Tooltip>
+      </div>
     </nav>
   );
 }

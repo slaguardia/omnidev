@@ -60,8 +60,9 @@ run_as_nextjs_if_root() {
   mkdir -p /home/nextjs/.claude 2>/dev/null || true
   chown -R nextjs:nodejs /home/nextjs 2>/dev/null || true
 
-  # Some deployments persist workspaces + secrets too; try to fix ownership if mounted.
+  # Some deployments persist workspaces + data + secrets too; try to fix ownership if mounted.
   chown -R nextjs:nodejs /app/workspaces 2>/dev/null || true
+  chown -R nextjs:nodejs /app/data 2>/dev/null || true
   chown -R nextjs:nodejs /secrets 2>/dev/null || true
 
   # Ensure Claude Code persistence for the intended runtime user.

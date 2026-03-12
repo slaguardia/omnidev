@@ -4,8 +4,7 @@
  * Git branch operations - creating, switching, deleting, listing branches
  */
 
-import type { FilePath, AsyncResult, CommitHash } from '@/lib/common/types';
-import type { GitBranchInfo } from '@/lib/git/types';
+import type { FilePath, AsyncResult } from '@/lib/common/types';
 import { createSandboxedGit } from '@/lib/git/sandbox';
 import { ensureFreshRemoteRef, verifySyncState } from '@/lib/git/ref-sync';
 
@@ -102,36 +101,6 @@ export async function getCurrentBranch(workspacePath: FilePath): Promise<AsyncRe
     return {
       success: false,
       error: new Error(`Failed to get current branch: ${error}`),
-    };
-  }
-}
-
-/**
- * Get all local branches
- */
-export async function getBranches(workspacePath: FilePath): Promise<AsyncResult<GitBranchInfo[]>> {
-  try {
-    const git = createSandboxedGit(workspacePath);
-    const branches = await git.branch(['--all']);
-
-    const branchInfo: GitBranchInfo[] = [];
-
-    for (const [branchName, branchData] of Object.entries(branches.branches)) {
-      if (branchName === 'HEAD') continue;
-
-      branchInfo.push({
-        name: branchName,
-        isRemote: branchName.startsWith('remotes/'),
-        isCurrent: branchData.current,
-        commitHash: branchData.commit as CommitHash,
-      });
-    }
-
-    return { success: true, data: branchInfo };
-  } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to get branches: ${error}`),
     };
   }
 }

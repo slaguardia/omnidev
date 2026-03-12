@@ -4,9 +4,9 @@ import { motion, useInView, Variants, HTMLMotionProps } from 'framer-motion';
 import { useRef, ReactNode } from 'react';
 
 // Animation presets
-const DURATION = 0.5;
-const STAGGER = 0.1;
-const EASING = [0.25, 0.1, 0.25, 1];
+const DURATION = 0.3;
+const STAGGER = 0.06;
+const EASING = [0.4, 0, 0.2, 1];
 
 // Variants
 const fadeInVariants: Variants = {
@@ -15,12 +15,12 @@ const fadeInVariants: Variants = {
 };
 
 const fadeInUpVariants: Variants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 8 },
   visible: { opacity: 1, y: 0, transition: { duration: DURATION, ease: EASING } },
 };
 
 const scaleInVariants: Variants = {
-  hidden: { opacity: 0, scale: 0.95 },
+  hidden: { opacity: 0, scale: 0.98 },
   visible: { opacity: 1, scale: 1, transition: { duration: DURATION, ease: EASING } },
 };
 
@@ -37,7 +37,7 @@ const staggerContainerVariants: Variants = {
 
 const staggerItemVariants: Variants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.4, ease: EASING } },
+  visible: { opacity: 1, transition: { duration: 0.25, ease: EASING } },
 };
 
 interface AnimationWrapperProps extends Omit<HTMLMotionProps<'div'>, 'variants'> {
@@ -190,7 +190,7 @@ export function ScrollRevealScale({
   className,
   threshold = 0.2,
   once = true,
-  scale = 0.98,
+  scale = 0.99,
   ...props
 }: ScrollRevealScaleProps) {
   const ref = useRef<HTMLDivElement>(null);

@@ -1,5 +1,22 @@
 import { tv } from 'tailwind-variants';
 
+// ── Shared Chip Styles ─────────────────────────────────────────────────
+
+/** classNames for a colored status chip (use with variant="solid" + a color prop) */
+export const statusChipClasses = { base: 'pl-2', content: 'px-2' } as const;
+
+/** classNames for a neutral info chip (workspace, branch, etc.) */
+export const infoChipClasses = {
+  base: 'bg-default-300 dark:bg-default-200 pl-2',
+  content: 'px-2',
+} as const;
+
+/** Default size for metadata chips in headers / detail views */
+export const chipSize = 'md' as const;
+
+/** Icon size class matching chipSize="md" */
+export const chipIconClass = 'w-4 h-4' as const;
+
 // Title
 export const title = tv({
   base: 'tracking-tight inline font-semibold',

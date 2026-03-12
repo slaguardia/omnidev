@@ -1,74 +1,73 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Workspace } from '@/lib/dashboard/types';
 import { getWorkspaces, cleanupWorkspace, cleanupAllWorkspaces } from '@/lib/workspace';
 import type { WorkspaceId } from '@/lib/types/index';
+import { useInvalidateWorkspaces, useInvalidateRalphTasks } from '@/hooks/queries/useInvalidation';
 
-export const useWorkspaces = () => {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(true); // Start true to show loading on initial render
+async function fetchWorkspaces(): Promise<Workspace[]> {
+  console.log('[USE WORKSPACES] Calling getWorkspaces...');
+  const workspacesData = await getWorkspaces();
 
-  const loadWorkspaces = async () => {
-    console.log('[USE WORKSPACES] Starting loadWorkspaces');
-    setLoading(true);
+  // Map from lib Workspace type to dashboard Workspace type
+  const mappedWorkspaces = workspacesData.map((ws) => ({
+    ...ws,
+    branch: ws.targetBranch,
+  }));
 
-    try {
-      console.log('[USE WORKSPACES] Calling getWorkspaces...');
-      const workspacesData = await getWorkspaces();
-      console.log('[USE WORKSPACES] Received workspaces data:', workspacesData);
+  console.log(`[USE WORKSPACES] Fetched ${mappedWorkspaces.length} workspaces`);
+  return mappedWorkspaces;
+}
 
-      // Map from lib Workspace type to dashboard Workspace type
-      const mappedWorkspaces = workspacesData.map((ws) => ({
-        ...ws,
-        branch: ws.targetBranch, // Map targetBranch to branch
-      }));
+export function useWorkspaces() {
+  const invalidateWorkspaces = useInvalidateWorkspaces();
+  const invalidateTasks = useInvalidateRalphTasks();
 
-      console.log('[USE WORKSPACES] Mapped workspaces:', mappedWorkspaces);
-      setWorkspaces(mappedWorkspaces);
-      console.log(`[USE WORKSPACES] Set ${mappedWorkspaces.length} workspaces in state`);
-    } catch (error) {
-      console.error('[USE WORKSPACES] Failed to load workspaces:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: workspaces = [], isLoading: loading } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: fetchWorkspaces,
+    staleTime: 60_000,
+  });
 
-  const handleCleanupWorkspace = async (workspaceId?: string, all = false) => {
-    console.log('[USE WORKSPACES] Starting handleCleanupWorkspace', { workspaceId, all });
+  const loadWorkspaces = useCallback(() => {
+    invalidateWorkspaces();
+  }, [invalidateWorkspaces]);
 
-    try {
-      setLoading(true);
+  const handleCleanupWorkspace = useCallback(
+    async (workspaceId?: string, all = false, deleteTasks = false) => {
+      console.log('[USE WORKSPACES] Starting handleCleanupWorkspace', {
+        workspaceId,
+        all,
+        deleteTasks,
+      });
 
-      if (workspaceId) {
-        // Clean specific workspace
-        console.log('[USE WORKSPACES] Cleaning specific workspace:', workspaceId);
-        await cleanupWorkspace(workspaceId as WorkspaceId);
-        await loadWorkspaces();
-        return { success: true, message: 'Workspace cleaned successfully!' };
-      } else if (all) {
-        // Clean all workspaces
-        console.log('[USE WORKSPACES] Cleaning all workspaces');
-        const result = await cleanupAllWorkspaces(true);
-        await loadWorkspaces();
-        return { success: true, message: result.message };
-      } else {
-        return { success: false, message: 'Please specify a workspace ID or use all=true' };
+      try {
+        if (workspaceId) {
+          console.log('[USE WORKSPACES] Cleaning specific workspace:', workspaceId);
+          await cleanupWorkspace(workspaceId as WorkspaceId, deleteTasks);
+          invalidateWorkspaces();
+          if (deleteTasks) invalidateTasks();
+          return { success: true, message: 'Workspace cleaned successfully!' };
+        } else if (all) {
+          console.log('[USE WORKSPACES] Cleaning all workspaces');
+          const result = await cleanupAllWorkspaces(true);
+          invalidateWorkspaces();
+          invalidateTasks();
+          return { success: true, message: result.message };
+        } else {
+          return { success: false, message: 'Please specify a workspace ID or use all=true' };
+        }
+      } catch (error) {
+        console.error('[USE WORKSPACES] Cleanup failed:', error);
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : 'Cleanup failed',
+          error,
+        };
       }
-    } catch (error) {
-      console.error('[USE WORKSPACES] Cleanup failed:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Cleanup failed',
-        error,
-      };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    console.log('[USE WORKSPACES] useEffect triggered, loading workspaces...');
-    loadWorkspaces();
-  }, []);
+    },
+    [invalidateWorkspaces, invalidateTasks]
+  );
 
   return {
     workspaces,
@@ -76,4 +75,4 @@ export const useWorkspaces = () => {
     loadWorkspaces,
     handleCleanupWorkspace,
   };
-};
+}

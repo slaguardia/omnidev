@@ -58,3 +58,26 @@ export interface PostExecutionResult {
   mergeRequestUrl?: string;
   pushedBranch?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Streaming types
+// ---------------------------------------------------------------------------
+
+export interface ClaudeCodeStreamOptions {
+  /** The message/prompt to send */
+  message: string;
+  /** Absolute path to the workspace directory */
+  workingDirectory: FilePath;
+  /** Session ID for multi-turn conversations (first message uses --session-id, follow-ups use --resume) */
+  sessionId: string;
+  /** Whether this is a resumed session (use --resume instead of --session-id) */
+  isResume: boolean;
+  /** Optional system context prepended to the message */
+  context?: string;
+}
+
+export type ClaudeCodeStreamEvent =
+  | { type: 'text'; content: string }
+  | { type: 'log'; logType: string; data: ClaudeCodeJsonLog }
+  | { type: 'result'; content: string; durationMs: number | null }
+  | { type: 'error'; message: string };

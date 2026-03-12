@@ -9,8 +9,6 @@ export type { GitCredentials } from '@/lib/types/index';
 
 export interface GitCloneOptions {
   targetBranch?: string;
-  depth?: number;
-  singleBranch?: boolean;
   bare?: boolean;
   credentials?: {
     username: string;

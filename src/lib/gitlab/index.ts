@@ -25,3 +25,6 @@ export { loadGitLabConfig, getGitLabConfig } from '@/lib/gitlab/config';
 
 // Utilities
 export { formatMergeRequestDescription, getGitContextForMR } from '@/lib/gitlab/utils';
+
+// Discovery
+export { discoverGitLabRepositories } from '@/lib/gitlab/discovery';

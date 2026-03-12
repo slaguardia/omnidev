@@ -65,6 +65,9 @@ export const Navbar = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Hide navbar on dashboard — its elements live in the sidebar instead
+  if (pathname.startsWith('/dashboard')) return null;
+
   // Check if a nav item is active
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';

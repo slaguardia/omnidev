@@ -1,0 +1,20 @@
+{
+  "id": "US-027",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Promote simple task to feature",
+  "userStory": "As a developer, I want to promote a simple task to a feature so that I can decompose it if triage was wrong.",
+  "acceptanceCriteria": [
+    "'Convert to Feature' action available on simple tasks in Ready state",
+    "Promotion moves task to Planning state",
+    "Task type changes from simple to feature",
+    "Full planning loop begins",
+    "Original prompt preserved as feature description",
+    "Can also demote: feature with 1 story -> convert to simple task",
+    "User must confirm conversion"
+  ],
+  "dependencies": ["US-026"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T18:30:00.000Z",
+  "iteration": 27
+}

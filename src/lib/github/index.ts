@@ -22,3 +22,6 @@ export { createPullRequest, formatPullRequestDescription } from '@/lib/github/pu
 
 // Configuration
 export { loadGitHubConfig, getGitHubConfig } from '@/lib/github/config';
+
+// Discovery
+export { discoverGitHubRepositories } from '@/lib/github/discovery';

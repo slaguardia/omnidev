@@ -23,22 +23,22 @@ export interface UserData {
 }
 
 /**
- * Get the path to the users.json file in the workspaces directory
+ * Get the path to the users.json file in the data directory
  */
 function getUsersFilePath(): string {
-  const workspaceDir = path.resolve(process.cwd(), 'workspaces');
-  return path.resolve(workspaceDir, 'users.json');
+  const dataDir = path.resolve(process.cwd(), 'data');
+  return path.resolve(dataDir, 'users.json');
 }
 
 /**
- * Ensure the workspaces directory exists
+ * Ensure the data directory exists
  */
-async function ensureWorkspaceDir(): Promise<void> {
-  const workspaceDir = path.resolve(process.cwd(), 'workspaces');
+async function ensureDataDir(): Promise<void> {
+  const dataDir = path.resolve(process.cwd(), 'data');
   try {
-    await fs.access(workspaceDir);
+    await fs.access(dataDir);
   } catch {
-    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(dataDir, { recursive: true });
   }
 }
 
@@ -47,17 +47,38 @@ export async function getUser(): Promise<UserData | null> {
     const file = getUsersFilePath();
     const content = await fs.readFile(file, 'utf-8');
     return JSON.parse(content);
-  } catch {
-    return null;
+  } catch (error: unknown) {
+    // File genuinely doesn't exist — first-time setup
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      return null;
+    }
+    // Any other error (EACCES, EIO, etc.) — do NOT mask as "no user"
+    throw error;
   }
 }
 
 export async function saveUser(username: string, password: string) {
-  await ensureWorkspaceDir();
+  await ensureDataDir();
   const passwordHash = await hash(password, 10);
   const data = { username, passwordHash };
   const file = getUsersFilePath();
-  await fs.writeFile(file, JSON.stringify(data, null, 2));
+  try {
+    // Exclusive create — fails at OS level if file already exists
+    await fs.writeFile(file, JSON.stringify(data, null, 2), { flag: 'wx' });
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'EEXIST'
+    ) {
+      throw new Error('User account already exists — cannot overwrite');
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -69,6 +90,9 @@ export async function verifyUser(username: string, password: string) {
 
 export async function hasUser(): Promise<boolean> {
   const user = await getUser();
+  if (user === null) {
+    console.log('[AUTH] No user account found — first-time setup required');
+  }
   return user !== null;
 }
 

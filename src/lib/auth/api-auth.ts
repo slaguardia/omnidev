@@ -53,7 +53,7 @@ function parseStoredApiKeys(data: unknown): StoredApiKey[] {
  * Load API keys from the stored api-keys.json file
  */
 function loadStoredApiKeys(): { apiKeys: StoredApiKey[]; apiKeysPath: string } {
-  const apiKeysPath = resolve(process.cwd(), 'workspaces', 'api-keys.json');
+  const apiKeysPath = resolve(process.cwd(), 'data', 'api-keys.json');
   try {
     if (!existsSync(apiKeysPath)) {
       return { apiKeys: [], apiKeysPath };
