@@ -4,14 +4,15 @@ import fs from 'fs/promises';
 import path from 'path';
 
 describe('User Store', () => {
-  const testWorkspaceDir = path.resolve(process.cwd(), 'workspaces');
-  const testUserFilePath = path.resolve(testWorkspaceDir, 'users.json');
+  const testDataDir = path.resolve(process.cwd(), 'data');
+  const testUserFilePath = path.resolve(testDataDir, 'users.json');
   let backupData: string | null = null;
 
   beforeEach(async () => {
-    // Backup existing user data if it exists
+    // Backup existing user data if it exists, then remove so saveUser (wx flag) can create fresh
     try {
       backupData = await fs.readFile(testUserFilePath, 'utf-8');
+      await fs.unlink(testUserFilePath);
     } catch {
       backupData = null;
     }
@@ -43,14 +44,14 @@ describe('User Store', () => {
       expect(user.passwordHash.length).toBeGreaterThan(20); // Bcrypt hashes are long
     });
 
-    it('should create workspaces directory if it does not exist', async () => {
+    it('should create data directory if it does not exist', async () => {
       const username = 'testuser2';
       const password = 'testpassword456';
 
       await saveUser(username, password);
 
       const dirExists = await fs
-        .stat(testWorkspaceDir)
+        .stat(testDataDir)
         .then(() => true)
         .catch(() => false);
       expect(dirExists).toBe(true);

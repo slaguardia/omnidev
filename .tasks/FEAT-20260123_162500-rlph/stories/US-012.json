@@ -1,0 +1,19 @@
+{
+  "id": "US-012",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Create cross-task questions panel",
+  "userStory": "As a developer, I want a dedicated panel showing all pending questions so that I can efficiently answer questions across tasks.",
+  "acceptanceCriteria": [
+    "'Questions' tab or collapsible panel in Ralph Board",
+    "Lists all pending questions grouped by task",
+    "Quick-jump to task from question",
+    "Bulk answer mode for similar questions",
+    "Filter: all questions, unanswered only, by workspace",
+    "Badge on panel shows total pending count"
+  ],
+  "dependencies": ["US-010", "US-011"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T10:25:00.000Z",
+  "iteration": 12
+}

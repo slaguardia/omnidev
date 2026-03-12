@@ -114,8 +114,6 @@ export async function cloneRepository(
     console.log('[REPOSITORY MANAGER] Starting git clone...');
     const cloneResult = await gitCloneRepository(repoUrl, workspacePath, {
       ...(options.targetBranch && { targetBranch: options.targetBranch }),
-      depth: options.depth || 1,
-      singleBranch: options.singleBranch !== false,
       ...(options.credentials && { credentials: options.credentials }),
     });
 
@@ -1076,8 +1074,9 @@ export async function checkBranchPushPermission(
  *
  * This function ensures a clean, predictable state before any edit workflow:
  * 1. Prepares workspace (discards changes, syncs with remote, deletes local branches)
- * 2. If source === target: creates a new unique branch for MR
- * 3. If source !== target: switches to source branch and syncs with remote
+ * 2. If source !== target: creates/switches to source branch (new or existing)
+ * 3. If source === target + createMR: errors (must provide a branch name for MRs)
+ * 4. If source === target + no MR: pushes directly to target (if permitted)
  */
 export async function initializeGitWorkflow(
   workspaceId: WorkspaceId,
@@ -1144,65 +1143,44 @@ export async function initializeGitWorkflow(
     // If no sourceBranch was provided, default to the targetBranch.
     const effectiveSourceBranch = sourceBranch || targetBranch;
 
-    // If source branch differs from target, validate it exists on remote
-    // This prevents creating orphan local branches that can't be pushed
+    // If source branch differs from target, create or switch to it
     if (effectiveSourceBranch !== targetBranch) {
       console.log(
-        `[GIT WORKFLOW] Validating source branch exists on remote: origin/${effectiveSourceBranch}`
+        `[GIT WORKFLOW] Source branch differs from target, switching to: ${effectiveSourceBranch}`
       );
-      const remoteBranchesResult = await gitOps.getAllRemoteBranches(workspace.path);
-      if (!remoteBranchesResult.success) {
-        return {
-          success: false,
-          error: new Error(
-            `Failed to fetch remote branches: ${remoteBranchesResult.error?.message}`
-          ),
-        };
-      }
 
-      const remoteBranchExists = remoteBranchesResult.data.includes(effectiveSourceBranch);
-      if (!remoteBranchExists) {
+      // switchBranch creates the branch from HEAD if it doesn't exist locally
+      const switchResult = await gitOps.switchBranch(workspace.path, effectiveSourceBranch);
+      if (!switchResult.success) {
         return {
           success: false,
           error: new Error(
-            `Source branch '${effectiveSourceBranch}' does not exist on remote. ` +
-              `Available branches: ${remoteBranchesResult.data.slice(0, 5).join(', ')}` +
-              (remoteBranchesResult.data.length > 5
-                ? ` and ${remoteBranchesResult.data.length - 5} more`
-                : '')
+            `Failed to switch to branch ${effectiveSourceBranch}: ${switchResult.error.message}`
           ),
         };
       }
-      console.log(`[GIT WORKFLOW] ✅ Source branch exists on remote`);
+      console.log(`[GIT WORKFLOW] ✅ On branch: ${effectiveSourceBranch}`);
+
+      return {
+        success: true,
+        data: {
+          mergeRequestRequired: createMR === true,
+          sourceBranch: effectiveSourceBranch,
+          targetBranch: targetBranch,
+        },
+      };
     }
 
-    // Check if the source branch is the same as the target branch
+    // Source branch is the same as target branch
     if (effectiveSourceBranch === targetBranch) {
-      // Only create a new branch if MR is explicitly requested
       if (createMR) {
-        console.log(
-          '[GIT WORKFLOW] Source branch is the same as target branch and MR requested, creating new branch...'
-        );
-
-        // Create a new branch with a unique name for the MR
-        const uniqueBranchName = `${targetBranch}-${Date.now()}`;
-        const createBranchResult = await gitOps.switchBranch(workspace.path, uniqueBranchName);
-        if (!createBranchResult.success) {
-          return {
-            success: false,
-            error: new Error(
-              `Failed to create and switch to new branch ${uniqueBranchName}: ${createBranchResult.error.message}`
-            ),
-          };
-        }
-
+        // MR requested but no separate source branch provided — cannot MR a branch into itself
         return {
-          success: true,
-          data: {
-            mergeRequestRequired: true,
-            sourceBranch: uniqueBranchName,
-            targetBranch: targetBranch,
-          },
+          success: false,
+          error: new Error(
+            `Cannot create MR: source branch is the same as target branch '${targetBranch}'. ` +
+              `Provide a sourceBranch name (e.g., '1.5.0', 'documentation-updates') to create an MR.`
+          ),
         };
       }
 

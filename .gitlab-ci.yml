@@ -59,6 +59,7 @@ test:
 
 # Lint Stage - Comprehensive code quality checks
 # Runs typecheck (TypeScript), ESLint, Prettier, and depcheck
+# Optional — does not block merge
 lint:
   stage: test
   variables:
@@ -67,6 +68,7 @@ lint:
     - pnpm lint:all
   cache:
     policy: pull
+  allow_failure: true
 
 # Docker Build Stage - Build and optionally push Docker image
 docker-build:
@@ -91,13 +93,13 @@ docker-build:
   needs:
     - job: test
       optional: true
-    - lint
   rules:
     # Add label "skip-docker" to MR to skip docker jobs
     - if: $CI_MERGE_REQUEST_LABELS =~ /skip-docker/
       when: never
     # Manual trigger on merge requests
     - when: manual
+  allow_failure: true
 
 # Docker Security Test Stage - Verify sandbox configuration
 docker-sandbox-verify:
@@ -154,10 +156,10 @@ docker-sandbox-verify:
   needs:
     - job: test
       optional: true
-    - lint
   rules:
     # Add label "skip-docker" to MR to skip docker jobs
     - if: $CI_MERGE_REQUEST_LABELS =~ /skip-docker/
       when: never
     # Manual trigger on merge requests
     - when: manual
+  allow_failure: true

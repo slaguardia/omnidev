@@ -105,11 +105,14 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Ensure better-sqlite3 native addon is present (standalone tracing may miss .node binaries)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+
 # Copy docs directory for documentation pages (read at runtime)
 COPY --chown=nextjs:nodejs docs/ ./docs/
 
-# Create workspaces directory with proper permissions
-RUN mkdir -p workspaces && chown nextjs:nodejs workspaces
+# Create workspaces and data directories with proper permissions
+RUN mkdir -p workspaces data && chown nextjs:nodejs workspaces data
 
 # Create secrets directory at root level with proper permissions
 RUN mkdir -p /secrets && chown nextjs:nodejs /secrets
@@ -125,6 +128,10 @@ RUN chmod 755 /usr/local/bin/claude-code-wrapper && chown nextjs:nodejs /usr/loc
 # Copy scripts directory for sandbox verification and other utilities
 COPY --chown=nextjs:nodejs scripts/ ./scripts/
 RUN chmod 755 ./scripts/*.sh
+
+# Install create-task script so Claude Code can call it directly
+COPY scripts/create-task.sh /usr/local/bin/create-task
+RUN chmod 755 /usr/local/bin/create-task
 
 # Run as non-root user for security. If you persist Claude auth via a named volume,
 # prefer using the docker-compose init service to chown it on first run.

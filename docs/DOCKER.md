@@ -162,28 +162,16 @@ GITLAB_URL=https://gitlab.com
 GITLAB_TOKEN=your_gitlab_token_here
 ```
 
-**Claude Configuration:**
+**Claude Code Configuration:**
 
 ```bash
-ANTHROPIC_API_KEY=your_claude_api_key_here
 # Optional override for the sandbox wrapper path used to run Claude Code non-interactively
 CLAUDE_CODE_WRAPPER=/usr/local/bin/claude-code-wrapper
 ```
 
 ## Claude Code Authentication
 
-This app runs Claude Code via the `claude` CLI inside the container.
-
-- **Platform account (API key login)**: If you have an Anthropic **platform** account, set `ANTHROPIC_API_KEY` (recommended for headless/automation).
-- **Claude subscription (manual login)**: If you only have a Claude **subscription** plan (not a platform account), you typically **cannot** use an API key and must log in interactively once.
-
-If you are using a subscription/manual login, set:
-
-```bash
-CLAUDE_CODE_AUTH_MODE=cli
-```
-
-This forces the app to **not pass** `ANTHROPIC_API_KEY` into the `claude` subprocess even if it is set in the container environment.
+Omnidev exclusively uses Claude Code CLI subscription authentication. No API key is needed. Users must log in to the Claude CLI once inside the container.
 
 ### One-time manual login inside Docker
 

@@ -7,7 +7,7 @@
 import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { GitInitResult } from '@/lib/managers/repository-manager';
-import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
+
 import type { AsyncResult } from '@/lib/types/index';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from '@/lib/claudeCode/types';
 
@@ -30,7 +30,6 @@ export async function askClaudeCode(
 ): Promise<AsyncResult<ClaudeCodeResult>> {
   const startTime = Date.now();
   const { question } = options;
-  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
   console.log(`[CLAUDE CODE] Starting execution at ${new Date().toISOString()}`);
   console.log(`[CLAUDE CODE] Parameters:`, {
     questionLength: question.length,
@@ -38,19 +37,9 @@ export async function askClaudeCode(
     contextLength: options.context?.length || 0,
     sourceBranch: options.sourceBranch,
     workspaceId: options.workspaceId,
-    authModeEnv: authModeEnv || undefined,
   });
 
   try {
-    // Get runtime configuration for API key
-    console.log(`[CLAUDE CODE] Loading runtime configuration...`);
-    const configStart = Date.now();
-    const config = await getRuntimeConfig();
-    console.log(`[CLAUDE CODE] ✅ Configuration loaded in ${Date.now() - configStart}ms`);
-    const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
-    const forceCliAuth = authMode === 'cli';
-    console.log(`[CLAUDE CODE] 🔐 Claude auth mode: ${authMode}`);
-
     // Verify working directory exists
     console.log(`[CLAUDE CODE] Verifying working directory: ${options.workingDirectory}`);
     const dirCheckStart = Date.now();
@@ -80,13 +69,6 @@ export async function askClaudeCode(
     // Claude Code always runs through the sandbox wrapper to prevent git operations.
     // Use bash invocation for cross-platform reliability (Windows bind mounts may not preserve +x).
     const wrapperPath = process.env.CLAUDE_CODE_WRAPPER || '/usr/local/bin/claude-code-wrapper';
-    const wrapperCommand =
-      wrapperPath.endsWith('.sh') || wrapperPath.includes('claude-code-wrapper')
-        ? `bash ${wrapperPath}`
-        : wrapperPath;
-
-    const skipPermissionsFlag = needsPermissions ? ' --dangerously-skip-permissions' : '';
-    const outputFormatFlag = ' --output-format stream-json';
 
     // Build the full input that will be sent
     let fullInput = question;
@@ -100,9 +82,21 @@ export async function askClaudeCode(
         '\n\nIMPORTANT: Only work within the current workspace directory. Do not access files outside this workspace.';
     }
 
-    // Use -p flag to pass the question directly with JSON streaming
+    // Build argument array to avoid shell injection — never use shell: true with user input
     // Note: --verbose is required when using --output-format stream-json with -p
-    const command = `${wrapperCommand} ${options.workingDirectory} --verbose${skipPermissionsFlag} -p "${fullInput.replace(/"/g, '\\"')}"${outputFormatFlag}`;
+    const useBash = wrapperPath.endsWith('.sh') || wrapperPath.includes('claude-code-wrapper');
+    const spawnCommand = useBash ? 'bash' : wrapperPath;
+    const spawnArgs = [
+      ...(useBash ? [wrapperPath] : []),
+      options.workingDirectory,
+      '--verbose',
+      ...(needsPermissions ? ['--dangerously-skip-permissions'] : []),
+      '-p',
+      fullInput,
+      '--output-format',
+      'stream-json',
+    ];
+    const command = `${spawnCommand} ${spawnArgs.join(' ')}`;
 
     // Activity-based timeout instead of fixed duration
     const maxInactivityTime = 300000; // 5 minutes of inactivity before timeout
@@ -146,33 +140,16 @@ export async function askClaudeCode(
         NO_COLOR: '1',
       };
 
-      if (forceCliAuth) {
-        // Subscription/manual-login mode: do NOT pass API key to subprocess even if present.
-        delete childEnv.ANTHROPIC_API_KEY;
-      } else {
-        // Use API key from runtime configuration if available, otherwise fall back to environment.
-        childEnv.ANTHROPIC_API_KEY = config.claude.apiKey || process.env.ANTHROPIC_API_KEY;
-      }
+      // CLI auth: never pass API key to subprocess — Claude Code uses subscription login
+      delete childEnv.ANTHROPIC_API_KEY;
 
-      const claudeProcess = spawn(command, {
+      const claudeProcess = spawn(spawnCommand, spawnArgs, {
         cwd: process.cwd(), // Wrapper handles cd to workspace directory
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
         env: childEnv,
       });
 
-      // Log which API key source is being used
-      if (forceCliAuth) {
-        console.log(
-          `[CLAUDE CODE] 🔐 Auth mode 'cli': not passing ANTHROPIC_API_KEY to subprocess (expects manual 'claude' login)`
-        );
-      } else if (config.claude.apiKey) {
-        console.log(`[CLAUDE CODE] ✅ Using API key from runtime configuration`);
-      } else if (process.env.ANTHROPIC_API_KEY) {
-        console.log(`[CLAUDE CODE] ✅ Using API key from environment variables`);
-      } else {
-        console.warn(`[CLAUDE CODE] ⚠️ No API key found in configuration or environment`);
-      }
+      console.log(`[CLAUDE CODE] 🔐 CLI auth: not passing ANTHROPIC_API_KEY to subprocess`);
 
       console.log(
         `[CLAUDE CODE] ✅ Process spawned in ${Date.now() - spawnStart}ms, PID: ${claudeProcess.pid}`

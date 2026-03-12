@@ -83,7 +83,7 @@ export default function RenderExampleModal({
               file to guide Claude AI&#39;s behavior in your workspace.
             </p>
 
-            <div className="border border-divider/60 rounded-xl p-4 bg-content2/60">
+            <div className="border border-divider/60 rounded-lg p-4 bg-content2/60">
               <div className="prose prose-sm max-w-full dark:prose-invert">
                 <ReactMarkdown>{EXAMPLE_CLAUDE_CONTENT}</ReactMarkdown>
               </div>

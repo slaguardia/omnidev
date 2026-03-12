@@ -7,8 +7,9 @@ import {
   getAllWorkspaces,
 } from '@/lib/managers/workspace-manager';
 import { cleanupWorkspace as cleanupWorkspaceRepo } from '@/lib/managers/repository-manager';
+import { deleteRalphTasksByWorkspace } from '@/lib/managers/ralph-task-manager';
 
-export async function cleanupWorkspace(workspaceId: WorkspaceId) {
+export async function cleanupWorkspace(workspaceId: WorkspaceId, deleteTasks = false) {
   // Initialize workspace manager
   const initResult = await initializeWorkspaceManager();
   if (!initResult.success) {
@@ -27,9 +28,25 @@ export async function cleanupWorkspace(workspaceId: WorkspaceId) {
     console.warn('Warning: Failed to remove workspace from persistent storage');
   }
 
+  // Optionally delete associated Ralph tasks
+  let deletedTaskCount = 0;
+  if (deleteTasks) {
+    const tasksResult = await deleteRalphTasksByWorkspace(workspaceId);
+    if (tasksResult.success) {
+      deletedTaskCount = tasksResult.data.deletedCount;
+    } else {
+      console.warn('Warning: Failed to delete associated Ralph tasks');
+    }
+  }
+
+  const taskMsg =
+    deleteTasks && deletedTaskCount > 0
+      ? ` and ${deletedTaskCount} task${deletedTaskCount === 1 ? '' : 's'}`
+      : '';
+
   return {
     success: true,
-    message: `Workspace ${workspaceId} cleaned successfully`,
+    message: `Workspace ${workspaceId} cleaned successfully${taskMsg}`,
     cleanedWorkspaces: 1,
   };
 }

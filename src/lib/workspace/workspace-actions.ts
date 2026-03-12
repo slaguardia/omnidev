@@ -90,9 +90,7 @@ export async function getWorkspaceStats(): Promise<{
 
 export async function cloneRepositoryAction(
   repoUrl: string,
-  branch?: string,
-  depth: number = 1,
-  singleBranch: boolean = true
+  branch?: string
 ): Promise<{
   success: boolean;
   message: string;
@@ -153,13 +151,9 @@ export async function cloneRepositoryAction(
     // Use the repository manager to clone
     console.log('[WORKSPACE ACTIONS] Cloning repository...');
     const cloneOptions: {
-      depth: number;
-      singleBranch: boolean;
       targetBranch?: string;
       credentials?: GitCredentials;
     } = {
-      depth,
-      singleBranch,
       ...(credentials && { credentials }),
     };
 

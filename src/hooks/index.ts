@@ -4,5 +4,6 @@ export { useCloneRepository } from '@/hooks/useCloneRepository';
 export { useClaudeOperations } from '@/hooks/useClaudeOperations';
 export { useBranches } from '@/hooks/useBranches';
 export { useChangePassword } from '@/hooks/useChangePassword';
-export { useExecutionHistory } from '@/hooks/useExecutionHistory';
 export { usePersistedState } from '@/hooks/usePersistedState';
+export { useDiscoveredRepos } from '@/hooks/useDiscoveredRepos';
+export { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';

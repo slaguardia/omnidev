@@ -34,13 +34,8 @@ export async function cloneRepository(
 
     const cloneOptions: string[] = [];
 
-    if (options.depth) {
-      cloneOptions.push('--depth', options.depth.toString());
-    }
-
-    if (options.singleBranch) {
-      cloneOptions.push('--single-branch');
-    }
+    cloneOptions.push('--depth', '1');
+    cloneOptions.push('--single-branch');
 
     if (options.targetBranch) {
       cloneOptions.push('--branch', options.targetBranch);

@@ -25,11 +25,12 @@ services:
     entrypoint: ['sh', '-c']
     command:
       - |
-        mkdir -p /home/nextjs/.claude /app/workspaces /secrets
-        chown -R 1001:1001 /home/nextjs/.claude /app/workspaces /secrets
+        mkdir -p /home/nextjs/.claude /app/workspaces /app/data /secrets
+        chown -R 1001:1001 /home/nextjs/.claude /app/workspaces /app/data /secrets
     volumes:
       - workflow_claude_config:/home/nextjs/.claude
       - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
       - workflow_secrets:/secrets
     restart: 'no'
     profiles:
@@ -38,6 +39,8 @@ services:
 volumes:
   workflow_workspaces:
     name: workflow_workspaces
+  workflow_data:
+    name: workflow_data
   workflow_claude_config:
     name: workflow_claude_config
   workflow_secrets:

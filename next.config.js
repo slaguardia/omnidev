@@ -1,6 +1,29 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  serverExternalPackages: ['better-sqlite3'],
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      '@heroui/button',
+      '@heroui/card',
+      '@heroui/chip',
+      '@heroui/input',
+      '@heroui/modal',
+      '@heroui/select',
+      '@heroui/tabs',
+      '@heroui/tooltip',
+      '@heroui/switch',
+      '@heroui/spinner',
+      '@heroui/divider',
+      '@heroui/dropdown',
+      '@heroui/checkbox',
+      '@heroui/snippet',
+      '@heroui/code',
+      '@heroui/link',
+      '@heroui/toast',
+    ],
+  },
 
   // In showcase mode, redirect protected routes to home at the edge
   async redirects() {

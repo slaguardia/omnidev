@@ -12,7 +12,7 @@ import type { WorkspaceId } from '@/lib/types/index';
 export type JobId = string & { readonly brand: unique symbol };
 
 // Job types that can be queued
-export type JobType = 'claude-code' | 'git-push' | 'git-mr' | 'workspace-cleanup';
+export type JobType = 'claude-code' | 'git-push' | 'git-mr' | 'workspace-cleanup' | 'ralph-stage';
 
 // Job lifecycle states
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -34,6 +34,12 @@ export interface Job<T = unknown> {
   completedAt?: string;
   result?: unknown;
   error?: string;
+  /** Current retry count (default 0) */
+  retryCount?: number;
+  /** Max retries allowed (default 0 = no retry) */
+  maxRetries?: number;
+  /** ISO timestamp — don't process before this time */
+  retryAfter?: string;
 }
 
 /**
@@ -69,6 +75,27 @@ export interface ClaudeCodeJobPayload {
    * commit/push/MR handling after Claude (best-effort).
    */
   createMR?: boolean;
+  /**
+   * Optional task context for generating semantic commit messages.
+   * When provided, commits will use the format: "feat: [TASK-ID] Task title"
+   * instead of a generic timestamp-based message.
+   *
+   * This should be the **user story** or **simple task** context, not the parent
+   * feature. Each story is executed and committed separately with its own ID.
+   *
+   * @example
+   * // For a user story within a feature:
+   * taskContext: { id: "US-028", title: "Manual state override with audit trail" }
+   *
+   * // For a simple standalone task:
+   * taskContext: { id: "TASK-001", title: "Fix login redirect bug" }
+   */
+  taskContext?: {
+    /** Story or task identifier (e.g., "US-001", "TASK-123") - not the parent feature ID */
+    id: string;
+    /** Human-readable story/task title */
+    title: string;
+  };
 }
 
 /**
@@ -96,6 +123,47 @@ export interface WorkspaceCleanupJobPayload {
   workspaceId: WorkspaceId;
   workspacePath: string;
 }
+
+// ============================================================================
+// Generic Stage Execution Job Types
+// ============================================================================
+
+/**
+ * Payload for Ralph generic stage execution jobs
+ */
+export interface RalphStageJobPayload {
+  taskId: string;
+  stageName: string;
+  workspaceId: WorkspaceId;
+  workspacePath: string;
+  prompt: string;
+  iteration: number;
+  maxIterations: number;
+  returnQuestions: boolean;
+  /** Whether to run Claude Code in edit mode (default: false/readonly) */
+  editRequest?: boolean;
+  /** Repo URL — needed for post-execution git ops in edit mode */
+  repoUrl?: string;
+  /** Whether to automatically enqueue next iteration after completion (default: false) */
+  autoLoop?: boolean;
+}
+
+/**
+ * Result from a Ralph stage job
+ */
+export interface RalphStageJobResult {
+  taskId: string;
+  stageName: string;
+  iteration: number;
+  output: string;
+  questions?: string[];
+  executionTimeMs: number;
+  error?: string;
+}
+
+// ============================================================================
+// Execution Result Types
+// ============================================================================
 
 /**
  * Result from executeOrQueue - either immediate or queued

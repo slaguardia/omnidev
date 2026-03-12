@@ -1,40 +1,113 @@
 /**
- * Queue Worker - Execute-or-queue pattern implementation
+ * Queue Worker - Parallel job processing with workspace-level edit serialization
  *
  * Main entry point for API routes:
  * - If nothing is processing, execute immediately and return result
  * - If something is processing, queue the job and return job ID
  *
- * Background worker loop processes queued jobs sequentially.
+ * Background worker loop processes queued jobs in parallel, with one constraint:
+ * edit-mode jobs targeting the same workspace are serialized (one at a time per workspace).
+ * Everything else runs concurrently up to MAX_CONCURRENT_JOBS.
  */
 
-import type { Job, JobType, ExecutionResult, ClaudeCodeJobPayload } from './types';
+import type {
+  Job,
+  JobType,
+  ExecutionResult,
+  ClaudeCodeJobPayload,
+  RalphStageJobPayload,
+} from './types';
 import crypto from 'node:crypto';
 import {
-  isProcessing,
   acquireProcessingLock,
   createProcessingJob,
   enqueueJob,
-  getNextPendingJob,
+  getPendingJobs,
   moveJob,
   markJobComplete,
   markJobFailed,
   cleanupOldJobs,
+  requeueJobForRetry,
+  detectStuckJobs,
 } from './queue-manager';
 import {
   executeClaudeCodeJob,
   executeGitPushJob,
   executeGitMRJob,
   executeWorkspaceCleanupJob,
+  executeRalphStageJob,
 } from './job-handlers';
 
 // Worker configuration
 const POLL_INTERVAL = 2000; // 2 seconds
 const CLEANUP_INTERVAL = 100; // Run cleanup every 100 iterations (~3-4 minutes)
+const MAX_CONCURRENT_JOBS = 5;
 
 // Worker state
 let workerRunning = false;
 let workerIntervalId: ReturnType<typeof setInterval> | null = null;
+let workerTickActive = false;
+
+/** Concurrency info extracted from a job's payload */
+interface JobConcurrencyInfo {
+  workspacePath: string | null;
+  isEdit: boolean;
+}
+
+/**
+ * In-memory tracking of currently running jobs.
+ * Maps job ID (string) to its concurrency info.
+ */
+const runningJobs = new Map<string, JobConcurrencyInfo>();
+
+/**
+ * Extract workspace path and edit status from a job's payload.
+ * Used to determine which jobs can run in parallel.
+ *
+ * Rules:
+ * - ralph-stage / claude-code: edit if editRequest or createMR is set
+ * - git-push / git-mr / workspace-cleanup: always treated as edit (filesystem-modifying)
+ */
+function extractJobConcurrencyInfo(job: Job): JobConcurrencyInfo {
+  const p = job.payload as Record<string, unknown>;
+  const workspacePath = typeof p.workspacePath === 'string' ? p.workspacePath : null;
+
+  switch (job.type) {
+    case 'ralph-stage':
+      return { workspacePath, isEdit: !!p.editRequest };
+    case 'claude-code':
+      return { workspacePath, isEdit: !!p.editRequest || !!p.createMR };
+    case 'git-push':
+    case 'git-mr':
+    case 'workspace-cleanup':
+      // Filesystem-modifying operations — always serialize per workspace
+      return { workspacePath, isEdit: true };
+    default:
+      return { workspacePath: null, isEdit: false };
+  }
+}
+
+/**
+ * Build a set of workspace paths that currently have an edit job running.
+ */
+function getEditLockedWorkspaces(): Set<string> {
+  const locked = new Set<string>();
+  for (const info of runningJobs.values()) {
+    if (info.isEdit && info.workspacePath) {
+      locked.add(info.workspacePath);
+    }
+  }
+  return locked;
+}
+
+/**
+ * Check if starting a job with the given info would conflict with running edit jobs.
+ * Only edit jobs on the same workspace conflict.
+ */
+function wouldConflict(info: JobConcurrencyInfo, lockedWorkspaces: Set<string>): boolean {
+  if (!info.isEdit || !info.workspacePath) return false;
+  return lockedWorkspaces.has(info.workspacePath);
+}
 
 /**
  * Options for executeOrQueue
@@ -88,10 +161,17 @@ export async function executeOrQueue<T>(
       return { immediate: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await markJobFailed(job.id, errorMessage);
-      await notifyJobCallback(job, { status: 'failed', error: errorMessage });
+      const retriesRemaining = (job.maxRetries ?? 0) - (job.retryCount ?? 0);
 
-      console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+      if (retriesRemaining > 0) {
+        await requeueJobForRetry(job.id, errorMessage);
+        console.warn(`[WORKER] Job ${job.id} failed, requeued for retry: ${errorMessage}`);
+      } else {
+        await markJobFailed(job.id, errorMessage);
+        await notifyJobCallback(job, { status: 'failed', error: errorMessage });
+        console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+      }
+
       throw error; // Re-throw for API to handle
     } finally {
       await lock.release();
@@ -99,8 +179,6 @@ export async function executeOrQueue<T>(
   }
 
   // Something is processing - queue the job
-  // Double-check: if already processing, enqueue; otherwise we still enqueue to preserve ordering
-  // and avoid long HTTP requests when there's contention.
   console.log(`[WORKER] Queue busy, enqueueing ${type} job`);
   const jobId = await enqueueJob(type, payload);
 
@@ -128,16 +206,45 @@ async function processJob(job: Job): Promise<unknown> {
         job.payload as Parameters<typeof executeWorkspaceCleanupJob>[0]
       );
 
+    case 'ralph-stage':
+      return await executeRalphStageJob(job.payload as RalphStageJobPayload);
+
     default:
       throw new Error(`Unknown job type: ${job.type}`);
   }
 }
 
 /**
+ * Run a single job through its full lifecycle: process, mark complete/failed, notify.
+ * Runs as a fire-and-forget promise tracked by the runningJobs map.
+ */
+async function processJobLifecycle(job: Job): Promise<void> {
+  try {
+    const result = await processJob(job);
+    await markJobComplete(job.id, result);
+    await notifyJobCallback(job, { status: 'completed', result });
+    console.log(`[WORKER] Job ${job.id} completed`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const retriesRemaining = (job.maxRetries ?? 0) - (job.retryCount ?? 0);
+
+    if (retriesRemaining > 0) {
+      await requeueJobForRetry(job.id, errorMessage);
+      console.warn(`[WORKER] Job ${job.id} failed, requeued for retry: ${errorMessage}`);
+    } else {
+      await markJobFailed(job.id, errorMessage);
+      await notifyJobCallback(job, { status: 'failed', error: errorMessage });
+      console.error(`[WORKER] Job ${job.id} failed (no retries left):`, errorMessage);
+    }
+  }
+}
+
+/**
  * Start the background worker loop
  *
- * The worker checks for pending jobs and processes them sequentially.
- * It only processes one job at a time to prevent overlapping operations.
+ * The worker checks for pending jobs and processes them in parallel.
+ * Edit-mode jobs targeting the same workspace are serialized (one at a time per workspace).
+ * All other jobs run concurrently up to MAX_CONCURRENT_JOBS.
  */
 export function startWorker(): void {
   if (workerRunning) {
@@ -148,62 +255,82 @@ export function startWorker(): void {
   workerRunning = true;
   let iterations = 0;
 
-  console.log('[WORKER] Starting background worker loop');
+  // Register graceful shutdown handlers
+  const shutdownHandler = () => {
+    console.log('[WORKER] Received shutdown signal, stopping worker...');
+    stopWorker();
+  };
+  process.on('SIGTERM', shutdownHandler);
+  process.on('SIGINT', shutdownHandler);
+
+  console.log(
+    `[WORKER] Starting parallel worker loop (max ${MAX_CONCURRENT_JOBS} concurrent jobs)`
+  );
 
   workerIntervalId = setInterval(async () => {
+    // Prevent overlapping ticks — if the previous tick is still selecting jobs, skip
+    if (workerTickActive) return;
+    workerTickActive = true;
+
     iterations++;
 
     try {
-      // Periodic cleanup (every ~3-4 minutes)
+      // Periodic cleanup and stuck job detection (every ~3-4 minutes)
       if (iterations % CLEANUP_INTERVAL === 0) {
-        console.log('[WORKER] Running cleanup...');
+        console.log('[WORKER] Running cleanup and stuck job detection...');
         await cleanupOldJobs();
+        await detectStuckJobs();
       }
 
-      // Acquire lock for worker processing. If another worker/API is processing, skip.
-      const lock = await acquireProcessingLock('worker');
-      if (!lock.acquired) {
-        return;
-      }
+      // Check capacity
+      const available = MAX_CONCURRENT_JOBS - runningJobs.size;
+      if (available <= 0) return;
 
-      try {
-        // Skip if already processing (another job is running)
-        if (await isProcessing()) {
-          return;
+      // Fetch pending jobs (more than we need — some may be filtered out by conflicts)
+      const pendingJobs = await getPendingJobs(available + 5);
+      if (pendingJobs.length === 0) return;
+
+      // Build set of currently edit-locked workspaces
+      const lockedWorkspaces = getEditLockedWorkspaces();
+      let started = 0;
+
+      for (const job of pendingJobs) {
+        if (runningJobs.size >= MAX_CONCURRENT_JOBS) break;
+
+        const info = extractJobConcurrencyInfo(job);
+
+        // Skip if this edit job would conflict with a running edit on the same workspace
+        if (wouldConflict(info, lockedWorkspaces)) {
+          continue;
         }
 
-        // Get next pending job
-        const job = await getNextPendingJob();
-
-        if (!job) {
-          return; // No pending jobs
-        }
-
-        // Move job to processing
+        // Try to claim the job atomically (rename pointer from pending/ to processing/)
         const moved = await moveJob(job.id, 'pending', 'processing');
+        if (!moved) continue; // Another tick or recovery already claimed it
 
-        if (!moved) {
-          console.error(`[WORKER] Failed to move job ${job.id} to processing`);
-          return;
+        // Track the running job
+        runningJobs.set(String(job.id), info);
+
+        // If this is an edit job, lock its workspace for subsequent iterations in this tick
+        if (info.isEdit && info.workspacePath) {
+          lockedWorkspaces.add(info.workspacePath);
         }
 
-        // Process the job
-        try {
-          const result = await processJob(job);
-          await markJobComplete(job.id, result);
-          await notifyJobCallback(job, { status: 'completed', result });
-          console.log(`[WORKER] Job ${job.id} completed`);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          await markJobFailed(job.id, errorMessage);
-          await notifyJobCallback(job, { status: 'failed', error: errorMessage });
-          console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
-        }
-      } finally {
-        await lock.release();
+        // Fire and forget — processJobLifecycle handles completion/failure/retry
+        processJobLifecycle(job).finally(() => {
+          runningJobs.delete(String(job.id));
+        });
+
+        started++;
+      }
+
+      if (started > 0) {
+        console.log(`[WORKER] Started ${started} job(s), ${runningJobs.size} now running`);
       }
     } catch (error) {
       console.error('[WORKER] Worker loop error:', error);
+    } finally {
+      workerTickActive = false;
     }
   }, POLL_INTERVAL);
 }
@@ -310,7 +437,7 @@ export function stopWorker(): void {
   workerIntervalId = null;
   workerRunning = false;
 
-  console.log('[WORKER] Worker stopped');
+  console.log(`[WORKER] Worker stopped (${runningJobs.size} jobs still finishing)`);
 }
 
 /**
@@ -318,4 +445,11 @@ export function stopWorker(): void {
  */
 export function isWorkerRunning(): boolean {
   return workerRunning;
+}
+
+/**
+ * Get the number of currently running jobs (for diagnostics)
+ */
+export function getRunningJobCount(): number {
+  return runningJobs.size;
 }

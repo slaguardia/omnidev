@@ -52,7 +52,6 @@ ALLOWED_IPS=<your-trusted-ips>
 API_RATE_LIMIT=100
 
 # ---- Integration credentials (or configure via Dashboard UI) ----
-ANTHROPIC_API_KEY=<your-anthropic-key>
 
 # GitLab (for GitLab repositories)
 GITLAB_URL=https://gitlab.com
@@ -101,7 +100,7 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
 
 ### API Key Configuration
 
-> **Recommended:** Use the Dashboard to generate and manage API keys instead of environment variables. Navigate to **Dashboard** → **Account Security** to generate keys. Dashboard-generated keys are stored in `workspaces/api-keys.json` and are automatically validated.
+> **Recommended:** Use the Dashboard to generate and manage API keys instead of environment variables. Navigate to **Dashboard** → **Account Security** to generate keys. Dashboard-generated keys are stored in `data/api-keys.json` and are automatically validated.
 
 #### VALID_API_KEYS
 
@@ -157,27 +156,6 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
     ```
 
   - **Traefik**: configure forwarded headers so untrusted client-supplied `X-Forwarded-*` values are not accepted (use trusted proxy hops / `trustedIPs` and keep `insecure=false`).
-
----
-
-### Claude Code Integration
-
-#### ANTHROPIC_API_KEY
-
-- **Required:** No (can be set via UI)
-- **Description:** API key for Claude Code integration
-- **Format:** String
-- **Get Key:** https://console.anthropic.com/
-- **Note:** Can also be configured through the web UI
-
-#### CLAUDE_CODE_AUTH_MODE
-
-- **Required:** No
-- **Description:** Controls how the app authenticates the `claude` CLI subprocess
-- **Values:**
-  - `auto` (default): use an API key if available, otherwise rely on CLI login
-  - `cli`: **never pass `ANTHROPIC_API_KEY`** to the `claude` subprocess (useful for Claude subscription accounts that require interactive login)
-- **Example:** `CLAUDE_CODE_AUTH_MODE=cli`
 
 ---
 
@@ -409,7 +387,7 @@ echo "NEXTAUTH_SECRET=<generated-secret>" >> .env
 2. Or set `VALID_API_KEYS` or `ADMIN_API_KEY` in environment variables
 3. Verify API key format (no spaces, correct delimiter)
 4. Check that the key matches exactly (case-sensitive)
-5. Ensure `workspaces/api-keys.json` exists if using dashboard-generated keys
+5. Ensure `data/api-keys.json` exists if using dashboard-generated keys
 
 ### IP Blocked
 
@@ -429,13 +407,13 @@ The application checks for configuration in this order:
 
 ### API Keys (for API authentication)
 
-1. **Dashboard-generated keys** (stored in `workspaces/api-keys.json`)
+1. **Dashboard-generated keys** (stored in `data/api-keys.json`)
 2. **Admin API key** (`ADMIN_API_KEY` environment variable)
 3. **Client API keys** (`VALID_API_KEYS` environment variable)
 
 ### Other Settings
 
-1. **Runtime configuration** (set via Dashboard UI, stored in `workspaces/app-config.json`)
+1. **Runtime configuration** (set via Dashboard UI, stored in `data/app-config.json`)
 2. **Environment variables** (.env file or system)
 3. **Default values** (hardcoded fallbacks)
 

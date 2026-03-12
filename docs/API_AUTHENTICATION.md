@@ -24,7 +24,7 @@ The recommended way to manage API keys is through the web dashboard:
 3. Copy the generated key immediately (it won't be shown again)
 4. Use this key in your API requests
 
-Dashboard-generated keys are stored securely in `workspaces/api-keys.json` and are automatically validated by the API.
+Dashboard-generated keys are stored securely in `data/api-keys.json` and are automatically validated by the API.
 For security, the application stores **only a hash** of dashboard-generated keys (the plaintext key is shown only once when generated).
 
 ### 2. Environment Variables (Legacy/Fallback)
@@ -53,7 +53,7 @@ ALLOWED_IPS=192.168.1.100,10.0.0.50
 The API validates authentication in the following order:
 
 1. **Session authentication** (NextAuth session for logged-in dashboard users)
-2. **Dashboard-generated API keys** (stored in `workspaces/api-keys.json`)
+2. **Dashboard-generated API keys** (stored in `data/api-keys.json`)
 3. **Admin API key** (from `ADMIN_API_KEY` environment variable)
 4. **Client API keys** (from `VALID_API_KEYS` environment variable)
 

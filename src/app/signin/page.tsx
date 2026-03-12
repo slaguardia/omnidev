@@ -269,6 +269,42 @@ export default function SigninPage() {
     );
   }
 
+  // User check failed (filesystem error, not "no user") — block signup form
+  if (userExists === null) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <FadeIn>
+          <h1 className={`${title()} text-center mb-16 text-2xl`}>System Error</h1>
+        </FadeIn>
+
+        <ScaleIn delay={0.1}>
+          <Card className="glass-card w-full mt-10">
+            <CardBody className="p-6">
+              <div className="flex flex-col items-center gap-4">
+                <Chip color="danger" variant="flat" className="w-full p-3 h-auto whitespace-normal">
+                  {error ||
+                    'Unable to verify account status. The data directory may not be accessible.'}
+                </Chip>
+                <p className="text-sm text-default-500 text-center">
+                  If this system was previously set up, user data may be temporarily unreadable. Do
+                  not create a new account — it could overwrite existing credentials.
+                </p>
+                <Button
+                  color="primary"
+                  variant="bordered"
+                  onPress={() => window.location.reload()}
+                  className="w-full mt-2"
+                >
+                  Retry
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </ScaleIn>
+      </div>
+    );
+  }
+
   const isSignup = !userExists;
 
   // Show 2FA verification form

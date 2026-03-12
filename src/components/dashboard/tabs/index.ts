@@ -4,5 +4,7 @@ export { default as SettingsTab } from '@/components/dashboard/tabs/SettingsTab'
 export { default as SnippetsTab } from '@/components/dashboard/tabs/SnippetsTab';
 export { default as GitSourceConfigTab } from '@/components/dashboard/tabs/GitSourceConfigTab';
 export { default as AccountSecurityTab } from '@/components/dashboard/tabs/AccountSecurityTab';
-export { default as ExecutionHistoryTab } from '@/components/dashboard/tabs/ExecutionHistoryTab';
-export { default as QueueTab } from '@/components/dashboard/tabs/QueueTab';
+export { default as ExternalTaskingHistoryTab } from '@/components/dashboard/tabs/ExternalTaskingHistoryTab';
+export { default as RalphBoardTab } from '@/components/dashboard/tabs/RalphBoardTab';
+export { default as WorkflowSettingsTab } from '@/components/dashboard/tabs/WorkflowSettingsTab';
+export { default as ChatTab } from '@/components/dashboard/tabs/ChatTab';

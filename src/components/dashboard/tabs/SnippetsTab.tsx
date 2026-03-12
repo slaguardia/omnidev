@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Code } from 'lucide-react';
 import { Input } from '@heroui/input';
 import { Select, SelectItem } from '@heroui/select';
 import { Divider } from '@heroui/divider';
@@ -153,13 +152,6 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <Code className="w-6 h-6 text-default-500" />
-          Snippets (n8n, curl, scripts)
-        </h2>
-      </div>
-
       <section className="space-y-5">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold text-default-700">Inputs</h3>
@@ -385,7 +377,7 @@ export default function SnippetsTab({ workspaces, getProjectDisplayName }: Snipp
           </Card>
         </div>
 
-        <div className="rounded-xl border border-divider/60 bg-content2/60 px-4 py-3 text-sm text-default-600">
+        <div className="rounded-lg border border-divider/60 bg-content2/60 px-4 py-3 text-sm text-default-600">
           <div className="flex flex-wrap items-center gap-2">
             <Chip size="sm" variant="flat">
               Tips

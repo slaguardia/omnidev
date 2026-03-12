@@ -73,8 +73,6 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 export async function cloneRepositoryAction(
   repoUrl: string,
   branch?: string,
-  depth: number = 1,
-  singleBranch: boolean = true,
   credentials?: { username: string; password: string }
 ): Promise<{
   success: boolean;
@@ -106,13 +104,9 @@ export async function cloneRepositoryAction(
 
     // Use the repository manager to clone
     const cloneOptions: {
-      depth: number;
-      singleBranch: boolean;
       targetBranch?: string;
       credentials?: GitCredentials;
     } = {
-      depth,
-      singleBranch,
       ...(credentials && { credentials }),
     };
 
@@ -193,8 +187,6 @@ export async function cloneRepository(
     // Clone repository
     const cloneResult = await gitCloneRepository(repoUrl, workspacePath, {
       ...(options.targetBranch && { targetBranch: options.targetBranch }),
-      depth: options.depth || 1,
-      singleBranch: options.singleBranch !== false,
       ...(options.credentials && { credentials: options.credentials }),
     });
 

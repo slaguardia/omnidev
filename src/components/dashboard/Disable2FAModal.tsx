@@ -69,7 +69,7 @@ export default function Disable2FAModal({
       placement="center"
       size="md"
       classNames={{
-        base: 'dark:bg-slate-800/80 bg-white/95 backdrop-blur-lg border dark:border-white/10 border-gray/20',
+        base: 'dark:bg-[#1C1C20]/95 bg-white/95 backdrop-blur-lg border dark:border-white/[0.06] border-gray-200/40',
       }}
     >
       <ModalContent>

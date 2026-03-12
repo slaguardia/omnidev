@@ -5,28 +5,18 @@
  */
 
 import { spawn } from 'node:child_process';
-import { getRuntimeConfig } from '@/lib/workspace/runtime-config';
 import type { AsyncResult } from '@/lib/types/index';
 
 /**
  * Get Claude Code version information
  */
 export async function getClaudeCodeVersion(): Promise<AsyncResult<string>> {
-  // Get runtime configuration for API key
-  const config = await getRuntimeConfig();
-  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
-  const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
-  const forceCliAuth = authMode === 'cli';
-
   return new Promise((resolve) => {
     let output = '';
 
+    // CLI auth: never pass API key to subprocess
     const childEnv: NodeJS.ProcessEnv = { ...process.env };
-    if (forceCliAuth) {
-      delete childEnv.ANTHROPIC_API_KEY;
-    } else {
-      childEnv.ANTHROPIC_API_KEY = config.claude.apiKey || process.env.ANTHROPIC_API_KEY;
-    }
+    delete childEnv.ANTHROPIC_API_KEY;
 
     const versionProcess = spawn('claude', ['--version'], {
       stdio: ['ignore', 'pipe', 'pipe'],

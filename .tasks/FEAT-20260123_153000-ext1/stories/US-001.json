@@ -1,0 +1,20 @@
+{
+  "id": "US-001",
+  "featureId": "FEAT-20260123_153000-ext1",
+  "title": "Create paginated API endpoint for external tasking history",
+  "userStory": "As a developer, I want a single API endpoint that returns paginated claude-code jobs so that the frontend can efficiently fetch and display filtered results.",
+  "acceptanceCriteria": [
+    "New endpoint GET /api/external-tasking/history created",
+    "Supports query params: page, pageSize, status[], workspaceId, startDate, endDate",
+    "Returns { items: Job[], total: number, page: number, pageSize: number, totalPages: number }",
+    "Filters to only claude-code job type",
+    "Sorted by createdAt descending (newest first)",
+    "Includes currently processing job in response metadata: { currentJob: Job | null }",
+    "Default pageSize is 25, max is 100"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-01-23T15:30:00Z",
+  "completedAt": "2026-01-23T08:10:00Z",
+  "iteration": 1
+}

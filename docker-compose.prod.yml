@@ -30,6 +30,7 @@ services:
       - ALLOWED_IPS=${ALLOWED_IPS:-}
     volumes:
       - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
       - workflow_secrets:/secrets
       - workflow_claude_config:/home/nextjs/.claude
     restart: unless-stopped

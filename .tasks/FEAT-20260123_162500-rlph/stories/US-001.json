@@ -1,0 +1,19 @@
+{
+  "id": "US-001",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Create Ralph Board tab shell with view toggle",
+  "userStory": "As a developer, I want a new 'Ralph Board' tab in the dashboard with kanban and list view options so that I can visualize tasks in my preferred format.",
+  "acceptanceCriteria": [
+    "New tab labeled 'Ralph Board' appears in dashboard navigation",
+    "Toggle switch between 'Kanban' and 'List' views",
+    "Kanban view shows columns for each state: Draft, Triage, Planning, Ready, Executing, Complete",
+    "List view shows tasks in a table with sortable columns",
+    "View preference persists across sessions",
+    "Empty state displays helpful onboarding message"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T09:07:00.000Z",
+  "iteration": 1
+}

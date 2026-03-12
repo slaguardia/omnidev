@@ -1,7 +1,10 @@
 FROM ubuntu:22.04
 
-# Dev image for hot-reload (next dev --turbopack) inside Docker.
+# Dev image for hot-reload (next dev) inside Docker.
 # This is intentionally larger than prod, optimized for iteration speed.
+# Note: Turbopack is not used in Docker on Windows because its Rust-based
+# file watcher does not detect changes across the Windows-to-Linux boundary.
+# Webpack with WATCHPACK_POLLING=true (set in docker-compose.override.yml) works.
 
 RUN apt-get update && apt-get install -y \
     bash \
@@ -14,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get update \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -41,6 +44,10 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
 RUN chmod 755 /usr/local/bin/claude-code-wrapper
 
+# Dev entrypoint script
+COPY docker-entrypoint-dev.sh /entrypoint-dev.sh
+RUN chmod 755 /entrypoint-dev.sh
+
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -48,8 +55,7 @@ ENV NODE_ENV=development
 
 EXPOSE 3000
 
-# Source is bind-mounted in docker-compose; we install deps on container start there.
-# Use Next's supported flags (avoid invalid short flags like -H).
-CMD ["bash", "-lc", "mkdir -p /app/workspaces; if [ -f /home/nextjs/.claude.json ] || [ -f /home/nextjs/.claude/.claude.json ]; then mkdir -p /home/nextjs/.claude; if [ -f /home/nextjs/.claude.json ] && [ ! -L /home/nextjs/.claude.json ] && [ ! -f /home/nextjs/.claude/.claude.json ]; then mv /home/nextjs/.claude.json /home/nextjs/.claude/.claude.json 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json ]; then ln -sf /home/nextjs/.claude/.claude.json /home/nextjs/.claude.json 2>/dev/null || true; fi; fi; if [ -f /home/nextjs/.claude.json.backup ] && [ ! -L /home/nextjs/.claude.json.backup ] && [ ! -f /home/nextjs/.claude/.claude.json.backup ]; then mkdir -p /home/nextjs/.claude; mv /home/nextjs/.claude.json.backup /home/nextjs/.claude/.claude.json.backup 2>/dev/null || true; fi; if [ -f /home/nextjs/.claude/.claude.json.backup ]; then ln -sf /home/nextjs/.claude/.claude.json.backup /home/nextjs/.claude.json.backup 2>/dev/null || true; fi; chown -R nextjs:nodejs /app/workspaces /home/nextjs 2>/dev/null || true; pnpm install --frozen-lockfile && pnpm exec next dev --turbopack --hostname 0.0.0.0 --port 3000"]
+# Source is bind-mounted in docker-compose; deps installed at container start.
+ENTRYPOINT ["/entrypoint-dev.sh"]
 
 

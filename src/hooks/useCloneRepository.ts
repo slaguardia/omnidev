@@ -7,8 +7,6 @@ import { cloneRepositoryAction } from '@/lib/workspace';
 const initialCloneForm: CloneForm = {
   repoUrl: '',
   branch: '',
-  depth: '1',
-  singleBranch: true,
 };
 
 export const useCloneRepository = () => {
@@ -21,12 +19,7 @@ export const useCloneRepository = () => {
       setLoading(true);
 
       // Call server action to clone repository (credentials come from config)
-      const result = await cloneRepositoryAction(
-        cloneForm.repoUrl,
-        cloneForm.branch || undefined,
-        parseInt(cloneForm.depth) || 1,
-        cloneForm.singleBranch
-      );
+      const result = await cloneRepositoryAction(cloneForm.repoUrl, cloneForm.branch || undefined);
 
       if (result.success) {
         setCloneForm(initialCloneForm);

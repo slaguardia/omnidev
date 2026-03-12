@@ -10,8 +10,10 @@ import {
   handlePostClaudeCodeExecution,
   initializeGitWorkflow,
 } from '@/lib/claudeCode';
+import { createStageExecutor } from '@/lib/executor';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
+import type { FilePath, GitUrl, CommitHash } from '@/lib/types/index';
 import type {
   ClaudeCodeJobPayload,
   ClaudeCodeJobResult,
@@ -20,8 +22,9 @@ import type {
   GitPushJobPayload,
   GitMRJobPayload,
   WorkspaceCleanupJobPayload,
+  RalphStageJobPayload,
+  RalphStageJobResult,
 } from './types';
-import type { CommitHash, FilePath, GitUrl } from '@/lib/types/index';
 
 /**
  * Extract usage information from the final 'result' type JSON log.
@@ -121,7 +124,6 @@ export async function executeClaudeCodeJob(
           );
 
           if (!branchExists) {
-            const _prepTime = Date.now() - prepStart;
             console.error(
               `[JOB] ❌ Branch '${targetBranch}' does not exist. Available branches: ${availableBranches.slice(0, 10).join(', ')}${availableBranches.length > 10 ? '...' : ''}`
             );
@@ -252,7 +254,9 @@ export async function executeClaudeCodeJob(
       const postResult = await handlePostClaudeCodeExecution(
         payload.workspacePath as FilePath,
         gitInitResult,
-        payload.repoUrl as GitUrl
+        payload.repoUrl as GitUrl,
+        undefined, // provider - auto-detected from URL
+        payload.taskContext
       );
 
       if (postResult.success) {
@@ -429,4 +433,419 @@ export async function executeWorkspaceCleanupJob(
   // cleanupWorkspace throws on error, so if we get here it succeeded
   console.log(`[JOB] Workspace cleanup completed for ${payload.workspaceId}:`, result.message);
   return { success: true };
+}
+// ============================================================================
+// Generic Stage Execution Job Handler
+// ============================================================================
+
+/**
+ * Execute a Ralph generic stage job.
+ *
+ * Runs a user-configured prompt against Claude Code and stores the raw output
+ * in the task's `stageOutputs[stageName]`. If `returnQuestions` is enabled,
+ * QUESTION: lines are parsed from the output and stored as pending questions.
+ */
+export async function executeRalphStageJob(
+  payload: RalphStageJobPayload
+): Promise<RalphStageJobResult> {
+  const startTime = Date.now();
+  console.log(
+    `[JOB] Starting Ralph stage job: ${payload.stageName} for task ${payload.taskId}, iteration ${payload.iteration}`
+  );
+
+  try {
+    const { getRalphTask, updateRalphTask } = await import('@/lib/managers/ralph-task-manager');
+    const { parseQuestionsFromOutput } = await import('@/lib/workflow/prompt-template');
+
+    const taskResult = await getRalphTask(payload.taskId);
+    if (!taskResult.success) {
+      throw new Error(`Failed to load task: ${taskResult.error?.message}`);
+    }
+
+    const task = taskResult.data;
+
+    // Auto-loop cancellation check: if this is a continuation iteration and the loop
+    // has been cancelled (autoLoopActive === false), skip execution
+    if (payload.autoLoop && payload.iteration > 1) {
+      const existingOutput = task.stageOutputs?.[payload.stageName];
+      if (existingOutput && existingOutput.autoLoopActive === false) {
+        console.log(
+          `[JOB] Auto-loop cancelled for ${payload.stageName} iteration ${payload.iteration}, skipping`
+        );
+        return {
+          taskId: payload.taskId,
+          stageName: payload.stageName,
+          iteration: payload.iteration,
+          output: '',
+          executionTimeMs: Date.now() - startTime,
+          error: 'Auto-loop cancelled',
+        };
+      }
+    }
+
+    // Build the effective prompt — strategy differs for auto-loop vs manual iterations
+    let effectivePrompt = payload.prompt;
+
+    if (payload.iteration > 1) {
+      if (payload.autoLoop) {
+        // Auto-loop: don't prepend previous output (it grows unbounded).
+        // Claude reads workspace files (.ralph/progress.md) for state — each
+        // iteration is a fresh instance, matching the ralph.sh pattern.
+        effectivePrompt = `# Auto-Loop Iteration ${payload.iteration} of ${payload.maxIterations}\n\n${payload.prompt}`;
+      } else {
+        // Manual iterations: prepend previous output + answered questions
+        const existingOutput = task.stageOutputs?.[payload.stageName];
+        if (existingOutput) {
+          const parts: string[] = [];
+          parts.push(`# Continuation — Iteration ${payload.iteration}`);
+          parts.push('');
+
+          // Include previous iteration output
+          const prevIteration = existingOutput.iterations.find(
+            (i) => i.iteration === payload.iteration - 1
+          );
+          if (prevIteration) {
+            parts.push('## Previous Output');
+            parts.push(prevIteration.output);
+            parts.push('');
+          }
+
+          // Include any answered questions
+          const answeredQuestions = existingOutput.pendingQuestions.filter((q) => q.answer);
+          if (answeredQuestions.length > 0) {
+            parts.push('## Answers to Questions');
+            for (const q of answeredQuestions) {
+              parts.push(`**Q:** ${q.question}`);
+              parts.push(`**A:** ${q.answer}`);
+              parts.push('');
+            }
+          }
+
+          parts.push('## Updated Prompt');
+          parts.push(payload.prompt);
+
+          effectivePrompt = parts.join('\n');
+        }
+      }
+    }
+
+    const isEditMode = payload.editRequest ?? false;
+
+    // For edit mode, initialize git workflow if needed
+    let gitInitResult: GitInitResult | undefined;
+    let effectiveSourceBranch: string | undefined;
+
+    if (isEditMode) {
+      console.log(`[JOB] 🔄 Initializing git workflow for edit-mode stage: ${payload.stageName}`);
+      const initResult = await initializeGitWorkflow({
+        workspaceId: payload.workspaceId,
+      });
+
+      if (!initResult.success) {
+        const errorMsg = initResult.error?.message || 'Unknown git workflow error';
+        console.error(`[JOB] ❌ Git workflow initialization failed:`, errorMsg);
+        throw new Error(`Git workflow initialization failed: ${errorMsg}`);
+      }
+
+      gitInitResult = {
+        ...initResult.data,
+        mergeRequestRequired: false, // PR creation handled by complete route
+      };
+      effectiveSourceBranch = initResult.data.sourceBranch;
+    }
+
+    // Execute stage via executor interface
+    const executor = createStageExecutor();
+    const result = await executor.execute({
+      prompt: effectivePrompt,
+      workingDirectory: payload.workspacePath as FilePath,
+      workspaceId: payload.workspaceId,
+      editMode: isEditMode,
+      sourceBranch: effectiveSourceBranch,
+    });
+
+    const executionTimeMs = Date.now() - startTime;
+
+    if (!result.success) {
+      console.error(`[JOB] Stage execution failed:`, result.error?.message);
+
+      // Store error iteration
+      const existingOutput = task.stageOutputs?.[payload.stageName];
+      const errorIteration = {
+        iteration: payload.iteration,
+        output: '',
+        executionTimeMs,
+        completedAt: new Date().toISOString(),
+        error: result.error?.message || 'Stage execution failed',
+      };
+
+      const updatedErrorStageOutput = {
+        prompt: existingOutput?.prompt ?? payload.prompt,
+        currentIteration: payload.iteration,
+        maxIterations: payload.maxIterations,
+        returnQuestions: payload.returnQuestions,
+        iterations: [...(existingOutput?.iterations ?? []), errorIteration],
+        pendingQuestions: existingOutput?.pendingQuestions ?? [],
+        activeJobId: undefined as string | undefined,
+        lastUpdated: new Date().toISOString(),
+        autoLoopActive: payload.autoLoop ? false : (undefined as boolean | undefined),
+        completionReason: (payload.autoLoop ? 'error' : undefined) as
+          | 'complete'
+          | 'max-iterations'
+          | 'error'
+          | 'questions'
+          | 'cancelled'
+          | undefined,
+      };
+
+      await updateRalphTask(payload.taskId, {
+        stageOutputs: {
+          ...task.stageOutputs,
+          [payload.stageName]: updatedErrorStageOutput,
+        },
+      });
+
+      return {
+        taskId: payload.taskId,
+        stageName: payload.stageName,
+        iteration: payload.iteration,
+        output: '',
+        executionTimeMs,
+        error: result.error?.message || 'Stage execution failed',
+      };
+    }
+
+    // Handle post-execution git operations for edit mode
+    if (gitInitResult && payload.repoUrl) {
+      console.log(`[JOB] Processing post-execution git operations for stage: ${payload.stageName}`);
+      try {
+        const postResult = await handlePostClaudeCodeExecution(
+          payload.workspacePath as FilePath,
+          gitInitResult,
+          payload.repoUrl as GitUrl,
+          undefined,
+          { id: payload.taskId, title: payload.stageName }
+        );
+
+        if (postResult.success && postResult.data) {
+          // Update task with feature branch if created
+          if (gitInitResult.sourceBranch) {
+            await updateRalphTask(payload.taskId, {
+              featureBranch: gitInitResult.sourceBranch,
+              baseBranch: gitInitResult.targetBranch,
+            });
+          }
+          console.log(`[JOB] Post-execution completed:`, {
+            hasChanges: postResult.data.hasChanges,
+            pushedBranch: postResult.data.pushedBranch,
+          });
+        }
+      } catch (postError) {
+        console.warn(`[JOB] Post-execution error (non-fatal):`, postError);
+      }
+    }
+
+    const output = result.data?.output || '';
+    console.log(`[JOB] Stage output (${output.length} chars)`);
+
+    // Parse questions if returnQuestions is enabled
+    let parsedQuestions: string[] | undefined;
+    if (payload.returnQuestions) {
+      const questions = parseQuestionsFromOutput(output);
+      if (questions.length > 0) {
+        parsedQuestions = questions;
+      }
+    }
+
+    // Build stage iteration record
+    const iterationRecord: {
+      iteration: number;
+      output: string;
+      questions?: { id: string; question: string }[];
+      executionTimeMs: number;
+      completedAt: string;
+    } = {
+      iteration: payload.iteration,
+      output,
+      executionTimeMs,
+      completedAt: new Date().toISOString(),
+    };
+
+    if (parsedQuestions) {
+      iterationRecord.questions = parsedQuestions.map((q, i) => ({
+        id: `sq-${Date.now()}-${i}`,
+        question: q,
+      }));
+    }
+
+    // Build pending questions from this iteration
+    const newPendingQuestions = (iterationRecord.questions ?? []).map((q) => ({
+      id: q.id,
+      question: q.question,
+    }));
+
+    // Update stageOutputs on the task (clear activeJobId since job is done)
+    const existingOutput = task.stageOutputs?.[payload.stageName];
+
+    // Determine auto-loop state
+    type CompletionReason = 'complete' | 'max-iterations' | 'error' | 'questions' | 'cancelled';
+    let nextActiveJobId: string | undefined;
+    let autoLoopActive: boolean | undefined;
+    let completionReasonValue: CompletionReason | undefined;
+
+    if (payload.autoLoop) {
+      const hasCompletionSignal = output.includes('<promise>COMPLETE</promise>');
+      const atMaxIterations = payload.iteration >= payload.maxIterations;
+      const hasQuestions = (parsedQuestions?.length ?? 0) > 0;
+
+      if (hasCompletionSignal) {
+        completionReasonValue = 'complete';
+      } else if (atMaxIterations) {
+        completionReasonValue = 'max-iterations';
+      } else if (hasQuestions) {
+        completionReasonValue = 'questions';
+      }
+
+      if (completionReasonValue) {
+        // Stop the loop
+        autoLoopActive = false;
+        console.log(
+          `[JOB] Auto-loop stopping for ${payload.stageName}: ${completionReasonValue} (iteration ${payload.iteration})`
+        );
+      } else {
+        // Continue: enqueue next iteration
+        const { enqueueJob } = await import('@/lib/queue/queue-manager');
+        const nextPayload: RalphStageJobPayload = {
+          ...payload,
+          iteration: payload.iteration + 1,
+        };
+        const nextJobId = await enqueueJob('ralph-stage', nextPayload);
+        nextActiveJobId = nextJobId as string;
+        autoLoopActive = true;
+        console.log(
+          `[JOB] Auto-loop continuing: enqueued iteration ${payload.iteration + 1} as job ${nextJobId}`
+        );
+      }
+    }
+
+    const updatedStageOutput = {
+      prompt: existingOutput?.prompt ?? payload.prompt,
+      currentIteration: payload.iteration,
+      maxIterations: payload.maxIterations,
+      returnQuestions: payload.returnQuestions,
+      iterations: [...(existingOutput?.iterations ?? []), iterationRecord],
+      pendingQuestions: newPendingQuestions,
+      activeJobId: nextActiveJobId,
+      autoLoopActive,
+      completionReason: completionReasonValue,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    await updateRalphTask(payload.taskId, {
+      stageOutputs: {
+        ...task.stageOutputs,
+        [payload.stageName]: updatedStageOutput,
+      },
+    });
+
+    // Auto-advance: if stage completed and task has a playbook, move to next stage
+    if (
+      payload.autoLoop &&
+      completionReasonValue &&
+      (completionReasonValue === 'complete' || completionReasonValue === 'max-iterations')
+    ) {
+      try {
+        const { getNextPlaybookStage, transitionRalphTask: transitionTask } = await import(
+          '@/lib/managers/ralph-task-manager'
+        );
+        const { nextStage } = getNextPlaybookStage(payload.taskId, payload.stageName);
+
+        if (nextStage) {
+          // Loop to handle no-prompt stages (fast-forward through them)
+          let targetStage: string | null = nextStage;
+          while (targetStage && targetStage !== 'complete') {
+            await transitionTask(
+              payload.taskId,
+              targetStage,
+              `Playbook auto-advance from ${payload.stageName}`
+            );
+
+            const { startStageRun } = await import('@/lib/ralph/stage-runner');
+            const runResult = await startStageRun(payload.taskId, targetStage);
+
+            if (runResult.skipped) {
+              // No-prompt stage — advance past it
+              const next = getNextPlaybookStage(payload.taskId, targetStage);
+              targetStage = next.nextStage;
+            } else {
+              break; // Stage is running or errored, stop here
+            }
+          }
+
+          if (targetStage === 'complete') {
+            await transitionTask(payload.taskId, 'complete', 'Playbook pipeline completed');
+          }
+        }
+      } catch (advanceError) {
+        // Non-fatal: stage completed successfully, auto-advance just failed
+        console.error(`[JOB] Auto-advance error (non-fatal):`, advanceError);
+      }
+    }
+
+    console.log(`[JOB] Ralph stage job completed in ${executionTimeMs}ms`);
+
+    const jobResult: RalphStageJobResult = {
+      taskId: payload.taskId,
+      stageName: payload.stageName,
+      iteration: payload.iteration,
+      output,
+      executionTimeMs,
+    };
+    if (parsedQuestions) {
+      jobResult.questions = parsedQuestions;
+    }
+    return jobResult;
+  } catch (error) {
+    const executionTimeMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[JOB] Ralph stage job failed:`, errorMessage);
+
+    // For auto-loop errors, stop the loop
+    if (payload.autoLoop) {
+      try {
+        const { getRalphTask: getTask, updateRalphTask: updateTask } = await import(
+          '@/lib/managers/ralph-task-manager'
+        );
+        const currentTask = await getTask(payload.taskId);
+        if (currentTask.success) {
+          const currentStageOutput = currentTask.data.stageOutputs?.[payload.stageName];
+          if (currentStageOutput) {
+            await updateTask(payload.taskId, {
+              stageOutputs: {
+                ...currentTask.data.stageOutputs,
+                [payload.stageName]: {
+                  ...currentStageOutput,
+                  autoLoopActive: false,
+                  completionReason: 'error',
+                  activeJobId: undefined,
+                  lastUpdated: new Date().toISOString(),
+                },
+              },
+            });
+          }
+        }
+      } catch (updateError) {
+        console.error(`[JOB] Failed to update auto-loop error state:`, updateError);
+      }
+    }
+
+    return {
+      taskId: payload.taskId,
+      stageName: payload.stageName,
+      iteration: payload.iteration,
+      output: '',
+      executionTimeMs,
+      error: errorMessage,
+    };
+  }
 }

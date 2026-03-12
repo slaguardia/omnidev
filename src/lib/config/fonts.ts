@@ -13,5 +13,5 @@ export const fontMono = FontMono({
 export const fontTitle = Orbitron({
   subsets: ['latin'],
   variable: '--font-title',
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: ['600'],
 });

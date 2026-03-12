@@ -11,13 +11,13 @@ This application uses a single-user authentication system with no email recovery
 The user credentials are stored in:
 
 ```
-/workspaces/users.json
+/data/users.json
 ```
 
 ### Step 2: Delete the users file
 
 ```bash
-rm /workspaces/users.json
+rm /data/users.json
 ```
 
 ### Step 3: Create new account
@@ -39,7 +39,7 @@ rm /workspaces/users.json
 If running in Docker, you may need to:
 
 1. Access the container shell: `docker exec -it <container_name> /bin/sh`
-2. Delete the file: `rm /app/workspaces/users.json`
+2. Delete the file: `rm /app/data/users.json`
 3. Exit and refresh the browser
 
 ## Security Warning

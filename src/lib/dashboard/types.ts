@@ -31,8 +31,6 @@ export interface Workspace {
 export interface CloneForm {
   repoUrl: string;
   branch: string;
-  depth: string;
-  singleBranch: boolean;
 }
 
 export interface ClaudeForm {

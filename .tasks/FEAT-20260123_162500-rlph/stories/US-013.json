@@ -1,0 +1,19 @@
+{
+  "id": "US-013",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Handle answer submission and loop continuation",
+  "userStory": "As a developer, I want my answers to feed back into the planning loop so that planning can continue with my input.",
+  "acceptanceCriteria": [
+    "Answer submission updates task record",
+    "User must click 'Continue Planning' to trigger next iteration",
+    "Planning agent receives previous questions + answers as context",
+    "Partial answers allowed (some questions deferred)",
+    "User can choose to continue with unanswered questions",
+    "Clear indication of which answers are pending vs submitted"
+  ],
+  "dependencies": ["US-012"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T16:25:00.000Z",
+  "iteration": 13
+}

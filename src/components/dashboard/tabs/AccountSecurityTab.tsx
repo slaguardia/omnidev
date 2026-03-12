@@ -70,12 +70,6 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <h2 className="text-2xl font-semibold flex items-center gap-2">
-        <Lock className="w-6 h-6 text-default-500" />
-        Account Security
-      </h2>
-
       {/* Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Two-Factor Authentication Card */}
@@ -83,7 +77,7 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">
+              <h3 className="font-medium text-default-700 dark:text-default-500">
                 Two-Factor Authentication
               </h3>
               {twoFactorStatus?.enabled ? (
@@ -149,7 +143,7 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
                 </div>
 
                 <div className="mt-auto pt-4">
-                  <div className="p-3 bg-content2/60 border border-divider/50 rounded-xl flex items-start gap-2">
+                  <div className="p-3 bg-content2/60 border border-divider/50 rounded-lg flex items-start gap-2">
                     <Info className="w-4 h-4 text-default-400 mt-0.5 flex-shrink-0" />
                     <p className="text-xs text-default-500">
                       {twoFactorStatus?.enabled
@@ -168,7 +162,7 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">Password</h3>
+              <h3 className="font-medium text-default-700 dark:text-default-500">Password</h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5">
@@ -187,15 +181,13 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
                 Change Password
               </Button>
 
-              <div className="p-3 bg-content2/60 border border-divider/50 rounded-xl flex items-start gap-2">
+              <div className="p-3 bg-content2/60 border border-divider/50 rounded-lg flex items-start gap-2">
                 <Info className="w-4 h-4 text-default-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-default-500">
                   Forgot your password? Since this system does not use email recovery, you can reset
                   by deleting{' '}
-                  <code className="bg-default-200 px-1 rounded text-xs">
-                    /workspaces/users.json
-                  </code>{' '}
-                  and creating a new account.
+                  <code className="bg-default-200 px-1 rounded text-xs">/data/users.json</code> and
+                  creating a new account.
                 </p>
               </div>
             </div>
@@ -207,7 +199,7 @@ export default function AccountSecurityTab({ onOpenChangePassword }: AccountSecu
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">
+              <h3 className="font-medium text-default-700 dark:text-default-500">
                 API Key Management
               </h3>
             </div>

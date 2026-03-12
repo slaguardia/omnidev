@@ -3,10 +3,30 @@
 import React from 'react';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
-import { GitBranch, ExternalLink, Globe, User, BookOpen } from 'lucide-react';
+import { Chip } from '@heroui/chip';
+import {
+  ExternalLink,
+  Globe,
+  User,
+  BookOpen,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+} from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { ClientSafeAppConfig } from '@/lib/types/index';
 import { LabelWithTooltip } from '@/components/LabelWithTooltip';
+
+export interface ConnectionTestResult {
+  username?: string;
+  error?: string;
+  mismatch?: boolean;
+}
+
+export interface ConnectionStatus {
+  github?: { testing: boolean; result?: ConnectionTestResult };
+  gitlab?: { testing: boolean; result?: ConnectionTestResult };
+}
 
 interface GitSourceConfigTabProps {
   envConfig: ClientSafeAppConfig;
@@ -15,12 +35,10 @@ interface GitSourceConfigTabProps {
     gitlabToken?: string;
     githubToken?: string;
   };
-  updateSensitiveData: (
-    type: 'gitlabToken' | 'githubToken' | 'claudeApiKey',
-    value: string
-  ) => void;
+  updateSensitiveData: (type: 'gitlabToken' | 'githubToken', value: string) => void;
   loading: boolean;
   onSaveConfig: () => void;
+  connectionStatus?: ConnectionStatus;
 }
 
 export default function GitSourceConfigTab({
@@ -30,15 +48,14 @@ export default function GitSourceConfigTab({
   updateSensitiveData,
   loading,
   onSaveConfig,
+  connectionStatus,
 }: GitSourceConfigTabProps) {
+  const gitlabStatus = connectionStatus?.gitlab;
+  const githubStatus = connectionStatus?.github;
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <GitBranch className="w-6 h-6 text-default-500" />
-          Git Source Config
-        </h2>
+      <div className="flex justify-end items-center">
         <Button color="primary" size="sm" onClick={onSaveConfig} isLoading={loading}>
           Save Configuration
         </Button>
@@ -49,11 +66,41 @@ export default function GitSourceConfigTab({
         {/* GitLab Connection Card */}
         <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">
-                GitLab Connection
-              </h3>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-default-500" />
+                <h3 className="font-medium text-default-700 dark:text-default-500">
+                  GitLab Connection
+                </h3>
+              </div>
+              {gitlabStatus?.result && (
+                <Chip
+                  size="sm"
+                  variant="flat"
+                  color={
+                    !gitlabStatus.result.username
+                      ? 'danger'
+                      : gitlabStatus.result.mismatch
+                        ? 'warning'
+                        : 'success'
+                  }
+                  startContent={
+                    !gitlabStatus.result.username ? (
+                      <XCircle className="w-3.5 h-3.5" />
+                    ) : gitlabStatus.result.mismatch ? (
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )
+                  }
+                >
+                  {!gitlabStatus.result.username
+                    ? 'Failed'
+                    : gitlabStatus.result.mismatch
+                      ? `Token belongs to ${gitlabStatus.result.username}`
+                      : `Connected as ${gitlabStatus.result.username}`}
+                </Chip>
+              )}
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -151,11 +198,41 @@ export default function GitSourceConfigTab({
         {/* GitHub Connection Card */}
         <Card className="glass-card-static">
           <CardHeader className="px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">
-                GitHub Connection
-              </h3>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-default-500" />
+                <h3 className="font-medium text-default-700 dark:text-default-500">
+                  GitHub Connection
+                </h3>
+              </div>
+              {githubStatus?.result && (
+                <Chip
+                  size="sm"
+                  variant="flat"
+                  color={
+                    !githubStatus.result.username
+                      ? 'danger'
+                      : githubStatus.result.mismatch
+                        ? 'warning'
+                        : 'success'
+                  }
+                  startContent={
+                    !githubStatus.result.username ? (
+                      <XCircle className="w-3.5 h-3.5" />
+                    ) : githubStatus.result.mismatch ? (
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )
+                  }
+                >
+                  {!githubStatus.result.username
+                    ? 'Failed'
+                    : githubStatus.result.mismatch
+                      ? `Token belongs to ${githubStatus.result.username}`
+                      : `Connected as ${githubStatus.result.username}`}
+                </Chip>
+              )}
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -222,7 +299,7 @@ export default function GitSourceConfigTab({
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">Git Identity</h3>
+              <h3 className="font-medium text-default-700 dark:text-default-500">Git Identity</h3>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 space-y-5">
@@ -274,7 +351,7 @@ export default function GitSourceConfigTab({
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">
+              <h3 className="font-medium text-default-700 dark:text-default-500">
                 Bot User Setup Guide
               </h3>
             </div>
@@ -287,7 +364,7 @@ export default function GitSourceConfigTab({
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-content2/60 border border-divider/50 rounded-xl space-y-2">
+                <div className="p-4 bg-content2/60 border border-divider/50 rounded-lg space-y-2">
                   <p className="text-sm font-medium text-foreground">1. Create the Bot Account</p>
                   <ul className="text-xs text-default-500 list-disc list-inside space-y-1">
                     <li>Go to gitlab.com/users/sign_up</li>
@@ -296,7 +373,7 @@ export default function GitSourceConfigTab({
                   </ul>
                 </div>
 
-                <div className="p-4 bg-content2/60 border border-divider/50 rounded-xl space-y-2">
+                <div className="p-4 bg-content2/60 border border-divider/50 rounded-lg space-y-2">
                   <p className="text-sm font-medium text-foreground">2. Generate Access Token</p>
                   <ul className="text-xs text-default-500 list-disc list-inside space-y-1">
                     <li>Log in as the bot account</li>
@@ -308,7 +385,7 @@ export default function GitSourceConfigTab({
                   </ul>
                 </div>
 
-                <div className="p-4 bg-content2/60 border border-divider/50 rounded-xl space-y-2">
+                <div className="p-4 bg-content2/60 border border-divider/50 rounded-lg space-y-2">
                   <p className="text-sm font-medium text-foreground">3. Add Bot to Projects</p>
                   <ul className="text-xs text-default-500 list-disc list-inside space-y-1">
                     <li>Go to project → Manage → Members</li>

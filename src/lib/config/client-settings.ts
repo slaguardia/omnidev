@@ -24,8 +24,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     commitEmail: '',
   },
   claude: {
-    apiKey: '',
-    authMode: 'auto',
     maxTokens: 4000,
     defaultTemperature: 0.3,
   },
@@ -74,8 +72,6 @@ export function getDefaultClientSafeConfig(): ClientSafeAppConfig {
       tokenSet: false,
     },
     claude: {
-      apiKeySet: false,
-      authMode: DEFAULT_CONFIG.claude.authMode,
       maxTokens: DEFAULT_CONFIG.claude.maxTokens,
       defaultTemperature: DEFAULT_CONFIG.claude.defaultTemperature,
     },
@@ -86,17 +82,19 @@ export function getDefaultClientSafeConfig(): ClientSafeAppConfig {
 }
 
 /**
- * Validate configuration (client-safe)
+ * Validate common configuration fields shared between full and client-safe configs
  */
-export function validateConfig(config: AppConfig): string[] {
+function validateCommonFields(config: {
+  gitlab: { url: string };
+  workspace: { maxSizeMB: number; maxConcurrent: number };
+  logging: { level: string };
+}): string[] {
   const errors: string[] = [];
 
-  // Validate GitLab URL format
   if (config.gitlab.url && !config.gitlab.url.startsWith('http')) {
     errors.push('GitLab URL must be a valid HTTP(S) URL');
   }
 
-  // Validate workspace limits
   if (config.workspace.maxSizeMB <= 0) {
     errors.push('Workspace size limit must be positive');
   }
@@ -105,54 +103,34 @@ export function validateConfig(config: AppConfig): string[] {
     errors.push('Concurrent workspace limit must be positive');
   }
 
-  // Validate logging level
   const validLogLevels = ['debug', 'info', 'warn', 'error'];
   if (!validLogLevels.includes(config.logging.level)) {
     errors.push('Log level must be one of: debug, info, warn, error');
   }
 
   return errors;
+}
+
+/**
+ * Validate configuration (client-safe)
+ */
+export function validateConfig(config: AppConfig): string[] {
+  return validateCommonFields(config);
 }
 
 /**
  * Validate client-safe configuration
  */
 export function validateClientSafeConfig(config: ClientSafeAppConfig): string[] {
-  const errors: string[] = [];
-
-  // Validate GitLab URL format
-  if (config.gitlab.url && !config.gitlab.url.startsWith('http')) {
-    errors.push('GitLab URL must be a valid HTTP(S) URL');
-  }
-
-  // Validate workspace limits
-  if (config.workspace.maxSizeMB <= 0) {
-    errors.push('Workspace size limit must be positive');
-  }
-
-  if (config.workspace.maxConcurrent <= 0) {
-    errors.push('Concurrent workspace limit must be positive');
-  }
-
-  // Validate logging level
-  const validLogLevels = ['debug', 'info', 'warn', 'error'];
-  if (!validLogLevels.includes(config.logging.level)) {
-    errors.push('Log level must be one of: debug, info, warn, error');
-  }
-
-  return errors;
+  return validateCommonFields(config);
 }
 
 /**
  * Check if configuration is complete (has required tokens)
  */
 export function isConfigurationComplete(config: AppConfig): boolean {
-  // In CLI-login mode, a Claude API key is intentionally not required.
-  const claudeOk =
-    config.claude.authMode === 'cli'
-      ? true
-      : Boolean(config.claude.apiKey || process.env.ANTHROPIC_API_KEY);
-  return Boolean(config.gitlab.token) && claudeOk;
+  // CLI auth is always used — no API key required.
+  return Boolean(config.gitlab.token);
 }
 
 /**
@@ -165,10 +143,7 @@ export function getConfigurationStatus(config: AppConfig) {
       url: config.gitlab.url,
     },
     claude: {
-      configured:
-        config.claude.authMode === 'cli'
-          ? true
-          : Boolean(config.claude.apiKey || process.env.ANTHROPIC_API_KEY),
+      configured: true, // CLI auth is always used
     },
     workspace: {
       baseDir: '/app/workspaces', // Static for client

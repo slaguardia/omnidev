@@ -3,7 +3,7 @@
 import { getConfig } from '@/lib/config/server-actions';
 
 /**
- * Get runtime configuration from workspaces/app-config.json
+ * Get runtime configuration from data/app-config.json
  */
 export async function getRuntimeConfig() {
   return await getConfig();
@@ -15,20 +15,13 @@ export async function getRuntimeConfig() {
 export async function validateRuntimeConfiguration() {
   const config = await getRuntimeConfig();
   const errors: string[] = [];
-  const authModeEnv = (process.env.CLAUDE_CODE_AUTH_MODE || '').toLowerCase();
-  const authMode = (authModeEnv || config.claude.authMode || 'auto').toLowerCase();
-  const forceCliAuth = authMode === 'cli';
 
   if (!config.gitlab.token) {
     errors.push('GitLab token is required. Please configure it in Settings.');
   }
 
-  // In subscription/manual-login mode, an API key is intentionally not required.
-  if (!forceCliAuth && !config.claude.apiKey && !process.env.ANTHROPIC_API_KEY) {
-    errors.push(
-      "Claude authentication is required. Set an API key in Settings (platform account) or set CLAUDE_CODE_AUTH_MODE=cli and log in with the 'claude' CLI inside the container (subscription account)."
-    );
-  }
+  // CLI auth is always used — Omnidev requires a Claude Code subscription.
+  // No API key validation needed.
 
   if (errors.length > 0) {
     return {

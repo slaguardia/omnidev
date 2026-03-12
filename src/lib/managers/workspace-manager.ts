@@ -2,38 +2,23 @@
 
 /**
  * Workspace Manager - Persistent workspace management
+ *
+ * Uses SQLite storage (via workspace-db.ts) instead of JSON file I/O.
+ * All public functions maintain the same async signatures for API compatibility.
  */
 
-import { writeFile, readFile, access, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { getWorkspaceBaseDir } from '@/lib/config/server-actions';
+import { join } from 'node:path';
+import { getDataDir } from '@/lib/config/server-actions';
 import type { Workspace, WorkspaceId, FilePath, AsyncResult } from '@/lib/types/index';
-
-interface WorkspaceIndex {
-  workspaces: Record<WorkspaceId, Workspace>;
-  lastUpdated: string;
-  version: string;
-}
-
-// Module-level workspace index and path
-let workspaceIndex: WorkspaceIndex = {
-  workspaces: {},
-  lastUpdated: new Date().toISOString(),
-  version: '1.0.0',
-};
-
-let workspaceIndexPath: FilePath | null = null;
-
-/**
- * Get the workspace index file path
- */
-async function getWorkspaceIndexPath(): Promise<FilePath> {
-  if (!workspaceIndexPath) {
-    const workspaceBaseDir = await getWorkspaceBaseDir();
-    workspaceIndexPath = join(workspaceBaseDir, '.workspace-index.json') as FilePath;
-  }
-  return workspaceIndexPath;
-}
+import {
+  dbInitWorkspaces,
+  dbSaveWorkspace,
+  dbGetWorkspace,
+  dbTouchWorkspace,
+  dbDeleteWorkspace,
+  dbWorkspaceExists,
+  dbGetAllWorkspaces,
+} from './workspace-db';
 
 /**
  * Initialize workspace manager and create necessary directories
@@ -42,21 +27,9 @@ export async function initializeWorkspaceManager(): Promise<AsyncResult<void>> {
   console.log('[WORKSPACE MANAGER] Starting initializeWorkspaceManager');
 
   try {
-    const indexPath = await getWorkspaceIndexPath();
-    console.log('[WORKSPACE MANAGER] Workspace index path:', indexPath);
-
-    // Ensure the directory exists
-    const indexDir = dirname(indexPath);
-    console.log('[WORKSPACE MANAGER] Creating index directory:', indexDir);
-    await mkdir(indexDir, { recursive: true });
-
-    // Load or create the workspace index
-    console.log('[WORKSPACE MANAGER] Loading workspace index...');
-    await loadWorkspaceIndex();
-    console.log(
-      '[WORKSPACE MANAGER] Workspace index loaded, current count:',
-      Object.keys(workspaceIndex.workspaces).length
-    );
+    dbInitWorkspaces();
+    const count = dbGetAllWorkspaces().length;
+    console.log('[WORKSPACE MANAGER] Workspace DB initialized, current count:', count);
 
     return { success: true, data: undefined };
   } catch (error) {
@@ -73,10 +46,7 @@ export async function initializeWorkspaceManager(): Promise<AsyncResult<void>> {
  */
 export async function saveWorkspace(workspace: Workspace): Promise<AsyncResult<void>> {
   try {
-    workspaceIndex.workspaces[workspace.id] = workspace;
-    workspaceIndex.lastUpdated = new Date().toISOString();
-
-    await saveWorkspaceIndex();
+    dbSaveWorkspace(workspace);
     return { success: true, data: undefined };
   } catch (error) {
     return {
@@ -91,9 +61,7 @@ export async function saveWorkspace(workspace: Workspace): Promise<AsyncResult<v
  */
 export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResult<Workspace>> {
   try {
-    await loadWorkspaceIndex();
-
-    const workspace = workspaceIndex.workspaces[workspaceId];
+    const workspace = dbGetWorkspace(workspaceId);
     if (!workspace) {
       return {
         success: false,
@@ -102,8 +70,31 @@ export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResu
     }
 
     // Update last accessed time
-    workspace.lastAccessed = new Date();
-    await saveWorkspace(workspace);
+    dbTouchWorkspace(workspaceId, workspace);
+
+    return { success: true, data: workspace };
+  } catch (error) {
+    return {
+      success: false,
+      error: new Error(`Failed to load workspace: ${error}`),
+    };
+  }
+}
+
+/**
+ * Load workspace from persistent storage (read-only, no lastAccessed update)
+ */
+export async function getWorkspaceReadonly(
+  workspaceId: WorkspaceId
+): Promise<AsyncResult<Workspace>> {
+  try {
+    const workspace = dbGetWorkspace(workspaceId);
+    if (!workspace) {
+      return {
+        success: false,
+        error: new Error(`Workspace ${workspaceId} not found`),
+      };
+    }
 
     return { success: true, data: workspace };
   } catch (error) {
@@ -118,33 +109,12 @@ export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResu
  * Get all workspaces from the index
  */
 export async function getAllWorkspaces(): Promise<AsyncResult<Workspace[]>> {
-  console.log('[WORKSPACE MANAGER] Starting getAllWorkspaces');
-  console.log(
-    '[WORKSPACE MANAGER] Current workspace index size:',
-    Object.keys(workspaceIndex.workspaces).length
-  );
-
   try {
-    // Ensure we have the latest index
-    await loadWorkspaceIndex();
+    const workspaces = dbGetAllWorkspaces();
     console.log(
-      '[WORKSPACE MANAGER] Workspace index reloaded, size:',
-      Object.keys(workspaceIndex.workspaces).length
-    );
-
-    const workspaces = Object.values(workspaceIndex.workspaces).sort(
-      (a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime()
-    );
-    console.log(
-      '[WORKSPACE MANAGER] Returning workspaces:',
-      workspaces.map((ws) => ({
-        id: ws.id,
-        repoUrl: ws.repoUrl,
-        targetBranch: ws.targetBranch,
-        path: ws.path,
-        createdAt: ws.createdAt,
-        lastAccessed: ws.lastAccessed,
-      }))
+      '[WORKSPACE MANAGER] Returning',
+      workspaces.length,
+      'workspaces sorted by last access'
     );
 
     return { success: true, data: workspaces };
@@ -162,10 +132,7 @@ export async function getAllWorkspaces(): Promise<AsyncResult<Workspace[]>> {
  */
 export async function deleteWorkspace(workspaceId: WorkspaceId): Promise<AsyncResult<void>> {
   try {
-    delete workspaceIndex.workspaces[workspaceId];
-    workspaceIndex.lastUpdated = new Date().toISOString();
-
-    await saveWorkspaceIndex();
+    dbDeleteWorkspace(workspaceId);
     return { success: true, data: undefined };
   } catch (error) {
     return {
@@ -180,14 +147,15 @@ export async function deleteWorkspace(workspaceId: WorkspaceId): Promise<AsyncRe
  */
 export async function updateWorkspace(workspace: Workspace): Promise<AsyncResult<void>> {
   try {
-    if (!workspaceIndex.workspaces[workspace.id]) {
+    if (!dbWorkspaceExists(workspace.id)) {
       return {
         success: false,
         error: new Error(`Workspace ${workspace.id} not found`),
       };
     }
 
-    return await saveWorkspace(workspace);
+    dbSaveWorkspace(workspace);
+    return { success: true, data: undefined };
   } catch (error) {
     return {
       success: false,
@@ -201,8 +169,7 @@ export async function updateWorkspace(workspace: Workspace): Promise<AsyncResult
  */
 export async function workspaceExists(workspaceId: WorkspaceId): Promise<boolean> {
   try {
-    await loadWorkspaceIndex();
-    return workspaceId in workspaceIndex.workspaces;
+    return dbWorkspaceExists(workspaceId);
   } catch {
     return false;
   }
@@ -274,7 +241,7 @@ export async function cleanupOldWorkspaces(
     for (const workspace of result.data) {
       if (new Date(workspace.lastAccessed) < cutoffTime && workspace.metadata?.isActive) {
         workspace.metadata.isActive = false;
-        await saveWorkspace(workspace);
+        dbSaveWorkspace(workspace);
         cleanedCount++;
       }
     }
@@ -289,116 +256,9 @@ export async function cleanupOldWorkspaces(
 }
 
 /**
- * Load workspace index from disk
- */
-async function loadWorkspaceIndex(): Promise<void> {
-  console.log('[WORKSPACE MANAGER] Loading workspace index from disk');
-
-  try {
-    const indexPath = await getWorkspaceIndexPath();
-    console.log('[WORKSPACE MANAGER] Index file path:', indexPath);
-
-    try {
-      await access(indexPath);
-      console.log('[WORKSPACE MANAGER] Index file exists, reading...');
-
-      const indexContent = await readFile(indexPath, 'utf-8');
-      console.log('[WORKSPACE MANAGER] Index file content length:', indexContent.length);
-
-      if (indexContent.trim()) {
-        const indexData = JSON.parse(indexContent);
-        console.log('[WORKSPACE MANAGER] Parsed index data:', {
-          type: typeof indexData,
-          isArray: Array.isArray(indexData),
-          hasWorkspacesProperty: !!indexData.workspaces,
-          keys: Object.keys(indexData),
-        });
-
-        // Clear existing index
-        workspaceIndex.workspaces = {};
-
-        // Handle both old object format and new array format
-        if (Array.isArray(indexData)) {
-          // New array format
-          console.log('[WORKSPACE MANAGER] Loading from new array format');
-          for (const workspace of indexData) {
-            console.log(`[WORKSPACE MANAGER] Loading workspace from index: ${workspace.id}`);
-            workspaceIndex.workspaces[workspace.id] = {
-              ...workspace,
-              createdAt: new Date(workspace.createdAt),
-              lastAccessed: new Date(workspace.lastAccessed),
-            };
-          }
-        } else if (indexData.workspaces && typeof indexData.workspaces === 'object') {
-          // Old object format with workspaces property
-          console.log('[WORKSPACE MANAGER] Loading from old object format');
-          for (const [workspaceId, workspace] of Object.entries(indexData.workspaces)) {
-            console.log(`[WORKSPACE MANAGER] Loading workspace from index: ${workspaceId}`);
-            const workspaceData = workspace as Workspace;
-            workspaceIndex.workspaces[workspaceId as WorkspaceId] = {
-              ...workspaceData,
-              createdAt: new Date(workspaceData.createdAt),
-              lastAccessed: new Date(workspaceData.lastAccessed),
-            };
-          }
-        } else {
-          console.warn('[WORKSPACE MANAGER] Unknown index format, treating as empty');
-        }
-
-        console.log(
-          `[WORKSPACE MANAGER] Loaded ${Object.keys(workspaceIndex.workspaces).length} workspaces from index`
-        );
-      } else {
-        console.log('[WORKSPACE MANAGER] Index file is empty');
-      }
-    } catch {
-      console.log('[WORKSPACE MANAGER] Index file does not exist, creating empty index');
-      workspaceIndex.workspaces = {};
-      await saveWorkspaceIndex();
-    }
-  } catch (error) {
-    console.error('[WORKSPACE MANAGER] Error loading workspace index:', error);
-    throw error;
-  }
-}
-
-/**
- * Save workspace index to disk
- */
-async function saveWorkspaceIndex(): Promise<void> {
-  console.log('[WORKSPACE MANAGER] Saving workspace index to disk');
-  console.log(
-    '[WORKSPACE MANAGER] Current index size:',
-    Object.keys(workspaceIndex.workspaces).length
-  );
-
-  try {
-    const indexPath = await getWorkspaceIndexPath();
-    const workspaces = Object.values(workspaceIndex.workspaces);
-
-    console.log(
-      '[WORKSPACE MANAGER] Serializing workspaces:',
-      workspaces.map((ws) => ({
-        id: ws.id,
-        repoUrl: ws.repoUrl,
-        path: ws.path,
-      }))
-    );
-
-    const indexContent = JSON.stringify(workspaces, null, 2);
-    console.log('[WORKSPACE MANAGER] Serialized content length:', indexContent.length);
-
-    await writeFile(indexPath, indexContent, 'utf-8');
-    console.log('[WORKSPACE MANAGER] Workspace index saved successfully');
-  } catch (error) {
-    console.error('[WORKSPACE MANAGER] Error saving workspace index:', error);
-    throw error;
-  }
-}
-
-/**
- * Get workspace index file path
+ * Get workspace index file path (legacy — kept for backwards compatibility)
  */
 export async function getIndexPath(): Promise<FilePath> {
-  return getWorkspaceIndexPath();
+  const dataDir = await getDataDir();
+  return join(dataDir, '.workspace-index.json') as FilePath;
 }

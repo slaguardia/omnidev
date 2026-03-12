@@ -73,11 +73,7 @@ export default function WorkspacesTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <FolderOpen className="w-6 h-6 text-default-500" />
-          Workspaces
-        </h2>
+      <div className="flex justify-end items-center">
         <div className="flex items-center gap-2">
           <Button
             color="primary"

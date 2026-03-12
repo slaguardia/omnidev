@@ -1,0 +1,17 @@
+{
+  "id": "US-004",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Add workspace filter to board",
+  "userStory": "As a developer, I want to filter the board by workspace so that I can focus on tasks for a specific repository.",
+  "acceptanceCriteria": [
+    "Dropdown filter shows all workspaces with tasks + 'All Workspaces' option",
+    "Filtering updates both kanban and list views",
+    "Filter selection persists in URL query param",
+    "Task counts per workspace shown in dropdown"
+  ],
+  "dependencies": ["US-001"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T09:25:00.000Z",
+  "iteration": 4
+}

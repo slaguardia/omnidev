@@ -1,5 +1,5 @@
 // Configuration actions (now handled by src/config/settings.ts)
-// All configuration is stored in workspaces/app-config.json
+// All configuration is stored in data/app-config.json
 
 // Workspace management actions
 export {

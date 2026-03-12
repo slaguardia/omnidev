@@ -1,0 +1,19 @@
+{
+  "id": "US-023",
+  "featureId": "FEAT-20260123_162500-rlph",
+  "title": "Track sub-story dependencies and ordering",
+  "userStory": "As a developer, I want sub-story dependencies respected so that work happens in the right order.",
+  "acceptanceCriteria": [
+    "Stories can declare blockedBy: ['US-001', 'US-003']",
+    "Blocked stories visually distinguished (grayed, locked icon)",
+    "Cannot move blocked story to Executing state",
+    "Completing a story auto-unblocks dependents (visual update only, no auto-execute)",
+    "Dependency graph viewable on parent feature",
+    "Circular dependency detection with error"
+  ],
+  "dependencies": ["US-020"],
+  "status": "done",
+  "createdAt": "2026-01-23T16:25:00.000Z",
+  "completedAt": "2026-01-23T17:55:00.000Z",
+  "iteration": 23
+}

@@ -78,41 +78,32 @@ export default function OperationsTab({
 
   return (
     <div className="flex flex-col gap-6 min-h-0 h-full">
-      {/* Header + Mode Toggle */}
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold flex items-center gap-2">
-          <Bot className="w-6 h-6 text-default-500" />
-          {copy.title}
-        </h2>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={mode === 'ask' ? 'solid' : 'flat'}
-            color={mode === 'ask' ? 'primary' : 'default'}
-            onClick={() => setMode('ask')}
-          >
-            Ask
-          </Button>
-          <Button
-            size="sm"
-            variant={mode === 'edit' ? 'solid' : 'flat'}
-            color={mode === 'edit' ? 'primary' : 'default'}
-            startContent={<Pencil className="w-4 h-4" />}
-            onClick={() => setMode('edit')}
-          >
-            Edit
-          </Button>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 items-stretch">
         {/* Query Form Card */}
         <Card className="glass-card-static h-full flex flex-col">
-          <CardHeader className="px-4 py-3">
+          <CardHeader className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">Input</h3>
+              <h3 className="font-medium text-default-700 dark:text-default-500">Input</h3>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant={mode === 'ask' ? 'solid' : 'bordered'}
+                color={mode === 'ask' ? 'primary' : 'default'}
+                onClick={() => setMode('ask')}
+              >
+                Ask
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === 'edit' ? 'solid' : 'bordered'}
+                color={mode === 'edit' ? 'primary' : 'default'}
+                startContent={<Pencil className="w-3.5 h-3.5" />}
+                onClick={() => setMode('edit')}
+              >
+                Edit
+              </Button>
             </div>
           </CardHeader>
           <CardBody className="px-4 py-5 flex-1 min-h-0 flex flex-col gap-5">
@@ -151,13 +142,11 @@ export default function OperationsTab({
                     />
                   }
                   labelPlacement="outside"
-                  placeholder={
-                    !claudeForm.workspaceId
-                      ? 'Select a workspace first'
-                      : loadingBranches
-                        ? 'Loading branches...'
-                        : 'Select source branch'
-                  }
+                  placeholder={(() => {
+                    if (!claudeForm.workspaceId) return 'Select a workspace first';
+                    if (loadingBranches) return 'Loading branches...';
+                    return 'Select source branch';
+                  })()}
                   selectedKeys={
                     claudeForm.workspaceId ? [claudeForm.sourceBranch || '__default__'] : []
                   }
@@ -212,7 +201,7 @@ export default function OperationsTab({
                   </div>
                   <Button
                     size="sm"
-                    variant="flat"
+                    variant="bordered"
                     color={claudeForm.createMR ? 'success' : 'default'}
                     onClick={() => setClaudeForm((prev) => ({ ...prev, createMR: !prev.createMR }))}
                   >
@@ -256,7 +245,7 @@ export default function OperationsTab({
           <CardHeader className="px-4 py-3">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-default-500" />
-              <h3 className="font-semibold text-default-700 dark:text-default-500">Response</h3>
+              <h3 className="font-medium text-default-700 dark:text-default-500">Response</h3>
               {claudeResponse && (
                 <Chip size="sm" variant="flat" color="success">
                   Ready
@@ -266,7 +255,7 @@ export default function OperationsTab({
           </CardHeader>
           <CardBody className="px-4 py-5 flex-1 min-h-0 overflow-auto">
             {claudeResponse ? (
-              <div className="bg-content2/60 border border-divider/60 p-4 rounded-xl h-full overflow-auto">
+              <div className="bg-content2/60 border border-divider/60 p-4 rounded-lg h-full overflow-auto">
                 <pre className="whitespace-pre-wrap text-sm text-default-700 font-sans">
                   {claudeResponse}
                 </pre>
