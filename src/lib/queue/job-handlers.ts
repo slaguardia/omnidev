@@ -5,12 +5,12 @@
  * to be called by the queue worker.
  */
 
+import type { AgentRunRequest } from '@/lib/agent';
 import {
   askClaudeCode,
   handlePostClaudeCodeExecution,
   initializeGitWorkflow,
 } from '@/lib/claudeCode';
-import { createStageExecutor } from '@/lib/executor';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
 import type { FilePath, GitUrl, CommitHash } from '@/lib/types/index';
@@ -441,9 +441,13 @@ export async function executeWorkspaceCleanupJob(
 /**
  * Execute a Ralph generic stage job.
  *
- * Runs a user-configured prompt against Claude Code and stores the raw output
- * in the task's `stageOutputs[stageName]`. If `returnQuestions` is enabled,
- * QUESTION: lines are parsed from the output and stored as pending questions.
+ * Orchestration responsibilities (stays here):
+ * 1. Load task, check auto-loop cancellation
+ * 2. Build effective prompt with continuation context
+ * 3. Construct AgentRunRequest from payload + task
+ * 4. Call executeAgentRun(request)  — the only execution step
+ * 5. Interpret AgentRunResult → task state updates
+ * 6. Handle auto-loop / auto-advance decisions
  */
 export async function executeRalphStageJob(
   payload: RalphStageJobPayload
@@ -455,32 +459,9 @@ export async function executeRalphStageJob(
 
   try {
     const { getRalphTask, updateRalphTask } = await import('@/lib/managers/ralph-task-manager');
-    const { parseQuestionsFromOutput } = await import('@/lib/workflow/prompt-template');
+    const { executeAgentRun } = await import('@/lib/agent');
 
-    // Pre-flight: verify git identity is configured for edit-mode stages
-    if (payload.editRequest) {
-      const { getConfig } = await import('@/lib/config/server-actions');
-      const { setWorkspaceGitConfig } = await import('@/lib/git/config');
-      const appConfig = await getConfig();
-      const commitName = appConfig.gitlab?.commitName || appConfig.github?.commitName || '';
-      const commitEmail = appConfig.gitlab?.commitEmail || appConfig.github?.commitEmail || '';
-
-      if (!commitName || !commitEmail) {
-        throw new Error(
-          `Pre-flight failed: git commit identity not configured. ` +
-            `Set Commit Name and Commit Email in Settings > Git Source Config. ` +
-            `(commitName=${commitName || 'unset'}, commitEmail=${commitEmail || 'unset'})`
-        );
-      }
-
-      // Ensure workspace has the git config set (may have been lost during workspace prep)
-      await setWorkspaceGitConfig(payload.workspacePath as FilePath, {
-        userName: commitName,
-        userEmail: commitEmail,
-      });
-      console.log(`[JOB] Git identity: ${commitName} <${commitEmail}>`);
-    }
-
+    // ---- 1. Load task ----
     const taskResult = await getRalphTask(payload.taskId);
     if (!taskResult.success) {
       throw new Error(`Failed to load task: ${taskResult.error?.message}`);
@@ -507,111 +488,152 @@ export async function executeRalphStageJob(
       }
     }
 
-    // Build the effective prompt — strategy differs for auto-loop vs manual iterations
+    // ---- 2. Build effective prompt ----
     let effectivePrompt = payload.prompt;
 
     if (payload.iteration > 1) {
+      const existingOutput = task.stageOutputs?.[payload.stageName];
+      const priorArtifact = existingOutput?.fileOutput;
+
+      console.log(
+        `[JOB] Continuation prompt debug for ${payload.stageName} iteration ${payload.iteration}:`,
+        {
+          hasExistingOutput: !!existingOutput,
+          hasPriorArtifact: !!priorArtifact,
+          priorArtifactLength: priorArtifact?.length ?? 0,
+          pendingQuestionsCount: existingOutput?.pendingQuestions?.length ?? 0,
+          answeredQuestionsCount:
+            existingOutput?.pendingQuestions?.filter((q) => q.answer)?.length ?? 0,
+          pendingQuestions: existingOutput?.pendingQuestions?.map((q) => ({
+            id: q.id,
+            question: q.question.substring(0, 50),
+            hasAnswer: !!q.answer,
+            answerPreview: q.answer?.substring(0, 50),
+          })),
+        }
+      );
+
+      const parts: string[] = [];
+
       if (payload.autoLoop) {
-        // Auto-loop: don't prepend previous output (it grows unbounded).
-        // Claude reads workspace files (.ralph/progress.md) for state — each
-        // iteration is a fresh instance, matching the ralph.sh pattern.
-        effectivePrompt = `# Auto-Loop Iteration ${payload.iteration} of ${payload.maxIterations}\n\n${payload.prompt}`;
+        parts.push(`# Auto-Loop Iteration ${payload.iteration} of ${payload.maxIterations}`);
       } else {
-        // Manual iterations: prepend previous output + answered questions
-        const existingOutput = task.stageOutputs?.[payload.stageName];
-        if (existingOutput) {
-          const parts: string[] = [];
-          parts.push(`# Continuation — Iteration ${payload.iteration}`);
+        parts.push(`# Continuation — Iteration ${payload.iteration}`);
+      }
+      parts.push('');
+
+      // Include answered questions FIRST so the agent sees them before the analysis
+      const answeredQuestions =
+        !payload.autoLoop && existingOutput
+          ? existingOutput.pendingQuestions.filter(
+              (q): q is typeof q & { answer: string } => !!q.answer
+            )
+          : [];
+
+      if (answeredQuestions.length > 0) {
+        parts.push('## Answers to Your Previous Questions');
+        parts.push('');
+        parts.push(
+          'The user has answered your questions from the previous iteration. ' +
+            'Incorporate these answers into your updated analysis. ' +
+            'Do NOT re-ask these questions.'
+        );
+        parts.push('');
+        for (const q of answeredQuestions) {
+          parts.push(`**Q:** ${q.question}`);
+          parts.push(`**A:** ${q.answer}`);
           parts.push('');
-
-          // Include previous iteration output
-          const prevIteration = existingOutput.iterations.find(
-            (i) => i.iteration === payload.iteration - 1
-          );
-          if (prevIteration) {
-            parts.push('## Previous Output');
-            parts.push(prevIteration.output);
-            parts.push('');
-          }
-
-          // Include any answered questions
-          const answeredQuestions = existingOutput.pendingQuestions.filter((q) => q.answer);
-          if (answeredQuestions.length > 0) {
-            parts.push('## Answers to Questions');
-            for (const q of answeredQuestions) {
-              parts.push(`**Q:** ${q.question}`);
-              parts.push(`**A:** ${q.answer}`);
-              parts.push('');
-            }
-          }
-
-          parts.push('## Updated Prompt');
-          parts.push(payload.prompt);
-
-          effectivePrompt = parts.join('\n');
         }
       }
+
+      // Inject previous artifact content directly into the prompt.
+      // Strip QUESTION: lines from the artifact — the answered questions above
+      // are the canonical record; leaving them in the artifact causes the agent
+      // to re-emit the same questions every iteration.
+      if (priorArtifact) {
+        const cleanedArtifact = priorArtifact
+          .split('\n')
+          .filter((line) => !line.match(/^\s*QUESTION:\s/i))
+          .join('\n')
+          .trim();
+
+        parts.push('## Your Previous Analysis');
+        parts.push('');
+        parts.push(
+          'Below is your output from the previous iteration (with questions removed — see answers above). ' +
+            'Use it as a starting point — incorporate what is still valid, improve what needs updating, ' +
+            'and produce a complete updated analysis.'
+        );
+        parts.push('');
+        parts.push('---');
+        parts.push(cleanedArtifact);
+        parts.push('---');
+        parts.push('');
+      }
+
+      parts.push('## Task Prompt');
+      parts.push(payload.prompt);
+
+      effectivePrompt = parts.join('\n');
+      console.log(
+        `[JOB] Effective prompt for iteration ${payload.iteration}: ${effectivePrompt.length} chars, first 500:`,
+        effectivePrompt.substring(0, 500)
+      );
     }
 
+    // ---- 3. Construct AgentRunRequest ----
     const isEditMode = payload.editRequest ?? false;
 
-    // For edit mode, initialize git workflow if needed
-    let gitInitResult: GitInitResult | undefined;
-    let effectiveSourceBranch: string | undefined;
+    let gitConfig: AgentRunRequest['git'];
+    if (isEditMode && payload.repoUrl) {
+      // Resolve commit identity from app config
+      const { getConfig } = await import('@/lib/config/server-actions');
+      const appConfig = await getConfig();
+      const commitName = appConfig.gitlab?.commitName || appConfig.github?.commitName || '';
+      const commitEmail = appConfig.gitlab?.commitEmail || appConfig.github?.commitEmail || '';
 
-    if (isEditMode) {
-      // Resolve source branch: prefer task.featureBranch, fall back to auto-generated
-      // name for merge-request tasks (defensive against missing data)
-      let sourceBranch = task.featureBranch;
-      if (!sourceBranch && task.deliveryMethod === 'merge-request') {
-        sourceBranch = `ralph/${payload.taskId}`;
+      // Resolve feature branch: prefer task.featureBranch, fall back for MR tasks
+      let featureBranch = task.featureBranch ?? undefined;
+      if (!featureBranch && task.deliveryMethod === 'merge-request') {
+        featureBranch = `ralph/${payload.taskId}`;
         console.warn(
-          `[JOB] ⚠️ Task ${payload.taskId} has deliveryMethod=merge-request but no featureBranch — using fallback: ${sourceBranch}`
+          `[JOB] ⚠️ Task ${payload.taskId} has deliveryMethod=merge-request but no featureBranch — using fallback: ${featureBranch}`
         );
       }
 
-      console.log(`[JOB] 🔄 Initializing git workflow for edit-mode stage: ${payload.stageName}`, {
-        featureBranch: task.featureBranch,
-        deliveryMethod: task.deliveryMethod,
-        sourceBranch,
-      });
-      const gitWorkflowOpts: Parameters<typeof initializeGitWorkflow>[0] = {
-        workspaceId: payload.workspaceId,
+      gitConfig = {
+        featureBranch,
+        repoUrl: payload.repoUrl,
+        deliveryMethod: task.deliveryMethod ?? 'merge-request',
+        commitIdentity: { name: commitName, email: commitEmail },
+        taskContext: { id: payload.taskId, title: task.title },
       };
-      if (sourceBranch) {
-        gitWorkflowOpts.sourceBranch = sourceBranch;
-        gitWorkflowOpts.createMR = true;
-      }
-      const initResult = await initializeGitWorkflow(gitWorkflowOpts);
-
-      if (!initResult.success) {
-        const errorMsg = initResult.error?.message || 'Unknown git workflow error';
-        console.error(`[JOB] ❌ Git workflow initialization failed:`, errorMsg);
-        throw new Error(`Git workflow initialization failed: ${errorMsg}`);
-      }
-
-      const isDirectCommit = (task.deliveryMethod ?? 'merge-request') === 'direct-commit';
-      gitInitResult = {
-        ...initResult.data,
-        mergeRequestRequired: !isDirectCommit && initResult.data.mergeRequestRequired,
-      };
-      effectiveSourceBranch = initResult.data.sourceBranch;
     }
 
-    // Execute stage via executor interface
-    const executor = createStageExecutor();
-    const result = await executor.execute({
+    const agentRequest: AgentRunRequest = {
+      taskId: payload.taskId,
+      stageName: payload.stageName,
+      iteration: payload.iteration,
       prompt: effectivePrompt,
-      workingDirectory: payload.workspacePath as FilePath,
+      workspacePath: payload.workspacePath as FilePath,
       workspaceId: payload.workspaceId,
       editMode: isEditMode,
-      sourceBranch: effectiveSourceBranch,
-    });
+      git: gitConfig,
+      artifact: {
+        relativePath: `.ralph/tasks/${payload.taskId}/${payload.stageName}.md`,
+      },
+      parseQuestions: payload.returnQuestions,
+    };
+
+    // ---- 4. Execute agent ----
+    const agentResult = await executeAgentRun(agentRequest);
 
     const executionTimeMs = Date.now() - startTime;
 
-    if (!result.success) {
-      console.error(`[JOB] Stage execution failed:`, result.error?.message);
+    // ---- 5. Interpret result → task state updates ----
+    if (!agentResult.success) {
+      const errorMsg = agentResult.error?.message || 'Stage execution failed';
+      console.error(`[JOB] Stage execution failed:`, errorMsg);
 
       // Store error iteration
       const existingOutput = task.stageOutputs?.[payload.stageName];
@@ -620,7 +642,7 @@ export async function executeRalphStageJob(
         output: '',
         executionTimeMs,
         completedAt: new Date().toISOString(),
-        error: result.error?.message || 'Stage execution failed',
+        error: errorMsg,
       };
 
       const updatedErrorStageOutput = {
@@ -630,6 +652,7 @@ export async function executeRalphStageJob(
         returnQuestions: payload.returnQuestions,
         iterations: [...(existingOutput?.iterations ?? []), errorIteration],
         pendingQuestions: existingOutput?.pendingQuestions ?? [],
+        fileOutput: existingOutput?.fileOutput,
         activeJobId: undefined as string | undefined,
         lastUpdated: new Date().toISOString(),
         autoLoopActive: payload.autoLoop ? false : (undefined as boolean | undefined),
@@ -643,7 +666,7 @@ export async function executeRalphStageJob(
       };
 
       await updateRalphTask(payload.taskId, {
-        executionError: result.error?.message || 'Stage execution failed',
+        executionError: errorMsg,
         stageOutputs: {
           ...task.stageOutputs,
           [payload.stageName]: updatedErrorStageOutput,
@@ -656,57 +679,31 @@ export async function executeRalphStageJob(
         iteration: payload.iteration,
         output: '',
         executionTimeMs,
-        error: result.error?.message || 'Stage execution failed',
+        error: errorMsg,
       };
     }
 
-    // Handle post-execution git operations for edit mode
-    if (gitInitResult && payload.repoUrl) {
-      console.log(`[JOB] Processing post-execution git operations for stage: ${payload.stageName}`);
-      try {
-        const postResult = await handlePostClaudeCodeExecution(
-          payload.workspacePath as FilePath,
-          gitInitResult,
-          payload.repoUrl as GitUrl,
-          undefined,
-          { id: payload.taskId, title: task.title }
-        );
+    const {
+      output,
+      fileOutput,
+      questions: parsedQuestions,
+      git: gitResult,
+      signals,
+    } = agentResult.data;
 
-        if (postResult.success && postResult.data) {
-          // Update task with feature branch, and PR URL if created
-          const taskUpdates: Record<string, unknown> = {};
-          if (gitInitResult.sourceBranch) {
-            taskUpdates.featureBranch = gitInitResult.sourceBranch;
-            taskUpdates.baseBranch = gitInitResult.targetBranch;
-          }
-          if (postResult.data.mergeRequestUrl) {
-            taskUpdates.prUrl = postResult.data.mergeRequestUrl;
-          }
-          if (Object.keys(taskUpdates).length > 0) {
-            await updateRalphTask(payload.taskId, taskUpdates);
-          }
-          console.log(`[JOB] Post-execution completed:`, {
-            hasChanges: postResult.data.hasChanges,
-            pushedBranch: postResult.data.pushedBranch,
-            mergeRequestUrl: postResult.data.mergeRequestUrl,
-          });
-        } else if (!postResult.success) {
-          console.warn(`[JOB] Post-execution failed:`, postResult.error?.message);
-        }
-      } catch (postError) {
-        console.warn(`[JOB] Post-execution error (non-fatal):`, postError);
+    // Update task with git results (feature branch, PR URL) if applicable
+    if (gitResult) {
+      const taskUpdates: Record<string, unknown> = {};
+      if (gitConfig?.featureBranch) {
+        taskUpdates.featureBranch = gitConfig.featureBranch;
+        // baseBranch comes from the git workflow init, but we don't have it directly.
+        // The agent doesn't expose it in the result — task already has baseBranch set by stage-runner.
       }
-    }
-
-    const output = result.data?.output || '';
-    console.log(`[JOB] Stage output (${output.length} chars)`);
-
-    // Parse questions if returnQuestions is enabled
-    let parsedQuestions: string[] | undefined;
-    if (payload.returnQuestions) {
-      const questions = parseQuestionsFromOutput(output);
-      if (questions.length > 0) {
-        parsedQuestions = questions;
+      if (gitResult.prUrl) {
+        taskUpdates.prUrl = gitResult.prUrl;
+      }
+      if (Object.keys(taskUpdates).length > 0) {
+        await updateRalphTask(payload.taskId, taskUpdates);
       }
     }
 
@@ -740,18 +737,17 @@ export async function executeRalphStageJob(
     // Update stageOutputs on the task (clear activeJobId since job is done)
     const existingOutput = task.stageOutputs?.[payload.stageName];
 
-    // Determine auto-loop state
+    // ---- 6. Handle auto-loop / auto-advance ----
     type CompletionReason = 'complete' | 'max-iterations' | 'error' | 'questions' | 'cancelled';
     let nextActiveJobId: string | undefined;
     let autoLoopActive: boolean | undefined;
     let completionReasonValue: CompletionReason | undefined;
 
     if (payload.autoLoop) {
-      const hasCompletionSignal = output.includes('<promise>COMPLETE</promise>');
       const atMaxIterations = payload.iteration >= payload.maxIterations;
       const hasQuestions = (parsedQuestions?.length ?? 0) > 0;
 
-      if (hasCompletionSignal) {
+      if (signals.completionSignal) {
         completionReasonValue = 'complete';
       } else if (atMaxIterations) {
         completionReasonValue = 'max-iterations';
@@ -766,14 +762,29 @@ export async function executeRalphStageJob(
           `[JOB] Auto-loop stopping for ${payload.stageName}: ${completionReasonValue} (iteration ${payload.iteration})`
         );
       } else {
-        // Continue: enqueue next iteration
-        const { enqueueJob } = await import('@/lib/queue/queue-manager');
+        // Continue: enqueue next iteration into SQLite
+        const { nanoid } = await import('nanoid');
+        const { dbCreateJob } = await import('@/lib/managers/ralph-task-db');
         const nextPayload: RalphStageJobPayload = {
           ...payload,
           iteration: payload.iteration + 1,
         };
-        const nextJobId = await enqueueJob('ralph-stage', nextPayload);
-        nextActiveJobId = nextJobId as string;
+        const nextJobId = nanoid(10);
+        const now = new Date().toISOString();
+        dbCreateJob({
+          id: nextJobId,
+          task_id: payload.taskId,
+          agent_type: 'ralph-stage',
+          status: 'pending',
+          payload: JSON.stringify(nextPayload),
+          result: null,
+          error: null,
+          started_at: null,
+          heartbeat_at: null,
+          created_at: now,
+          updated_at: now,
+        });
+        nextActiveJobId = nextJobId;
         autoLoopActive = true;
         console.log(
           `[JOB] Auto-loop continuing: enqueued iteration ${payload.iteration + 1} as job ${nextJobId}`
@@ -800,6 +811,16 @@ export async function executeRalphStageJob(
       activeJobId: nextActiveJobId,
       autoLoopActive,
       completionReason: completionReasonValue,
+      // Store the canonical artifact from .ralph/{stageName}.md — this is what
+      // subsequent stages consume via {previousStageOutput}, not raw iteration output.
+      // Strip QUESTION: lines so downstream stages get clean analysis, not question markers.
+      fileOutput: fileOutput
+        ? fileOutput
+            .split('\n')
+            .filter((line) => !line.match(/^\s*QUESTION:\s/i))
+            .join('\n')
+            .trim()
+        : existingOutput?.fileOutput,
       lastUpdated: new Date().toISOString(),
     };
 

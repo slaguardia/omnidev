@@ -28,3 +28,27 @@ services:
       - workflow_data:/app/data
       - workflow_claude_config:/home/nextjs/.claude
     restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: workflow-worker-dev
+    depends_on:
+      - app
+    environment:
+      - NODE_ENV=development
+      - SKIP_INSTALL=1
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-change-in-production}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_TOKEN=${GITLAB_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - ./:/app
+      - workflow_node_modules:/app/node_modules
+      - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
+      - workflow_claude_config:/home/nextjs/.claude
+    command: ['pnpm', 'worker']
+    restart: unless-stopped

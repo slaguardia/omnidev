@@ -197,6 +197,22 @@ export async function askClaudeCode(
               actualOutput = log.result; // Use the final result as the actual output
               console.log(`[CLAUDE CODE] ✅ Extracted final result (${log.result.length} chars)`);
             }
+
+            // Grace period: if the process doesn't exit within 10s after emitting
+            // a result, kill it. This prevents zombie processes when Claude is stuck
+            // (e.g. waiting on permission prompts that will never be answered).
+            setTimeout(() => {
+              if (!claudeProcess.killed) {
+                console.warn(`[CLAUDE CODE] ⚠️ Process still alive 10s after result — killing`);
+                claudeProcess.kill('SIGTERM');
+                setTimeout(() => {
+                  if (!claudeProcess.killed) {
+                    claudeProcess.kill('SIGKILL');
+                  }
+                }, 3000);
+              }
+            }, 10000);
+
             return;
           }
 

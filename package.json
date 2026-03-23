@@ -16,7 +16,7 @@
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
-    "depcheck": "depcheck --ignores=highlight.js,@react-types/shared,@vitest/coverage-v8,autoprefixer,postcss,tsx,@assets/*",
+    "depcheck": "depcheck --ignores=highlight.js,@react-types/shared,@vitest/coverage-v8,autoprefixer,postcss,tsx,esbuild,@assets/*",
     "lint:all": "pnpm lint && pnpm prettier && pnpm depcheck",
     "lint:all:fix": "pnpm lint:fix && pnpm prettier:fix && pnpm depcheck",
     "clean:workspaces": "ts-node scripts/cleanup-workspaces.ts",
@@ -29,7 +29,10 @@
     "docker:dev:build": "docker compose build workflow-dev",
     "docker:dev:up": "docker compose up workflow-dev",
     "setup:hooks": "cp scripts/check-secrets.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
-    "check:secrets": "bash scripts/check-secrets.sh"
+    "check:secrets": "bash scripts/check-secrets.sh",
+    "worker": "tsx src/worker/index.ts",
+    "worker:build": "tsup --config tsup.worker.ts",
+    "worker:start": "node dist/index.cjs"
   },
   "dependencies": {
     "@eslint/js": "^9.29.0",
@@ -108,6 +111,7 @@
     "tailwind-variants": "0.3.0",
     "tailwindcss": "3.4.16",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
     "tsx": "^4.20.3",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

@@ -43,7 +43,6 @@ import { useWorkflowDefinition } from '@/hooks/queries/useWorkflowDefinition';
 import { findStageDefinition } from '@/lib/workflow/definition';
 import { useRalphProjects } from '@/hooks/queries/useRalphProjects';
 import { useRalphPlaybooks } from '@/hooks/queries/useRalphPlaybooks';
-import CrossTaskQuestionsPanel from './ralph/CrossTaskQuestionsPanel';
 import WorkflowSettingsTab from './WorkflowSettingsTab';
 import type { WorkflowSettingsHandle, WorkflowBusyState } from './WorkflowSettingsTab';
 
@@ -340,8 +339,6 @@ function ListView({
     </div>
   );
 }
-
-// CrossTaskQuestionsPanel is statically imported above
 
 export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boolean }) {
   const router = useRouter();
@@ -998,41 +995,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
   );
 
   /**
-   * Handle continuing stage execution for a task (with or without unanswered questions)
-   * Called from the cross-task questions panel. Uses the task's current status as the stage name.
-   */
-  const handleContinuePlanningFromPanel = useCallback(
-    async (taskId: string) => {
-      const currentTask = tasks.find((t) => t.id === taskId);
-      const stageName = currentTask?.status ?? 'planning';
-      console.log('[RALPH BOARD TAB] Continue stage for task:', taskId, 'stage:', stageName);
-
-      addProcessingTask(taskId);
-      try {
-        const response = await fetch(`/api/ralph/tasks/${taskId}/run-stage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stageName }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-
-        // Refresh tasks after starting stage
-        await fetchTasks();
-      } catch (err) {
-        console.error('[RALPH BOARD TAB] Failed to continue stage:', err);
-        throw err; // Re-throw so the UI can handle it
-      } finally {
-        removeProcessingTask(taskId);
-      }
-    },
-    [fetchTasks, tasks, addProcessingTask, removeProcessingTask]
-  );
-
-  /**
    * Handle archiving a completed task
    */
   const handleArchiveTask = useCallback(
@@ -1643,20 +1605,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
         </ModalContent>
       </Modal>
 
-      {/* Cross-Task Questions Panel (board sub-tab only) */}
-      {currentScreen.type === 'board' &&
-        ralphSubTab === 'board' &&
-        !isLoading &&
-        tasks.length > 0 && (
-          <CrossTaskQuestionsPanel
-            tasks={tasks}
-            onAnswerQuestion={handleAnswerQuestion}
-            onJumpToTask={handleExpandTask}
-            onContinuePlanning={handleContinuePlanningFromPanel}
-            workspaceFilter={workspaceFilter}
-          />
-        )}
-
       {/* Loading state (board sub-tab only) */}
       {currentScreen.type === 'board' &&
         ralphSubTab === 'board' &&
@@ -1702,7 +1650,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
               taskId={currentScreen.taskId}
               onBack={popScreen}
               onNavigateToTask={handleNavigateToTask}
-              onAnswerQuestion={handleAnswerQuestion}
               onTransition={handleTransitionTask}
               onCreateSubtask={handleCreateSubtask}
               onDelete={handleRequestDeleteTask}

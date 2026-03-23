@@ -11,6 +11,8 @@ export interface PromptTemplateVariables {
   previousStageOutput?: string | null;
   /** All stage outputs keyed by stage name (last iteration output for each) */
   stageOutputs?: Record<string, string>;
+  /** Path to the stage artifact file, e.g. .ralph/tasks/{taskId}/{stageName}.md */
+  artifactPath?: string | null;
 }
 
 /**
@@ -32,6 +34,7 @@ export function resolvePromptTemplate(
     prompt: vars.description ?? '',
     filePaths: vars.filePaths.length > 0 ? vars.filePaths.map((f) => `- ${f}`).join('\n') : '',
     previousStageOutput: vars.previousStageOutput ?? '',
+    artifactPath: vars.artifactPath ?? '',
   };
 
   const lines = template.split('\n');
@@ -74,7 +77,11 @@ export function resolvePromptTemplate(
 
   if (returnQuestions) {
     result +=
-      '\n\nIf you have questions or need clarification before proceeding, list them each on a separate line starting with "QUESTION: "';
+      '\n\n---\n\n## Questions\n\n' +
+      'If you have questions or need clarification before proceeding, list each one on its own line starting with `QUESTION:` so the system can parse them. Example:\n\n' +
+      'QUESTION: Should the CLI use commander or yargs?\n' +
+      'QUESTION: Is backwards compatibility required?\n\n' +
+      'This format is required — questions embedded in prose will not be detected.';
   }
 
   return result;

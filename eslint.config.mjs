@@ -16,6 +16,7 @@ export default [
       'emails/',
       'prompt-engineering/',
       'supabase/',
+      'dist/',
       'next-env.d.ts',
     ],
   },

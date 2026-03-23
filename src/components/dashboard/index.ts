@@ -6,4 +6,3 @@ export { default as ConfirmDeleteWorkspaceModal } from '@/components/dashboard/C
 export { default as WorkspaceDetailModal } from '@/components/dashboard/WorkspaceDetailModal';
 export { DashboardNavigation } from '@/components/dashboard/DashboardNavigation';
 export * from '@/lib/dashboard/types';
-export * from '@/components/dashboard/tabs';

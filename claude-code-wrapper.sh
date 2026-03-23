@@ -79,6 +79,9 @@ if [ "$(id -u)" = "0" ]; then
   echo "[CLAUDE-WRAPPER] Running as root — dropping privileges to 'nextjs' via gosu"
   # Ensure workspace is writable by nextjs (root-created files in dev mode)
   chown -R nextjs:nodejs "$WORKSPACE_PATH" 2>/dev/null || true
+  # gosu changes uid/gid but does NOT update HOME — set it explicitly
+  # so Claude Code finds the login credentials stored in /home/nextjs
+  export HOME=/home/nextjs
   exec gosu nextjs claude "$@"
 else
   exec claude "$@"

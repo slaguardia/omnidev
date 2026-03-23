@@ -16,7 +16,6 @@ import {
   ArrowDownRight,
   AlertTriangle,
   Zap,
-  CheckCircle2,
   PlayCircle,
   Plus,
   Loader2,
@@ -32,7 +31,6 @@ import {
   MoreVertical,
   Folder,
 } from 'lucide-react';
-import type { PlanningQuestion } from '@/lib/managers/ralph-task-manager';
 import type { RalphTaskStatus, RalphTaskData, RalphProject } from './types';
 import {
   getTaskStates,
@@ -83,55 +81,6 @@ export interface TaskCardProps {
   projects?: RalphProject[];
   onChangeProject?: (taskId: string, projectId: string | null) => void;
   isFocused?: boolean;
-}
-
-/**
- * QuestionsInlineDisplay component (compact version for cards)
- */
-function QuestionsInlineDisplay({
-  questions,
-  compact = false,
-}: {
-  questions: PlanningQuestion[];
-  compact?: boolean;
-}) {
-  const unansweredQuestions = questions.filter((q) => !q.answer);
-  const answeredQuestions = questions.filter((q) => q.answer);
-
-  if (unansweredQuestions.length === 0) {
-    if (answeredQuestions.length > 0 && !compact) {
-      return (
-        <div className="flex items-center gap-1.5 mt-2">
-          <Chip
-            size="sm"
-            variant="flat"
-            color="success"
-            startContent={<CheckCircle2 className="w-3 h-3" />}
-          >
-            {answeredQuestions.length} question{answeredQuestions.length !== 1 ? 's' : ''} answered
-          </Chip>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  if (compact) {
-    return (
-      <div className="flex items-center gap-1.5 mt-2">
-        <Chip
-          size="sm"
-          variant="flat"
-          color="warning"
-          startContent={<MessageCircleQuestion className="w-3 h-3" />}
-        >
-          {unansweredQuestions.length} question{unansweredQuestions.length !== 1 ? 's' : ''}
-        </Chip>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 /**
@@ -194,7 +143,6 @@ export default function TaskCard({
   const isExecuting = task.status === 'executing';
   const hasExecutionError = isExecuting && task.executionError;
   const isComplete = task.status === 'complete';
-  const hasPendingQuestions = task.pendingQuestionsCount > 0;
   const isBlockedByDeps = task.isBlocked && task.blockedBy.length > 0;
 
   const canPromote = task.taskType === 'simple' && task.status === 'ready';
@@ -859,9 +807,6 @@ export default function TaskCard({
             <span className="text-xs text-default-400 flex-shrink-0">
               {task.totalIterations} iter
             </span>
-          )}
-          {hasPendingQuestions && (
-            <QuestionsInlineDisplay questions={task.pendingQuestions} compact />
           )}
         </div>
 

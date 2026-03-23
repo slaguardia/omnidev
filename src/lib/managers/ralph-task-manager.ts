@@ -406,6 +406,8 @@ export interface StageOutput {
   autoLoopActive?: boolean;
   /** Reason the auto-loop stopped */
   completionReason?: 'complete' | 'max-iterations' | 'error' | 'questions' | 'cancelled';
+  /** Canonical output read from .ralph/{stageName}.md after auto-loop iterations */
+  fileOutput?: string;
   lastUpdated: string;
 }
 
@@ -424,6 +426,7 @@ export const StageOutputSchema = z.object({
   completionReason: z
     .enum(['complete', 'max-iterations', 'error', 'questions', 'cancelled'])
     .optional(),
+  fileOutput: z.string().optional(),
   lastUpdated: z.string().datetime(),
 });
 

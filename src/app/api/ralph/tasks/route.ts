@@ -10,7 +10,7 @@ import {
 import { dbGetBoardTasks, dbGetChildCount, dbGetTaskStatus } from '@/lib/managers/ralph-task-db';
 import { getWorkspaceReadonly } from '@/lib/managers/workspace-manager';
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
-import { getJob, createJobId } from '@/lib/queue';
+import { dbGetJob } from '@/lib/managers/ralph-task-db';
 import type { WorkspaceId } from '@/lib/types';
 
 /**
@@ -116,7 +116,7 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
         task.stageOutputs?.[task.status]?.activeJobId) ||
       null;
     if (jobId) {
-      return getJob(createJobId(jobId));
+      return Promise.resolve(dbGetJob(jobId));
     }
     return Promise.resolve(null);
   });
@@ -148,7 +148,7 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
       if (!stageOutput.activeJobId) continue;
 
       // Look up the job by activeJobId
-      const job = await getJob(createJobId(stageOutput.activeJobId));
+      const job = dbGetJob(stageOutput.activeJobId);
       const jobGone = !job;
       const jobDone = job && (job.status === 'completed' || job.status === 'failed');
 
@@ -239,10 +239,13 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
       executionJobInfo = {
         id: job.id,
         status: job.status as ExecutionJobInfo['status'],
-        createdAt: job.createdAt,
+        createdAt: job.created_at,
       };
-      if (job.startedAt) executionJobInfo.startedAt = job.startedAt;
-      if (job.completedAt) executionJobInfo.completedAt = job.completedAt;
+      if (job.started_at) executionJobInfo.startedAt = job.started_at;
+      // Use updated_at as completedAt when job is done
+      if (job.status === 'completed' || job.status === 'failed') {
+        executionJobInfo.completedAt = job.updated_at;
+      }
       if (job.error) executionJobInfo.error = job.error;
     }
 
