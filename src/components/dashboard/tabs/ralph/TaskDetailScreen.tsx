@@ -4,8 +4,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@heroui/button';
 import { Chip } from '@heroui/chip';
 import { Input, Textarea } from '@heroui/input';
-import { Divider } from '@heroui/divider';
+
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/dropdown';
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
 import {
   statusChipClasses,
   infoChipClasses,
@@ -17,16 +18,14 @@ import {
   FileText,
   CheckCircle,
   GitBranch,
-  MessageCircleQuestion,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Folder,
   ArrowRight,
   ArrowLeft,
   AlertTriangle,
   Zap,
-  CheckCircle2,
-  Send,
   ExternalLink,
   FileCode,
   Loader2,
@@ -36,8 +35,10 @@ import {
   Trash2,
   MoreVertical,
   BookOpen,
+  Package,
+  X,
 } from 'lucide-react';
-import type { PlanningQuestion, StageQuestion } from '@/lib/managers/ralph-task-manager';
+import type { StageQuestion } from '@/lib/managers/ralph-task-manager';
 import type { RalphTaskStatus, RalphTaskDetail } from './types';
 import { getTaskStates, getStatusColors, formatRelativeTime, formatTaskNumber } from './types';
 import { useWorkflowDefinition } from '@/hooks/queries/useWorkflowDefinition';
@@ -60,7 +61,6 @@ interface TaskDetailScreenProps {
   taskId: string;
   onBack: () => void;
   onNavigateToTask: (taskId: string) => void;
-  onAnswerQuestion: (taskId: string, questionId: string, answer: string) => Promise<void>;
   onTransition: (taskId: string, toStatus: RalphTaskStatus) => void;
   onCreateSubtask?: (taskId: string) => void;
   onDelete?: (taskId: string) => void;
@@ -74,7 +74,6 @@ export default function TaskDetailScreen({
   taskId,
   onBack,
   onNavigateToTask,
-  onAnswerQuestion,
   onTransition,
   onCreateSubtask,
   onDelete,
@@ -99,11 +98,20 @@ export default function TaskDetailScreen({
     [queryError]
   );
   const [answerInputs, setAnswerInputs] = useState<Record<string, string>>({});
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<{
+    toStatus: string;
+    unansweredCount: number;
+    stageName: string;
+  } | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    questions: false,
     completion: false,
     children: false,
+    sidebarProperties: true,
+    sidebarDetails: true,
+    sidebarDeps: true,
+    sidebarFiles: false,
   });
   // Inline editing state
   const [newFilePath, setNewFilePath] = useState('');
@@ -158,14 +166,68 @@ export default function TaskDetailScreen({
     setAnswerInputs((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  const handleSubmitAnswer = async (questionId: string) => {
+  /** Find which stage a question belongs to */
+  const findStageForQuestion = (questionId: string): string | null => {
+    if (!task?.stageOutputs) return null;
+    for (const [stageName, so] of Object.entries(task.stageOutputs)) {
+      if (so.pendingQuestions?.some((q: StageQuestion) => q.id === questionId)) {
+        return stageName;
+      }
+    }
+    return null;
+  };
+
+  /** Auto-save answer on blur (like description field) */
+  const handleAnswerBlur = async (questionId: string) => {
     if (!task) return;
     const answer = answerInputs[questionId]?.trim();
     if (!answer) return;
 
-    setSubmittingId(questionId);
+    const stageName = findStageForQuestion(questionId);
+    if (!stageName) return;
+
+    // Check if answer actually changed from what's stored
+    const existingQ = task.stageOutputs?.[stageName]?.pendingQuestions?.find(
+      (q: StageQuestion) => q.id === questionId
+    );
+    if (answer === existingQ?.answer) return;
+
+    setSavingAnswerId(questionId);
     try {
-      await onAnswerQuestion(taskId, questionId, answer);
+      // Call API directly with the correct stage name
+      await fetch(`/api/ralph/tasks/${taskId}/stage-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageName, answers: { [questionId]: answer } }),
+      });
+      invalidateDetail(taskId);
+      invalidateTasks();
+    } catch (err) {
+      console.error('[TASK DETAIL SCREEN] Failed to save answer:', err);
+    } finally {
+      setSavingAnswerId(null);
+    }
+  };
+
+  /** Dismiss/delete a question */
+  const handleDismissQuestion = async (questionId: string) => {
+    if (!task) return;
+
+    const stageName = findStageForQuestion(questionId);
+    if (!stageName) return;
+
+    setDismissingId(questionId);
+    try {
+      // Call API directly with the correct stage name
+      const response = await fetch(`/api/ralph/tasks/${taskId}/stage-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageName, dismiss: [questionId] }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
       setAnswerInputs((prev) => {
         const updated = { ...prev };
         delete updated[questionId];
@@ -174,16 +236,46 @@ export default function TaskDetailScreen({
       invalidateDetail(taskId);
       invalidateTasks();
     } catch (err) {
-      console.error('[TASK DETAIL SCREEN] Failed to submit answer:', err);
+      console.error('[TASK DETAIL SCREEN] Failed to dismiss question:', err);
     } finally {
-      setSubmittingId(null);
+      setDismissingId(null);
     }
   };
 
-  const handleRunStage = (stageId: string) => {
+  /** Flush all unsaved answer inputs to the API in a single batch call. */
+  const flushUnsavedAnswers = async (stageName: string): Promise<void> => {
+    if (!task) return;
+
+    const stageQuestions = task.stageOutputs?.[stageName]?.pendingQuestions ?? [];
+    const dirtyAnswers: Record<string, string> = {};
+    for (const q of stageQuestions) {
+      const local = answerInputs[q.id]?.trim();
+      if (local && local !== (q.answer ?? '')) {
+        dirtyAnswers[q.id] = local;
+      }
+    }
+
+    if (Object.keys(dirtyAnswers).length === 0) return;
+
+    await fetch(`/api/ralph/tasks/${taskId}/stage-answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stageName, answers: dirtyAnswers }),
+    });
+  };
+
+  const handleRunStage = async (stageId: string) => {
     if (!task) return;
 
     const prevTask = task;
+
+    // Flush any unsaved answers before starting the stage run
+    try {
+      await flushUnsavedAnswers(stageId);
+    } catch (err) {
+      console.error('[TASK DETAIL SCREEN] Failed to flush answers before continue:', err);
+      // Continue anyway — better to run with stale answers than block entirely
+    }
 
     // Auto-expand the stage section so the loading skeleton is visible
     setExpandedSections((prev) => ({ ...prev, [stageId]: true }));
@@ -242,21 +334,12 @@ export default function TaskDetailScreen({
       });
   };
 
-  const handleClearIteration = (stageId: string, iterationIndex: number) => {
+  const handleClearStageOutput = (stageId: string) => {
     if (!task?.stageOutputs?.[stageId]) return;
 
     const prevTask = task;
-    const stageOutput = task.stageOutputs[stageId];
-    const updatedIterations = stageOutput.iterations.filter((_, i) => i !== iterationIndex);
-    const updatedStageOutputs = {
-      ...task.stageOutputs,
-      [stageId]: {
-        ...stageOutput,
-        iterations: updatedIterations,
-        currentIteration: updatedIterations.length,
-        lastUpdated: new Date().toISOString(),
-      },
-    };
+    const { [stageId]: _, ...remainingOutputs } = task.stageOutputs;
+    const updatedStageOutputs = remainingOutputs;
 
     // Optimistic cache update
     setTaskCache(taskId, { ...task, stageOutputs: updatedStageOutputs });
@@ -271,12 +354,19 @@ export default function TaskDetailScreen({
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
       })
       .catch((err) => {
-        console.error(`[TASK DETAIL SCREEN] Failed to clear iteration:`, err);
+        console.error(`[TASK DETAIL SCREEN] Failed to clear stage output:`, err);
         setTaskCache(taskId, prevTask);
       })
       .finally(() => {
         invalidateDetail(taskId);
       });
+
+    // Also delete the artifact file (best-effort, non-blocking)
+    fetch(`/api/ralph/tasks/${taskId}/artifact?stage=${stageId}`, {
+      method: 'DELETE',
+    }).catch(() => {
+      // Non-fatal — the file will be overwritten on next run anyway
+    });
   };
 
   const handleCancelLoop = (stageId: string) => {
@@ -471,30 +561,75 @@ export default function TaskDetailScreen({
     return ['draft', ...stages, 'complete'];
   }, [definition.stages, taskPlaybook]);
 
-  // Aggregate questions from all stage outputs
-  const aggregatedQuestions = useMemo(() => {
-    const questions: (PlanningQuestion | StageQuestion)[] = [];
-    if (task?.stageOutputs) {
-      for (const [, stageOutput] of Object.entries(task.stageOutputs)) {
-        if (stageOutput.pendingQuestions) {
-          for (const sq of stageOutput.pendingQuestions) {
-            if (!questions.some((q) => q.id === sq.id)) {
-              questions.push(sq);
-            }
-          }
-        }
+  // Seed answer inputs from existing answers so textboxes show current values
+  useEffect(() => {
+    if (!task?.stageOutputs) return;
+    const seeded: Record<string, string> = {};
+    for (const so of Object.values(task.stageOutputs)) {
+      for (const q of so.pendingQuestions ?? []) {
+        if (q.answer) seeded[q.id] = q.answer;
       }
     }
-    return questions;
+    setAnswerInputs((prev) => {
+      const merged = { ...seeded };
+      for (const [key, val] of Object.entries(prev)) {
+        if (val) merged[key] = val;
+      }
+      return merged;
+    });
   }, [task?.stageOutputs]);
 
-  const pendingQuestions = aggregatedQuestions.filter((q) => !q.answer);
-  const answeredQuestions = aggregatedQuestions.filter((q) => q.answer);
-  const allQuestions = aggregatedQuestions;
+  /** Rerun a stage: clear its output then run fresh */
+  const handleRerunStage = (stageId: string) => {
+    if (!task) return;
 
-  // Check if current stage has a prompt configured (for "Continue" button visibility)
-  const currentStageDef = task ? definition.stages.find((s) => s.id === task.status) : undefined;
-  const currentStageHasPrompt = !!currentStageDef?.config.prompt;
+    const prevTask = task;
+    const { [stageId]: _, ...remainingOutputs } = task.stageOutputs ?? {};
+
+    // Optimistic: clear stage output
+    setTaskCache(taskId, { ...task, stageOutputs: remainingOutputs });
+
+    // Clear on the server, then run
+    fetch(`/api/ralph/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stageOutputs: remainingOutputs }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // Delete artifact file (best-effort)
+        fetch(`/api/ralph/tasks/${taskId}/artifact?stage=${stageId}`, {
+          method: 'DELETE',
+        }).catch(() => {});
+        // Now run the stage
+        handleRunStage(stageId);
+      })
+      .catch((err) => {
+        console.error(`[TASK DETAIL SCREEN] Failed to clear stage for rerun:`, err);
+        setTaskCache(taskId, prevTask);
+      });
+  };
+
+  /** Handle transition with unanswered questions warning */
+  const handleTransitionWithWarning = (toStatus: string) => {
+    if (!task) return;
+
+    // Check if current stage has unanswered questions
+    const currentStageOutput = task.stageOutputs?.[task.status];
+    const unanswered =
+      currentStageOutput?.pendingQuestions?.filter((q: StageQuestion) => !q.answer) ?? [];
+
+    if (unanswered.length > 0) {
+      setPendingTransition({
+        toStatus,
+        unansweredCount: unanswered.length,
+        stageName: task.status,
+      });
+      return;
+    }
+
+    onTransition(task.id, toStatus as RalphTaskStatus);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -613,7 +748,7 @@ export default function TaskDetailScreen({
         ) : task ? (
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-8 items-start">
             {/* Main Content */}
-            <div className="space-y-5 order-2 xl:order-1">
+            <div className="space-y-5 order-2 xl:order-1 min-w-0">
               {/* Title - big, editable */}
               <div>
                 {canEdit ? (
@@ -647,7 +782,8 @@ export default function TaskDetailScreen({
                       defaultValue={task.description || ''}
                       onBlur={(e) => saveField('description', e.target.value || null)}
                       variant="underlined"
-                      minRows={15}
+                      minRows={3}
+                      maxRows={50}
                       placeholder="Add a description..."
                       classNames={{
                         inputWrapper:
@@ -772,198 +908,15 @@ export default function TaskDetailScreen({
                 </div>
               )}
 
-              {/* Questions Section */}
-              {allQuestions.length > 0 && (
-                <div className="border border-divider rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection('questions')}
-                    className="w-full flex items-center justify-between p-3 bg-content2 hover:bg-content3 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <MessageCircleQuestion className="w-4 h-4 text-warning-500" />
-                      <span className="font-medium">Questions</span>
-                      {pendingQuestions.length > 0 && (
-                        <Chip size="sm" color="warning" variant="flat">
-                          {pendingQuestions.length} pending
-                        </Chip>
-                      )}
-                    </div>
-                    {expandedSections.questions ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
-
-                  {expandedSections.questions && (
-                    <div className="p-3 space-y-3">
-                      {allQuestions.length === 0 ? (
-                        <p className="text-sm text-default-500 text-center py-4">
-                          No questions yet. Start planning to generate questions.
-                        </p>
-                      ) : (
-                        <>
-                          {pendingQuestions.map(
-                            (question: PlanningQuestion | StageQuestion, index: number) => (
-                              <div
-                                key={question.id}
-                                className="p-3 bg-warning-50 dark:bg-warning-500/10 border border-warning-200 dark:border-warning-500/30 rounded-lg space-y-2"
-                              >
-                                <div className="flex items-start gap-2">
-                                  <span className="text-xs font-bold text-warning-600 bg-warning-100 dark:bg-warning-500/20 px-1.5 py-0.5 rounded">
-                                    Q{index + 1}
-                                  </span>
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium">{question.question}</p>
-                                    {question.context && (
-                                      <p className="text-xs text-default-500 mt-1">
-                                        {question.context}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                {'options' in question &&
-                                  question.options &&
-                                  question.options.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 ml-6">
-                                      {question.options.map((option: string, optIdx: number) => (
-                                        <Button
-                                          key={optIdx}
-                                          size="sm"
-                                          variant="flat"
-                                          color="default"
-                                          className="text-xs"
-                                          onPress={() => handleAnswerChange(question.id, option)}
-                                        >
-                                          {option}
-                                        </Button>
-                                      ))}
-                                    </div>
-                                  )}
-                                <div className="flex gap-2 ml-6">
-                                  <Textarea
-                                    size="sm"
-                                    placeholder="Type your answer..."
-                                    value={answerInputs[question.id] || ''}
-                                    onChange={(e) =>
-                                      handleAnswerChange(question.id, e.target.value)
-                                    }
-                                    variant="bordered"
-                                    minRows={2}
-                                    className="flex-1"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    color="primary"
-                                    isLoading={submittingId === question.id}
-                                    isDisabled={!answerInputs[question.id]?.trim()}
-                                    onPress={() => handleSubmitAnswer(question.id)}
-                                  >
-                                    <Send className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )
-                          )}
-
-                          {answeredQuestions.length > 0 && (
-                            <>
-                              <Divider className="my-3" />
-                              <p className="text-xs text-default-500 font-medium flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-success-500" />
-                                {answeredQuestions.length} answered
-                              </p>
-                              {answeredQuestions.map(
-                                (question: PlanningQuestion | StageQuestion, index: number) => (
-                                  <div
-                                    key={question.id}
-                                    className="p-3 bg-success-50 dark:bg-success-500/10 border border-success-200 dark:border-success-500/30 rounded-lg space-y-1"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-xs font-bold text-success-600 bg-success-100 dark:bg-success-500/20 px-1.5 py-0.5 rounded">
-                                        Q{pendingQuestions.length + index + 1}
-                                      </span>
-                                      <div className="flex-1">
-                                        <p className="text-sm">{question.question}</p>
-                                        {question.answer && (
-                                          <p className="text-sm font-medium text-success-700 dark:text-success-400 mt-1">
-                                            A: {question.answer}
-                                          </p>
-                                        )}
-                                        {question.answeredAt && (
-                                          <p className="text-xs text-default-400 mt-1">
-                                            Answered {formatRelativeTime(question.answeredAt)}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              )}
-                            </>
-                          )}
-
-                          {pendingQuestions.length === 0 &&
-                            answeredQuestions.length > 0 &&
-                            currentStageHasPrompt && (
-                              <div className="pt-2">
-                                <Button
-                                  size="sm"
-                                  color="primary"
-                                  startContent={<ArrowRight className="w-4 h-4" />}
-                                  onPress={() => handleRunStage(task.status)}
-                                >
-                                  Continue {currentStageDef?.label ?? task.status}
-                                </Button>
-                                <p className="text-xs text-default-500 mt-1">
-                                  All questions answered. Continue to generate next iteration.
-                                </p>
-                              </div>
-                            )}
-
-                          {pendingQuestions.length > 0 && currentStageHasPrompt && (
-                            <div className="pt-2 mt-2 border-t border-divider">
-                              <div className="flex items-center gap-2 mb-2">
-                                <AlertTriangle className="w-4 h-4 text-warning-500" />
-                                <span className="text-xs text-warning-600 dark:text-warning-400">
-                                  {pendingQuestions.length} question
-                                  {pendingQuestions.length !== 1 ? 's' : ''} unanswered
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                color="warning"
-                                variant="flat"
-                                startContent={<ArrowRight className="w-4 h-4" />}
-                                onPress={() => handleRunStage(task.status)}
-                              >
-                                Continue with Unanswered
-                              </Button>
-                              <p className="text-xs text-default-500 mt-1">
-                                Stage will continue without answers to pending questions.
-                                {answeredQuestions.length > 0 && (
-                                  <span className="block mt-0.5 text-success-600 dark:text-success-400">
-                                    {answeredQuestions.length} answer
-                                    {answeredQuestions.length !== 1 ? 's' : ''} will be included.
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Generic Stage Output Sections */}
+              {/* Stage Output Sections (with inline questions) */}
               {definition.stages.map((stageDef, stageIdx) => {
                 const stageOutput = task.stageOutputs?.[stageDef.id];
                 const isCurrentStage = task.status === stageDef.id;
                 const hasOutput =
                   stageOutput && (stageOutput.iterations.length > 0 || stageOutput.activeJobId);
+
+                // Skip stages with no prompt configured
+                if (!stageDef.config.prompt) return null;
 
                 // Only show stages the task has reached (or that have existing output)
                 const currentStageIdx = definition.stages.findIndex((s) => s.id === task.status);
@@ -983,12 +936,17 @@ export default function TaskDetailScreen({
                     isExpanded={!!expandedSections[stageDef.id]}
                     onToggle={() => toggleSection(stageDef.id)}
                     onRunStage={() => handleRunStage(stageDef.id)}
+                    onRerunStage={() => handleRerunStage(stageDef.id)}
                     isRunning={false}
-                    onClearIteration={(iterationIndex) =>
-                      handleClearIteration(stageDef.id, iterationIndex)
-                    }
+                    onClearStageOutput={() => handleClearStageOutput(stageDef.id)}
                     onCancelLoop={() => handleCancelLoop(stageDef.id)}
                     executionError={isCurrentStage ? task.executionError : null}
+                    answerInputs={answerInputs}
+                    onAnswerChange={handleAnswerChange}
+                    onAnswerBlur={handleAnswerBlur}
+                    onDismissQuestion={handleDismissQuestion}
+                    savingAnswerId={savingAnswerId}
+                    dismissingId={dismissingId}
                   />
                 );
               })}
@@ -1058,375 +1016,430 @@ export default function TaskDetailScreen({
             </div>
 
             {/* Sidebar */}
-            <div className="space-y-4 order-1 xl:order-2 xl:sticky xl:top-0">
-              {/* Status */}
+            <div className="space-y-1 order-1 xl:order-2 xl:sticky xl:top-0">
+              {/* Properties Section */}
               <div>
-                <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                  Status
-                </div>
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Chip
-                      size={chipSize}
-                      variant="solid"
-                      color={statusColors[task.status] ?? 'default'}
-                      classNames={{
-                        ...statusChipClasses,
-                        base: `${statusChipClasses.base} cursor-pointer`,
-                      }}
-                      style={{ transform: 'none', opacity: 1 }}
-                      startContent={
-                        <span className={chipIconClass}>
-                          {React.createElement(
-                            taskStates.find((s) => s.key === task.status)?.icon || FileText,
-                            { className: chipIconClass }
-                          )}
-                        </span>
-                      }
-                    >
-                      {taskStates.find((s) => s.key === task.status)?.label || task.status}
-                    </Chip>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Change status"
-                    selectionMode="single"
-                    selectedKeys={new Set([task.status])}
-                    disabledKeys={new Set([task.status])}
-                    onAction={(key) => {
-                      if (key !== task.status) onTransition(task.id, key as RalphTaskStatus);
-                    }}
-                  >
-                    {allStatuses.map((status) => {
-                      const color = statusColors[status] ?? 'default';
-                      const colorClass =
-                        color === 'default'
-                          ? 'bg-default-400'
-                          : color === 'warning'
-                            ? 'bg-warning'
-                            : color === 'secondary'
-                              ? 'bg-secondary'
-                              : color === 'success'
-                                ? 'bg-success'
-                                : color === 'danger'
-                                  ? 'bg-danger'
-                                  : 'bg-primary';
-                      const stageLabel = taskStates.find((s) => s.key === status)?.label ?? status;
-                      return (
-                        <DropdownItem
-                          key={status}
-                          startContent={<span className={`w-2 h-2 rounded-full ${colorClass}`} />}
-                        >
-                          {stageLabel}
-                        </DropdownItem>
-                      );
-                    })}
-                  </DropdownMenu>
-                </Dropdown>
-              </div>
-
-              {/* Workspace */}
-              <div>
-                <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                  Workspace
-                </div>
-                <div className="flex items-center gap-1.5 text-sm text-default-700">
-                  <Folder className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
-                  <span className="truncate">{task.workspaceName}</span>
-                </div>
-              </div>
-
-              {/* Branch */}
-              {(task.featureBranch ||
-                (task.deliveryMethod === 'direct-commit' && task.baseBranch)) && (
-                <div>
-                  <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                    Branch
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm font-mono text-default-700">
-                    <GitBranch className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
-                    <span className="truncate">
-                      {task.deliveryMethod === 'direct-commit'
-                        ? `${task.baseBranch} (direct)`
-                        : task.featureBranch}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Project */}
-              {allProjects.length > 0 && (
-                <div>
-                  <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                    Project
-                  </div>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      {task.projectId ? (
-                        (() => {
-                          const project = allProjects.find((p) => p.id === task.projectId);
-                          return (
-                            <Chip
-                              as="button"
-                              size={chipSize}
-                              variant="flat"
-                              classNames={infoChipClasses}
-                              className="cursor-pointer"
-                              startContent={
-                                project ? (
-                                  <span
-                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: project.color }}
-                                  />
-                                ) : undefined
-                              }
-                            >
-                              {project?.name ?? 'Unknown Project'}
-                            </Chip>
-                          );
-                        })()
-                      ) : (
-                        <Chip
-                          as="button"
-                          size={chipSize}
-                          variant="flat"
-                          classNames={infoChipClasses}
-                          className="cursor-pointer"
-                          startContent={<Folder className="w-3 h-3 text-default-400" />}
-                        >
-                          No Project
-                        </Chip>
-                      )}
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="Change project"
-                      onAction={(key) => {
-                        const projectId = key === 'none' ? null : String(key);
-                        saveField('projectId', projectId);
-                      }}
-                    >
-                      {[
-                        ...(task.projectId ? [{ id: 'none', name: 'No Project', color: '' }] : []),
-                        ...allProjects.filter((p) => p.id !== task.projectId),
-                      ].map((p) => (
-                        <DropdownItem
-                          key={p.id}
-                          startContent={
-                            p.color ? (
-                              <span
-                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: p.color }}
-                              />
-                            ) : undefined
-                          }
-                        >
-                          {p.name}
-                        </DropdownItem>
-                      ))}
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
-              )}
-
-              {/* Playbook */}
-              {allPlaybooks.length > 0 && (
-                <div>
-                  <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                    Playbook
-                  </div>
-                  <Dropdown isDisabled={task.status !== 'draft'}>
-                    <DropdownTrigger>
-                      {task.playbookId ? (
-                        (() => {
-                          const playbook = allPlaybooks.find((p) => p.id === task.playbookId);
-                          return (
-                            <Chip
-                              as="button"
-                              size={chipSize}
-                              variant="flat"
-                              classNames={infoChipClasses}
-                              className={
-                                task.status === 'draft'
-                                  ? 'cursor-pointer'
-                                  : 'cursor-default opacity-70'
-                              }
-                              isDisabled={task.status !== 'draft'}
-                              startContent={<BookOpen className="w-3 h-3 text-default-500" />}
-                            >
-                              {playbook?.name ?? 'Unknown Playbook'}
-                            </Chip>
-                          );
-                        })()
-                      ) : (
-                        <Chip
-                          as="button"
-                          size={chipSize}
-                          variant="flat"
-                          classNames={infoChipClasses}
-                          className={
-                            task.status === 'draft' ? 'cursor-pointer' : 'cursor-default opacity-70'
-                          }
-                          isDisabled={task.status !== 'draft'}
-                          startContent={<BookOpen className="w-3 h-3 text-default-400" />}
-                        >
-                          No Playbook
-                        </Chip>
-                      )}
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="Change playbook"
-                      onAction={(key) => {
-                        const playbookId = key === 'none' ? null : String(key);
-                        saveField('playbookId', playbookId);
-                      }}
-                    >
-                      {[
-                        ...(task.playbookId
-                          ? [
-                              {
-                                id: 'none',
-                                name: 'No Playbook',
-                                description: '',
-                                stageIds: [] as string[],
-                                isDefault: false,
-                              },
-                            ]
-                          : []),
-                        ...allPlaybooks.filter((p) => p.id !== task.playbookId),
-                      ].map((p) => (
-                        <DropdownItem key={p.id} description={p.isDefault ? 'Default' : undefined}>
-                          {p.name}
-                        </DropdownItem>
-                      ))}
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
-              )}
-
-              {/* Delivery */}
-              {task.deliveryMethod && (
-                <div>
-                  <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5">
-                    Delivery
-                  </div>
-                  <div className="text-sm text-default-700 capitalize">
-                    {task.deliveryMethod.replace(/-/g, ' ')}
-                  </div>
-                </div>
-              )}
-
-              {/* Dependencies */}
-              <DependencySection
-                taskId={taskId}
-                workspaceId={task.workspaceId}
-                childIds={task.childIds}
-                canEdit={canEdit}
-                onNavigateToTask={onNavigateToTask}
-              />
-
-              <Divider />
-
-              {/* File Paths */}
-              <div>
-                <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <FileCode className="w-3 h-3" />
-                  File Paths
-                  {savingField === 'filePaths' && <Loader2 className="w-3 h-3 animate-spin" />}
-                </div>
-                <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto">
-                  {task.filePaths.map((path) =>
-                    canEdit ? (
-                      <Chip
-                        key={path}
-                        size="sm"
-                        variant="flat"
-                        onClose={() => removeFilePath(path)}
-                      >
-                        {path}
-                      </Chip>
-                    ) : (
-                      <Chip key={path} size="sm" variant="flat">
-                        {path}
-                      </Chip>
-                    )
+                <button
+                  type="button"
+                  className="flex items-center gap-1 w-full text-xs font-medium text-default-500 py-2 hover:text-default-700 transition-colors"
+                  onClick={() => toggleSection('sidebarProperties')}
+                >
+                  {expandedSections.sidebarProperties ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
                   )}
-                  {task.filePaths.length === 0 && !canEdit && (
-                    <span className="text-xs text-default-400">No files specified</span>
-                  )}
-                </div>
-                {canEdit && (
-                  <div className="relative" ref={editSuggestionsRef}>
-                    <div className="flex gap-2">
-                      <Input
-                        size="sm"
-                        value={newFilePath}
-                        onChange={(e) => handleEditFilePathChange(e.target.value)}
-                        onFocus={() => {
-                          if (editFileSuggestions.length > 0) setShowEditSuggestions(true);
-                        }}
-                        variant="bordered"
-                        placeholder="Start typing to search files..."
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (
-                              showEditSuggestions &&
-                              selectedEditSuggestionIndex >= 0 &&
-                              selectedEditSuggestionIndex < editFileSuggestions.length
-                            ) {
-                              selectEditSuggestion(
-                                editFileSuggestions[selectedEditSuggestionIndex]!
-                              );
-                            } else {
-                              addFilePath();
+                  Properties
+                </button>
+                {expandedSections.sidebarProperties && (
+                  <div className="space-y-0.5 pb-2">
+                    {/* Status */}
+                    <div className="py-1.5 pl-4">
+                      <Dropdown>
+                        <DropdownTrigger>
+                          <Chip
+                            size="sm"
+                            variant="solid"
+                            color={statusColors[task.status] ?? 'default'}
+                            classNames={{
+                              ...statusChipClasses,
+                              base: `${statusChipClasses.base} cursor-pointer`,
+                            }}
+                            style={{ transform: 'none', opacity: 1 }}
+                            startContent={
+                              <span className="w-3.5 h-3.5">
+                                {React.createElement(
+                                  taskStates.find((s) => s.key === task.status)?.icon || FileText,
+                                  { className: 'w-3.5 h-3.5' }
+                                )}
+                              </span>
                             }
-                          } else if (e.key === 'ArrowDown' && showEditSuggestions) {
-                            e.preventDefault();
-                            setSelectedEditSuggestionIndex((prev) =>
-                              prev < editFileSuggestions.length - 1 ? prev + 1 : 0
+                          >
+                            {taskStates.find((s) => s.key === task.status)?.label || task.status}
+                          </Chip>
+                        </DropdownTrigger>
+                        <DropdownMenu
+                          aria-label="Change status"
+                          selectionMode="single"
+                          selectedKeys={new Set([task.status])}
+                          disabledKeys={new Set([task.status])}
+                          onAction={(key) => {
+                            if (key !== task.status) handleTransitionWithWarning(key as string);
+                          }}
+                        >
+                          {allStatuses.map((status) => {
+                            const color = statusColors[status] ?? 'default';
+                            const colorClass =
+                              color === 'default'
+                                ? 'bg-default-400'
+                                : color === 'warning'
+                                  ? 'bg-warning'
+                                  : color === 'secondary'
+                                    ? 'bg-secondary'
+                                    : color === 'success'
+                                      ? 'bg-success'
+                                      : color === 'danger'
+                                        ? 'bg-danger'
+                                        : 'bg-primary';
+                            const stageLabel =
+                              taskStates.find((s) => s.key === status)?.label ?? status;
+                            return (
+                              <DropdownItem
+                                key={status}
+                                startContent={
+                                  <span className={`w-2 h-2 rounded-full ${colorClass}`} />
+                                }
+                              >
+                                {stageLabel}
+                              </DropdownItem>
                             );
-                          } else if (e.key === 'ArrowUp' && showEditSuggestions) {
-                            e.preventDefault();
-                            setSelectedEditSuggestionIndex((prev) =>
-                              prev > 0 ? prev - 1 : editFileSuggestions.length - 1
-                            );
-                          } else if (e.key === 'Escape') {
-                            setShowEditSuggestions(false);
-                          }
-                        }}
-                        className="flex-1"
-                        endContent={
-                          isLoadingEditFiles ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-default-400" />
-                          ) : null
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        onPress={addFilePath}
-                        isDisabled={!newFilePath.trim()}
-                      >
-                        Add
-                      </Button>
+                          })}
+                        </DropdownMenu>
+                      </Dropdown>
                     </div>
-                    {showEditSuggestions && editFileSuggestions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto rounded-md border border-divider bg-content1 shadow-sm">
-                        {editFileSuggestions.map((suggestion, index) => (
-                          <button
-                            key={suggestion}
-                            type="button"
-                            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-default-100 cursor-pointer flex items-center gap-2 ${
-                              index === selectedEditSuggestionIndex ? 'bg-default-100' : ''
-                            }`}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              selectEditSuggestion(suggestion);
+
+                    {/* Workspace */}
+                    <div className="flex items-center gap-1.5 py-1.5 pl-4 text-sm text-default-700">
+                      <Folder className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
+                      <span className="truncate">{task.workspaceName}</span>
+                    </div>
+
+                    {/* Branch */}
+                    {(task.featureBranch ||
+                      (task.deliveryMethod === 'direct-commit' && task.baseBranch) ||
+                      canEdit) && (
+                      <div className="flex items-center gap-1.5 py-1.5 pl-4">
+                        <GitBranch className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
+                        {canEdit && task.deliveryMethod !== 'direct-commit' ? (
+                          <input
+                            type="text"
+                            className="text-sm font-mono text-default-700 bg-transparent border-b border-transparent hover:border-default-300 focus:border-primary focus:outline-none truncate w-full py-0"
+                            defaultValue={task.featureBranch ?? ''}
+                            placeholder="Set branch..."
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== task.featureBranch) {
+                                saveField('featureBranch', val);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            }}
+                          />
+                        ) : (
+                          <span className="text-sm font-mono text-default-700 truncate">
+                            {task.deliveryMethod === 'direct-commit'
+                              ? `${task.baseBranch} (direct)`
+                              : task.featureBranch}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Delivery */}
+                    {task.deliveryMethod && (
+                      <div className="flex items-center gap-1.5 py-1.5 pl-4 text-sm text-default-700">
+                        <Package className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
+                        <span className="capitalize">{task.deliveryMethod.replace(/-/g, ' ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Details Section (Project, Playbook) */}
+              <div>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 w-full text-xs font-medium text-default-500 py-2 hover:text-default-700 transition-colors"
+                  onClick={() => toggleSection('sidebarDetails')}
+                >
+                  {expandedSections.sidebarDetails ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  Details
+                </button>
+                {expandedSections.sidebarDetails && (
+                  <div className="space-y-1 pb-2">
+                    {/* Project row */}
+                    {allProjects.length > 0 && (
+                      <div className="flex items-center justify-between py-1.5 pl-4">
+                        <span className="text-xs text-default-400">Project</span>
+                        <Dropdown>
+                          <DropdownTrigger>
+                            {task.projectId ? (
+                              (() => {
+                                const project = allProjects.find((p) => p.id === task.projectId);
+                                return (
+                                  <button className="flex items-center gap-1.5 text-sm text-default-700 hover:text-default-900 transition-colors cursor-pointer">
+                                    {project && (
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: project.color }}
+                                      />
+                                    )}
+                                    <span>{project?.name ?? 'Unknown'}</span>
+                                  </button>
+                                );
+                              })()
+                            ) : (
+                              <button className="text-sm text-default-400 hover:text-default-600 transition-colors cursor-pointer">
+                                Add project
+                              </button>
+                            )}
+                          </DropdownTrigger>
+                          <DropdownMenu
+                            aria-label="Change project"
+                            onAction={(key) => {
+                              const projectId = key === 'none' ? null : String(key);
+                              saveField('projectId', projectId);
                             }}
                           >
-                            <FileCode className="w-3 h-3 text-default-400 flex-shrink-0" />
-                            <span className="truncate">{suggestion}</span>
-                          </button>
-                        ))}
+                            {[
+                              ...(task.projectId
+                                ? [{ id: 'none', name: 'No Project', color: '' }]
+                                : []),
+                              ...allProjects.filter((p) => p.id !== task.projectId),
+                            ].map((p) => (
+                              <DropdownItem
+                                key={p.id}
+                                startContent={
+                                  p.color ? (
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: p.color }}
+                                    />
+                                  ) : undefined
+                                }
+                              >
+                                {p.name}
+                              </DropdownItem>
+                            ))}
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
+                    )}
+
+                    {/* Playbook row */}
+                    {allPlaybooks.length > 0 && (
+                      <div className="flex items-center justify-between py-1.5 pl-4">
+                        <span className="text-xs text-default-400">Playbook</span>
+                        <Dropdown isDisabled={task.status !== 'draft'}>
+                          <DropdownTrigger>
+                            {task.playbookId ? (
+                              (() => {
+                                const playbook = allPlaybooks.find((p) => p.id === task.playbookId);
+                                return (
+                                  <button
+                                    className={`flex items-center gap-1.5 text-sm transition-colors ${
+                                      task.status === 'draft'
+                                        ? 'text-default-700 hover:text-default-900 cursor-pointer'
+                                        : 'text-default-500 cursor-default'
+                                    }`}
+                                  >
+                                    <BookOpen className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
+                                    <span>{playbook?.name ?? 'Unknown'}</span>
+                                  </button>
+                                );
+                              })()
+                            ) : (
+                              <button
+                                className={`text-sm transition-colors ${
+                                  task.status === 'draft'
+                                    ? 'text-default-400 hover:text-default-600 cursor-pointer'
+                                    : 'text-default-400 cursor-default'
+                                }`}
+                              >
+                                Add playbook
+                              </button>
+                            )}
+                          </DropdownTrigger>
+                          <DropdownMenu
+                            aria-label="Change playbook"
+                            onAction={(key) => {
+                              const playbookId = key === 'none' ? null : String(key);
+                              saveField('playbookId', playbookId);
+                            }}
+                          >
+                            {[
+                              ...(task.playbookId
+                                ? [
+                                    {
+                                      id: 'none',
+                                      name: 'No Playbook',
+                                      description: '',
+                                      stageIds: [] as string[],
+                                      isDefault: false,
+                                    },
+                                  ]
+                                : []),
+                              ...allPlaybooks.filter((p) => p.id !== task.playbookId),
+                            ].map((p) => (
+                              <DropdownItem
+                                key={p.id}
+                                description={p.isDefault ? 'Default' : undefined}
+                              >
+                                {p.name}
+                              </DropdownItem>
+                            ))}
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Dependencies Section */}
+              <div>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 w-full text-xs font-medium text-default-500 py-2 hover:text-default-700 transition-colors"
+                  onClick={() => toggleSection('sidebarDeps')}
+                >
+                  {expandedSections.sidebarDeps ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  Dependencies
+                </button>
+                {expandedSections.sidebarDeps && (
+                  <div className="pl-4 pb-2">
+                    <DependencySection
+                      taskId={taskId}
+                      workspaceId={task.workspaceId}
+                      childIds={task.childIds}
+                      canEdit={canEdit}
+                      onNavigateToTask={onNavigateToTask}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* File Paths Section */}
+              <div>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 w-full text-xs font-medium text-default-500 py-2 hover:text-default-700 transition-colors"
+                  onClick={() => toggleSection('sidebarFiles')}
+                >
+                  {expandedSections.sidebarFiles ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
+                  File Paths
+                  {savingField === 'filePaths' && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
+                  {task.filePaths.length > 0 && (
+                    <span className="text-default-400 ml-auto">{task.filePaths.length}</span>
+                  )}
+                </button>
+                {expandedSections.sidebarFiles && (
+                  <div className="pl-4 pb-2">
+                    <div className="flex flex-col gap-1 mb-2 max-h-48 overflow-y-auto">
+                      {task.filePaths.map((path) => (
+                        <div key={path} className="flex items-center gap-1.5 group min-w-0">
+                          <FileCode className="w-3 h-3 text-default-400 flex-shrink-0" />
+                          <span
+                            className="text-xs text-default-600 truncate min-w-0 flex-1"
+                            title={path}
+                          >
+                            {path}
+                          </span>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="opacity-0 group-hover:opacity-100 text-default-400 hover:text-danger flex-shrink-0 transition-opacity"
+                              onClick={() => removeFilePath(path)}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {task.filePaths.length === 0 && !canEdit && (
+                        <span className="text-xs text-default-400">No files specified</span>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <div className="relative" ref={editSuggestionsRef}>
+                        <div className="flex gap-2">
+                          <Input
+                            size="sm"
+                            value={newFilePath}
+                            onChange={(e) => handleEditFilePathChange(e.target.value)}
+                            onFocus={() => {
+                              if (editFileSuggestions.length > 0) setShowEditSuggestions(true);
+                            }}
+                            variant="bordered"
+                            placeholder="Search files..."
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (
+                                  showEditSuggestions &&
+                                  selectedEditSuggestionIndex >= 0 &&
+                                  selectedEditSuggestionIndex < editFileSuggestions.length
+                                ) {
+                                  selectEditSuggestion(
+                                    editFileSuggestions[selectedEditSuggestionIndex]!
+                                  );
+                                } else {
+                                  addFilePath();
+                                }
+                              } else if (e.key === 'ArrowDown' && showEditSuggestions) {
+                                e.preventDefault();
+                                setSelectedEditSuggestionIndex((prev) =>
+                                  prev < editFileSuggestions.length - 1 ? prev + 1 : 0
+                                );
+                              } else if (e.key === 'ArrowUp' && showEditSuggestions) {
+                                e.preventDefault();
+                                setSelectedEditSuggestionIndex((prev) =>
+                                  prev > 0 ? prev - 1 : editFileSuggestions.length - 1
+                                );
+                              } else if (e.key === 'Escape') {
+                                setShowEditSuggestions(false);
+                              }
+                            }}
+                            className="flex-1"
+                            endContent={
+                              isLoadingEditFiles ? (
+                                <Loader2 className="w-3 h-3 animate-spin text-default-400" />
+                              ) : null
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            onPress={addFilePath}
+                            isDisabled={!newFilePath.trim()}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        {showEditSuggestions && editFileSuggestions.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto rounded-md border border-divider bg-content1 shadow-sm">
+                            {editFileSuggestions.map((suggestion, index) => (
+                              <button
+                                key={suggestion}
+                                type="button"
+                                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-default-100 cursor-pointer flex items-center gap-2 ${
+                                  index === selectedEditSuggestionIndex ? 'bg-default-100' : ''
+                                }`}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  selectEditSuggestion(suggestion);
+                                }}
+                              >
+                                <FileCode className="w-3 h-3 text-default-400 flex-shrink-0" />
+                                <span className="truncate">{suggestion}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1436,6 +1449,50 @@ export default function TaskDetailScreen({
           </div>
         ) : null}
       </div>
+
+      {/* Unanswered questions warning modal */}
+      <Modal
+        isOpen={!!pendingTransition}
+        onOpenChange={(open) => {
+          if (!open) setPendingTransition(null);
+        }}
+        size="sm"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader>Unanswered Questions</ModalHeader>
+              <ModalBody>
+                <p className="text-sm text-default-600">
+                  You have{' '}
+                  <strong>
+                    {pendingTransition?.unansweredCount} unanswered question
+                    {pendingTransition?.unansweredCount !== 1 ? 's' : ''}
+                  </strong>{' '}
+                  from the current stage. Proceeding will carry your answered questions forward but
+                  unanswered ones will be discarded.
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>
+                  Go Back
+                </Button>
+                <Button
+                  color="warning"
+                  onPress={() => {
+                    if (pendingTransition && task) {
+                      onTransition(task.id, pendingTransition.toStatus as RalphTaskStatus);
+                    }
+                    onClose();
+                  }}
+                >
+                  Proceed Anyway
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

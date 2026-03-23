@@ -1,38 +1,213 @@
-# Omnidev — Developer Bot Orchestration Runtime
+# Omnidev — Task-to-Branch Pipeline
 
 ## Project Identity
 
-**Omnidev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+**Omnidev** is a self-hostable workflow system that turns tasks into branches. The default pipeline: a user creates a task, moves it to `"coding"`, and a worker automatically clones the repo, runs an agent, commits changes, and pushes a branch. The agent is replaceable. The pipeline is the product. The workflow is modular — users define their own.
 
 ### What Omnidev Is
 
-| Category        | Classification                                                 |
-| --------------- | -------------------------------------------------------------- |
-| Type            | Developer automation platform / workflow orchestration runtime |
-| Architecture    | One bot identity spanning many workspaces                      |
-| Execution Model | Workspace-scoped behavior, not bot-scoped                      |
-| AI Integration  | Bring your own Claude Code subscription                        |
+| Category        | Classification                                                |
+| --------------- | ------------------------------------------------------------- |
+| Type            | Task → agent → PR pipeline (default workflow)                 |
+| Architecture    | 3 layers: API (Next.js) / State (SQLite) / Execution (Worker) |
+| Execution Model | Single-user, self-hostable, deploy-anywhere                   |
+| AI Integration  | Agent-agnostic (Claude Code is the default, swappable)        |
+| Workflow Model  | Modular — users define triggers, steps, and outputs           |
 
 ### What Omnidev Is NOT
 
-- Not a SaaS AI product
-- Not a multi-bot system
-- Not an AI model provider
+- Not a SaaS product — runs on hardware the user controls
+- Not an agent framework — agents are plugged in, not built here
+- Not an AI model provider — users bring their own CLI authentication
+- Not a multi-tenant system — single user, single bot identity
 - Not a Claude Code replacement or reimplementation
 
-### Bot Model (Critical Constraint)
+### Core Philosophy
 
-Omnidev operates **one bot identity** that spans many workspaces (repos, teams, orgs). There must be no assumption of:
+OmniDev is NOT an agent. OmniDev is a **workflow system that makes agents reliable**.
 
-- one bot per repo
-- one bot per team
-- multiple concurrent bot personalities
+- The agent is replaceable
+- The pipeline is the product
+- The workflow is modular — the task-to-branch pipeline is the default, not the only option
+- Everything is deterministic except the agent execution step
 
-**Mental model:** One omnipresent developer agent with many execution contexts.
+The default pipeline:
 
-## Project Overview
+```
+task → job → clone → branch → agent → commit → push → update state
+                              ^^^^^^
+                         only non-deterministic step
+```
 
-A Next.js 15 web application that provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis. Users can clone repositories from GitHub or GitLab, ask questions about code, and request AI-assisted edits with automatic branch creation and pull/merge request support.
+Users define what triggers work, what work runs, and what happens to outputs. No single "correct" workflow is enforced. Opinionated defaults are allowed, but must be overrideable.
+
+**Guiding rule:** Omnidev adapts to developer workflows, not the other way around.
+
+## Architecture
+
+There are exactly **3 layers**. No more.
+
+### 1. API / App (Next.js)
+
+- Owns task management (Ralph Board UI + CRUD via `/api/ralph/tasks`)
+- Owns workflow state transitions (`task.status`)
+- Writes to SQLite (`data/ralph.db`)
+- When a stage is started, automatically creates a pending job in SQLite
+- Serves the dashboard UI (Ralph Board) for task management and job monitoring
+- V2 API (`/api/v2/tasks`) is a backward-compatible adapter over Ralph tasks
+
+### 2. SQLite (single source of truth)
+
+- Database: `data/ralph.db`
+- Stores: **tasks**, **jobs**, **agent_runs** (all in one database)
+- ALL communication between API and Worker flows through SQLite
+- WAL mode enabled for concurrent read/write access
+- No message queues, no Redis, no external dependencies
+
+### 3. Worker (standalone process)
+
+- Runs via `pnpm worker` (separate from the Next.js server)
+- Polls `ralph.db` for pending jobs every 2 seconds
+- Claims jobs atomically via SQLite transactions
+- Dispatches by `agent_type`: `ralph-stage` → Ralph stage executor, `coding-agent` → V2 job executor
+- Sends heartbeat every 30 seconds; recovers stale jobs on each poll cycle
+- Updates job status and task state on completion
+- Never exposes HTTP endpoints — outbound only
+- Never accepts inbound network traffic
+
+### Layer Separation
+
+| Concern        | Owner  | NOT the owner of       |
+| -------------- | ------ | ---------------------- |
+| Task CRUD      | API    | Job execution          |
+| Workflow state | API    | Agent invocation       |
+| State storage  | SQLite | Business logic         |
+| Job execution  | Worker | HTTP endpoints         |
+| AI reasoning   | Agent  | Orchestration, git ops |
+
+## Agent Abstraction (Critical Constraint)
+
+The system MUST NOT couple to any specific AI tool. The agent is one step in a controlled pipeline.
+
+### Interface
+
+```typescript
+// src/worker/agent.ts
+interface AgentRunner {
+  run(options: {
+    question: string;
+    workingDirectory: string;
+    editRequest: boolean;
+  }): Promise<{ output: string }>;
+}
+```
+
+### Current Implementation
+
+`ClaudeCodeAgent` — wraps the Claude Code CLI. Users pre-authenticate Claude Code manually. No API keys are managed by Omnidev.
+
+### Swappability Rule
+
+Any future agent (OpenClaw, custom loops, other CLIs) must be usable by implementing `AgentRunner`. No changes to the pipeline, database, or API should be required to swap agents.
+
+### AI Agent Rules
+
+AI agents interacting with this project must:
+
+- Never describe Omnidev as "Claude Code itself"
+- Never assume Omnidev owns or provides AI intelligence
+- Clearly separate orchestration logic from AI execution
+
+## Job Execution Flow
+
+The worker executes this pipeline for every claimed job:
+
+```
+ 1. Claim next pending job (atomic SQLite transaction)
+ 2. Load task from DB
+ 3. Create temp working directory
+ 4. Clone repository
+ 5. If edit mode:
+    a. Create branch (omnidev/task-{id})
+    b. Unshallow repo
+ 6. Run agent ← ONLY non-deterministic step
+    - On failure: retry once with error context appended
+ 7. If edit mode AND changes exist:
+    a. Stage all changes
+    b. Set git identity
+    c. Commit
+    d. Push branch
+ 8. Cleanup temp directory (always, via try/finally)
+ 9. Update job status (completed/failed)
+10. If edit mode: move task to "review"
+```
+
+### Execution Modes
+
+| Mode       | Git Operations         | Task State After    |
+| ---------- | ---------------------- | ------------------- |
+| `edit`     | Branch, commit, push   | Moved to `"review"` |
+| `readonly` | Clone only (no writes) | Unchanged           |
+
+## Reliability
+
+### Job Timeout Recovery
+
+- Jobs have `started_at` and `heartbeat_at` timestamps
+- Worker sends heartbeat every 30 seconds during execution
+- On each poll cycle, stale jobs (no heartbeat for 10+ minutes) are marked failed
+- Prevents jobs from getting stuck in `"running"` forever
+
+### Retry
+
+- One automatic retry on agent failure
+- Retry appends the error message to the prompt for context
+- If the retry also fails, the job is marked failed
+
+### Cleanup
+
+- Temp directories are always cleaned up via `try/finally`
+- No orphaned clones accumulate
+
+### Concurrency
+
+- Multiple workers can run safely — SQLite transactions prevent double-claiming
+- Each worker processes one job at a time
+
+## Data Model
+
+### Tables (`data/ralph.db`)
+
+| Table        | Purpose                                     |
+| ------------ | ------------------------------------------- |
+| `tasks`      | Ralph tasks with stage-based workflow state |
+| `jobs`       | Execution records (one per stage run)       |
+| `agent_runs` | Detailed run logs per job                   |
+
+### Task Lifecycle (Ralph)
+
+```
+draft → triage → planning → research → ready → executing → complete
+                                                    ↓
+                                              job in SQLite
+```
+
+Tasks can skip stages. The most common path: `draft → executing → complete`.
+
+### Job Lifecycle
+
+```
+pending → running → completed
+                  → failed
+```
+
+### Additional App Data
+
+| Data             | Location                     | Format                                        |
+| ---------------- | ---------------------------- | --------------------------------------------- |
+| Workspace index  | `data/.workspace-index.json` | JSON array                                    |
+| App config       | `data/app-config.json`       | JSON object                                   |
+| Legacy job queue | `data/jobs/`                 | JSON files (used by /api/ask, /api/edit only) |
 
 ## Technology Stack
 
@@ -40,6 +215,7 @@ A Next.js 15 web application that provides a web UI for managing Git workspaces 
 | --------------- | --------------------------------------- | ------- |
 | Framework       | Next.js (App Router, standalone output) | 15.x    |
 | Language        | TypeScript (strict mode)                | 5.x     |
+| Database        | SQLite via better-sqlite3               | -       |
 | UI Library      | HeroUI (formerly NextUI)                | 2.x     |
 | Styling         | Tailwind CSS                            | 3.x     |
 | Authentication  | NextAuth.js with 2FA (TOTP)             | 4.x     |
@@ -58,37 +234,43 @@ workflow/
 ├── src/
 │   ├── app/                    # Next.js App Router
 │   │   ├── api/                # API route handlers
-│   │   ├── about/              # About page
+│   │   │   ├── ralph/          # Ralph task/stage/job APIs (primary)
+│   │   │   └── v2/             # V2 backward-compatible task/job API
 │   │   ├── dashboard/          # Dashboard pages
 │   │   ├── docs/               # Documentation pages
-│   │   ├── mcp/                # MCP server pages
 │   │   ├── signin/             # Authentication pages
 │   │   └── layout.tsx          # Root layout
 │   ├── components/             # React components
 │   │   ├── dashboard/          # Dashboard-specific components
+│   │   │   └── tabs/           # Tab panels (Ralph Board, Operations, etc.)
 │   │   ├── docs/               # Documentation components
 │   │   └── motion/             # Animation components
 │   ├── hooks/                  # Custom React hooks
-│   └── lib/                    # Core business logic
-│       ├── api/                # API utilities and validation
-│       ├── auth/               # Authentication logic
-│       ├── claudeCode/         # Claude Code CLI integration
-│       ├── common/             # Shared utilities and types
-│       ├── config/             # Configuration management
-│       ├── dashboard/          # Dashboard helpers
-│       ├── docs/               # Documentation utilities
-│       ├── git/                # Git operations (simple-git)
-│       ├── github/             # GitHub API integration
-│       ├── gitlab/             # GitLab API integration
-│       ├── managers/           # Resource managers
-│       ├── queue/              # Job queue system
-│       ├── types/              # TypeScript type definitions
-│       ├── utils/              # General utilities
-│       └── workspace/          # Workspace management
+│   │   └── queries/            # TanStack Query hooks
+│   ├── lib/                    # Core business logic
+│   │   ├── agent/              # Stage executor (AgentRunner-based)
+│   │   ├── api/                # API utilities and validation
+│   │   ├── auth/               # Authentication logic
+│   │   ├── claudeCode/         # Claude Code CLI integration
+│   │   ├── common/             # Shared utilities and types
+│   │   ├── config/             # Configuration management
+│   │   ├── git/                # Git operations (simple-git)
+│   │   ├── github/             # GitHub API integration
+│   │   ├── gitlab/             # GitLab API integration
+│   │   ├── managers/           # Resource managers (ralph-task-db, workspace)
+│   │   ├── queue/              # Legacy file-based queue (/api/ask, /api/edit)
+│   │   ├── ralph/              # Ralph workflow engine (stage runner)
+│   │   ├── types/              # TypeScript type definitions
+│   │   └── workspace/          # Workspace management
+│   └── worker/                 # Standalone worker process
+│       ├── index.ts            # Entry point (poll loop, heartbeat, dispatch)
+│       ├── agent.ts            # AgentRunner interface + ClaudeCodeAgent
+│       ├── job-executor.ts     # V2 job execution pipeline
+│       └── git-helpers.ts      # Branch naming, commit messages, credentials
 ├── docs/                       # Markdown docs (served at /docs)
 ├── scripts/                    # Shell scripts
-├── data/                       # App server data (config, auth, metadata, jobs)
-└── workspaces/                 # Cloned repositories (Claude Code accessible)
+├── data/                       # App server data (config, auth, ralph.db)
+└── workspaces/                 # Cloned repositories + .ralph-tasks/
 ```
 
 ## Key Commands
@@ -98,6 +280,7 @@ workflow/
 pnpm dev                  # Start dev server with Turbopack
 pnpm build                # Production build (standalone output)
 pnpm start                # Start production server
+pnpm worker               # Start standalone worker process
 
 # Quality Checks
 pnpm lint:all             # TypeScript + ESLint + Prettier + depcheck
@@ -111,39 +294,6 @@ pnpm test:coverage        # With coverage report
 docker compose up --build # Build and run container
 docker compose watch      # Dev mode with hot reload
 ```
-
-## Architecture Overview
-
-### Request Flow
-
-1. **Web UI** → User interacts with dashboard
-2. **API Route** → `/api/ask` or `/api/edit` receives request
-3. **Authentication** → `withAuth()` validates session or API key
-4. **Validation** → Zod schema validates request body
-5. **Job Queue** → `executeOrQueue()` handles execution
-6. **Claude Code** → CLI executes in sandboxed environment
-7. **Response** → Results returned (immediate or polled via job ID)
-
-### Core Subsystems
-
-| Subsystem                | Location                             | Purpose                     |
-| ------------------------ | ------------------------------------ | --------------------------- |
-| Workspace Manager        | `lib/managers/workspace-manager.ts`  | CRUD for git workspaces     |
-| Repository Manager       | `lib/managers/repository-manager.ts` | Git clone/branch operations |
-| Claude Code Orchestrator | `lib/claudeCode/orchestrator.ts`     | Execute Claude Code CLI     |
-| Job Queue                | `lib/queue/`                         | Async job execution         |
-| Git Operations           | `lib/git/`                           | simple-git wrapper          |
-| GitHub Integration       | `lib/github/`                        | PR creation, repository API |
-| GitLab Integration       | `lib/gitlab/`                        | MR creation, project API    |
-
-### Data Storage
-
-| Data              | Location                      | Format             |
-| ----------------- | ----------------------------- | ------------------ |
-| Workspace index   | `data/.workspace-index.json`  | JSON array         |
-| Job data          | `data/jobs/`                  | JSON files per job |
-| Execution history | `data/execution-history.json` | JSON array         |
-| App config        | `data/app-config.json`        | JSON object        |
 
 ## Coding Standards
 
@@ -187,13 +337,13 @@ const workspace = result.data;
 Use bracketed prefixes for structured logging:
 
 ```typescript
-console.log(`[WORKSPACE MANAGER] Loading workspace: ${id}`);
-console.error(`[ASK API] Failed to execute:`, error);
+console.log(`[WORKER:edit] Cloning https://github.com/owner/repo...`);
+console.error(`[V2 TASKS] Failed to create task:`, error);
 ```
 
 ## Docker & Sandboxing
 
-The application runs in Docker with Claude Code sandboxed for security.
+The application runs in Docker with the agent CLI sandboxed for security.
 
 ### Security Measures
 
@@ -207,13 +357,26 @@ The application runs in Docker with Claude Code sandboxed for security.
 
 ### Key Docker Files
 
-| File                        | Purpose                                     |
-| --------------------------- | ------------------------------------------- |
-| `Dockerfile`                | Multi-stage build (deps → builder → runner) |
-| `docker-compose.yml`        | Service configuration                       |
-| `docker-entrypoint.sh`      | Secret initialization                       |
-| `claude-code-wrapper.sh`    | Sandboxed Claude Code execution             |
-| `scripts/verify-sandbox.sh` | Sandbox verification script                 |
+| File                          | Purpose                                     |
+| ----------------------------- | ------------------------------------------- |
+| `Dockerfile`                  | Multi-stage build (deps → builder → runner) |
+| `Dockerfile.dev`              | Dev image with hot reload support           |
+| `docker-compose.yml`          | Base service configuration + volumes        |
+| `docker-compose.override.yml` | Dev overrides (bind mounts)                 |
+| `docker-compose.prod.yml`     | Production overrides (healthcheck)          |
+| `docker-entrypoint.sh`        | Secret initialization                       |
+| `claude-code-wrapper.sh`      | Sandboxed agent CLI execution               |
+
+### Running the Worker in Docker
+
+```bash
+# Dev (source bind-mounted, worker runs inside app container)
+docker compose up -d
+docker compose exec app pnpm worker
+
+# Agent authentication (once, persisted in volume)
+docker compose exec app claude
+```
 
 ## API Authentication
 
@@ -234,6 +397,43 @@ export async function POST(request: NextRequest) {
 }
 ```
 
+## Ralph API Endpoints (Primary)
+
+| Endpoint                            | Method | Purpose                                   |
+| ----------------------------------- | ------ | ----------------------------------------- |
+| `/api/ralph/tasks`                  | GET    | List tasks with enriched data             |
+| `/api/ralph/tasks/:id`              | GET    | Full task detail with workspace info      |
+| `/api/ralph/tasks/:id`              | PATCH  | Update task fields                        |
+| `/api/ralph/tasks/:id`              | DELETE | Delete a task                             |
+| `/api/ralph/tasks/:id/transition`   | POST   | Transition task to a new stage            |
+| `/api/ralph/tasks/:id/stage-run`    | POST   | Start a stage run (creates job in SQLite) |
+| `/api/ralph/tasks/:id/stage-answer` | POST   | Answer pending stage questions            |
+| `/api/ralph/tasks/:id/artifact`     | GET    | Get task artifacts                        |
+
+## V2 API Endpoints (Backward-Compatible Adapter)
+
+These routes are thin adapters over Ralph tasks with V2-style status names.
+
+| Endpoint            | Method | Purpose                                              |
+| ------------------- | ------ | ---------------------------------------------------- |
+| `/api/v2/tasks`     | GET    | List tasks (optional `?status=` filter)              |
+| `/api/v2/tasks`     | POST   | Create a task                                        |
+| `/api/v2/tasks/:id` | GET    | Read a single task                                   |
+| `/api/v2/tasks/:id` | PATCH  | Update task; auto-creates job on status → `"coding"` |
+| `/api/v2/jobs`      | GET    | List jobs (optional `?task_id=` filter)              |
+
+### Creating and Running a Task
+
+```bash
+# Create (V2 adapter)
+curl -X POST /api/v2/tasks \
+  -d '{"title": "Add validation", "description": "...", "repo_url": "https://..."}'
+
+# Trigger execution (auto-creates job)
+curl -X PATCH /api/v2/tasks/{id} \
+  -d '{"status": "coding", "execution_mode": "edit"}'
+```
+
 ## Environment Variables
 
 | Variable          | Required | Description                      |
@@ -246,106 +446,55 @@ export async function POST(request: NextRequest) {
 | `API_RATE_LIMIT`  | No       | Requests per hour (default: 100) |
 | `ALLOWED_IPS`     | No       | IP whitelist (\* for all)        |
 
-## Relationship to Claude Code
-
-Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not replace, reimplement, or resell Claude Code. Users must bring their own Claude Code subscription.
-
-### Responsibility Boundaries
-
-| Responsible Entity | Responsibilities                                                                                                                                                                                                            |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Omnidev**        | Workflow orchestration, event handling (GitHub, GitLab, CI, n8n, manual triggers), workspace scoping and configuration, permission boundaries and execution context, integration lifecycle, infrastructure/runtime concerns |
-| **Claude Code**    | Code understanding, command execution, research and reasoning, repo-level operations                                                                                                                                        |
-
-### Claude Code Treatment
-
-Claude Code is treated as:
-
-- A dependency
-- An execution backend
-- An interchangeable engine (in principle)
-
-AI agents interacting with this project must:
-
-- Never describe Omnidev as "Claude Code itself"
-- Never assume Omnidev owns or provides AI intelligence
-- Clearly separate orchestration logic from AI execution
-
-## Workflow Philosophy
-
-Omnidev is **workflow-agnostic**. Users define:
-
-- what triggers work
-- what work runs
-- what happens to outputs
-
-No single "correct" workflow is enforced. Opinionated defaults are allowed, but must be overrideable.
-
-**Guiding rule:** Omnidev adapts to developer workflows, not the other way around.
-
 ## Deployment Model
 
-Omnidev is **cloud-first but not cloud-required**. Must be deployable to:
+Omnidev is **deploy-anywhere**. Cloud and local are equally supported:
 
-- cloud infrastructure
-- VPS
-- local environments
+- Cloud infrastructure (Docker, Kubernetes, VPS)
+- Local development machines
+- Private servers / on-premise
 
-No feature may require a hosted Omnidev service. Domain usage (e.g., `.cloud`) must never imply:
-
-- hosted-only
-- SaaS lock-in
-- managed service dependency
+No feature may require a hosted Omnidev service. No feature may assume local-only execution. No SaaS lock-in. No managed service dependency. The user owns the deployment, the data, and the agent authentication.
 
 ## Extensibility & Control
 
 Users may:
 
-- shell into the container
-- attach MCPs
-- extend execution capabilities
-- wire external systems (e.g., n8n)
+- Shell into the container
+- Attach MCPs to the agent CLI
+- Swap the agent implementation
+- Wire external systems (e.g., n8n)
+- Run multiple worker instances
 
 Omnidev must not obscure or restrict this control. Power-user access is a feature, not a liability.
 
 ## Documentation Principles
 
-This project follows strict documentation guidelines. Key rules:
-
-| Rule                           | Rationale                                              |
-| ------------------------------ | ------------------------------------------------------ |
-| No first-person pronouns       | Avoid "I", "we", "our" in all documentation            |
-| Claude Code is a dependency    | Not a partnership; users need their own Claude account |
-| Curious tone, not promotional  | Documentation explains; marketing sells                |
-| Answer five questions          | What, why, who, how, and non-goals                     |
-| Acknowledge opinionated design | State limitations clearly                              |
-
-### Required Disclosure
-
-Public-facing documentation must include the Claude Code dependency disclosure. See `docs/CLAUDE.md` for the required text and branding guidelines.
+| Rule                           | Rationale                                           |
+| ------------------------------ | --------------------------------------------------- |
+| No first-person pronouns       | Avoid "I", "we", "our" in all documentation         |
+| Agent CLI is a dependency      | Not a partnership; users authenticate it themselves |
+| Curious tone, not promotional  | Documentation explains; marketing sells             |
+| Acknowledge opinionated design | State limitations clearly                           |
 
 ### Acceptable Phrasing
 
-- "Single developer bot orchestration runtime"
-- "One bot, many workspaces"
-- "Workspace-scoped behavior"
-- "Orchestration layer / automation runtime"
-- "Bring your own AI"
-- "Orchestrates Claude Code for automated code analysis"
+- "Workflow system that makes agents reliable"
+- "The agent is replaceable, the pipeline is the product"
+- "Task → agent → PR system"
+- "Self-hostable developer automation"
+- "Deploy-anywhere workflow pipeline"
+- "Modular workflows, swappable agents"
 
 ### Avoid
 
-- "Multi-bot system"
-- "Agent framework"
-- "AI platform"
+- "AI platform" or "Agent framework"
+- "Powered by Claude" or "Built on Claude"
+- "Multi-bot system" or "Multi-tenant"
 - "Hosted AI service"
-- "Claude replacement"
-- "Powered by Claude" or "Built on Claude" (implies partnership)
 - Any phrasing suggesting resale or access provision
 
 ## Nested CLAUDE.md Files
-
-More detailed guidance in subdirectories:
 
 | File                       | Purpose                           |
 | -------------------------- | --------------------------------- |
@@ -358,18 +507,23 @@ More detailed guidance in subdirectories:
 
 ## Contributor Expectations
 
-Contributions should:
+Contributions must:
 
-- Preserve single-bot assumptions
-- Avoid adding opinionated workflow coupling
-- Keep Claude Code as a dependency, not a fork
+- Maintain the 3-layer separation (API / SQLite / Worker)
+- Keep agents swappable via the `AgentRunner` interface
+- Never couple pipeline logic to a specific AI tool
+- Preserve single-user, deploy-anywhere assumptions
+- Keep workflows modular — defaults are overrideable, not hardcoded
+- Ensure jobs never get stuck (heartbeat, cleanup, retry)
 - Maintain deploy-anywhere compatibility
 
 Any contribution that:
 
-- introduces bot multiplicity
-- hardcodes workflows
-- assumes hosted execution
+- Embeds agent-specific logic in the pipeline
+- Adds external service dependencies to core flow
+- Assumes multi-tenancy or hosted execution
+- Hardcodes a single workflow that cannot be overridden
+- Breaks the deterministic pipeline around the agent step
 
 ...must be treated as architecturally invalid unless explicitly approved.
 
@@ -377,10 +531,31 @@ Any contribution that:
 
 When in doubt, prefer:
 
-- **control** over convenience
-- **composability** over magic
-- **transparency** over abstraction
-- **infrastructure patterns** over product gimmicks
+- **determinism** over cleverness — the pipeline must be predictable
+- **separation** over convenience — API, state, worker, agent are distinct
+- **reliability** over features — a stuck job is worse than a missing feature
+- **simplicity** over abstraction — three layers, one interface, one database
+- **deploy-anywhere** over deploy-somewhere — works on a laptop, works in the cloud
+
+## What NOT to Build
+
+- Custom LLM tool loops (use existing agent CLIs)
+- Multi-agent orchestration systems
+- Agent framework abstractions beyond `AgentRunner`
+- Cloud-hosted SaaS features
+- Multi-tenant auth or billing
+
+Focus: **task → job → repo change → branch pushed**
+
+## Success Criteria
+
+The system works when:
+
+1. A user creates a task with a repo URL and description
+2. Moving the task to `"coding"` triggers a job
+3. The worker automatically clones, branches, runs the agent, commits, and pushes
+4. The task ends in `"review"`
+5. A branch exists remotely with the changes
 
 ## Common Tasks
 
@@ -404,3 +579,9 @@ When in doubt, prefer:
 2. Add `'use client'` directive
 3. Use HeroUI components as base
 4. Export via `src/components/dashboard/index.ts`
+
+### Adding a New Agent Implementation
+
+1. Create a class implementing `AgentRunner` in `src/worker/agent.ts`
+2. Add a factory or config switch in `src/worker/index.ts`
+3. No changes to job-executor, API, or database required

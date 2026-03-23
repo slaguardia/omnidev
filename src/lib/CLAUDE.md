@@ -6,22 +6,24 @@ Core business logic organized by domain. Each module has an `index.ts` barrel ex
 
 ## Module Overview
 
-| Module        | Purpose                          | Server-Only |
-| ------------- | -------------------------------- | ----------- |
-| `types/`      | Core type definitions            | No          |
-| `claudeCode/` | Claude Code CLI integration      | Yes         |
-| `git/`        | Git operations via simple-git    | Yes         |
-| `gitlab/`     | GitLab API via @gitbeaker/rest   | Yes         |
-| `github/`     | GitHub API via @octokit/rest     | Yes         |
-| `queue/`      | File-based job queue             | Yes         |
-| `workspace/`  | Workspace management actions     | Yes         |
-| `managers/`   | Resource managers                | Yes         |
-| `auth/`       | Authentication middleware        | Yes         |
-| `config/`     | App configuration                | Mixed       |
-| `api/`        | API utilities and Zod validation | Yes         |
-| `dashboard/`  | Dashboard helpers                | Yes         |
-| `docs/`       | Documentation utilities          | Yes         |
-| `common/`     | Shared utilities and types       | No          |
+| Module        | Purpose                                       | Server-Only |
+| ------------- | --------------------------------------------- | ----------- |
+| `types/`      | Core type definitions                         | No          |
+| `agent/`      | Stage executor (uses AgentRunner interface)   | Yes         |
+| `claudeCode/` | Claude Code CLI integration                   | Yes         |
+| `git/`        | Git operations via simple-git                 | Yes         |
+| `gitlab/`     | GitLab API via @gitbeaker/rest                | Yes         |
+| `github/`     | GitHub API via @octokit/rest                  | Yes         |
+| `managers/`   | Resource managers (ralph-task-db, workspace)  | Yes         |
+| `ralph/`      | Ralph workflow engine (stage runner)          | Yes         |
+| `queue/`      | Legacy file-based queue (/api/ask, /api/edit) | Yes         |
+| `workspace/`  | Workspace management actions                  | Yes         |
+| `auth/`       | Authentication middleware                     | Yes         |
+| `config/`     | App configuration                             | Mixed       |
+| `api/`        | API utilities and Zod validation              | Yes         |
+| `dashboard/`  | Dashboard helpers                             | Yes         |
+| `docs/`       | Documentation utilities                       | Yes         |
+| `common/`     | Shared utilities and types                    | No          |
 
 ## Core Patterns
 
@@ -299,9 +301,9 @@ if (ownerRepo) {
 }
 ```
 
-### `queue/` - Job Queue
+### `queue/` - Legacy Job Queue
 
-File-based job queue with execute-or-queue semantics.
+File-based job queue used only by `/api/ask` and `/api/edit` routes. Ralph stage jobs use SQLite (`ralph.db`) instead — see `managers/ralph-task-db.ts`.
 
 **Key Concepts:**
 

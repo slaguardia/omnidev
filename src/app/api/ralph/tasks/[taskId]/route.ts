@@ -9,7 +9,7 @@ import {
 } from '@/lib/managers/ralph-task-manager';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
-import { getJob, createJobId } from '@/lib/queue';
+import { dbGetJob } from '@/lib/managers/ralph-task-db';
 import type { WorkspaceId } from '@/lib/types';
 
 /**
@@ -111,7 +111,7 @@ export async function GET(
       for (const [stageName, stageOutput] of Object.entries(patchedOutputs)) {
         if (!stageOutput.activeJobId) continue;
 
-        const job = await getJob(createJobId(stageOutput.activeJobId));
+        const job = dbGetJob(stageOutput.activeJobId);
         const jobGone = !job;
         const jobDone = job && (job.status === 'completed' || job.status === 'failed');
 

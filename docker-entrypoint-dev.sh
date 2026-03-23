@@ -27,8 +27,10 @@ fi
 chown -R nextjs:nodejs /app/workspaces /app/data /home/nextjs /app/.next 2>/dev/null || true
 chown -R nextjs:nodejs /app/node_modules 2>/dev/null || true
 
-# Install dependencies
-pnpm install --frozen-lockfile
+# Install dependencies (skip if SKIP_INSTALL=1, e.g. for worker sharing node_modules volume)
+if [ "${SKIP_INSTALL}" != "1" ]; then
+  pnpm install --frozen-lockfile
+fi
 
 # Build native addons if missing (pnpm doesn't reliably run install scripts in Docker volumes)
 bs3_dir=/app/node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3
@@ -38,13 +40,15 @@ if compgen -G "$bs3_dir" > /dev/null; then
   cd /app
 fi
 
-# Start dev server as nextjs user.
+# Run the passed command as nextjs user.
 # The entrypoint runs as root for pnpm install and chown above,
 # then drops privileges so Claude Code can use --dangerously-skip-permissions
 # (which refuses to run under root/sudo).
+# Default command: next dev (when no CMD is specified)
+CMD_TO_RUN="${@:-pnpm exec next dev --hostname 0.0.0.0 --port 3000}"
 if [ "$(id -u)" = "0" ] && command -v gosu >/dev/null 2>&1; then
-  echo "[DEV] Dropping privileges to nextjs for dev server"
-  exec gosu nextjs pnpm exec next dev --hostname 0.0.0.0 --port 3000
+  echo "[DEV] Dropping privileges to nextjs"
+  exec gosu nextjs $CMD_TO_RUN
 else
-  exec pnpm exec next dev --hostname 0.0.0.0 --port 3000
+  exec $CMD_TO_RUN
 fi

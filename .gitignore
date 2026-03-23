@@ -93,3 +93,6 @@ repo-*/
 .config/*
 # Claude Code local settings (personal permissions)
 .claude/settings.local.json
+
+# Worker build output
+dist/

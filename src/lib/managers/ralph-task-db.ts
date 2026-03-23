@@ -127,6 +127,11 @@ function runMigrations(database: Database.Database): void {
     migrateV4PlaybookPromptOverrides(database);
     setSchemaVersion(database, 4);
   }
+
+  if (version < 5) {
+    migrateV5Jobs(database);
+    setSchemaVersion(database, 5);
+  }
 }
 
 function getSchemaVersion(database: Database.Database): number {
@@ -281,6 +286,41 @@ function migrateV3Playbooks(database: Database.Database): void {
   }
 }
 
+/** V5: Add jobs + agent_runs tables (ported from omnidev.db) */
+function migrateV5Jobs(database: Database.Database): void {
+  console.log('[RALPH TASK DB] Running migration v5: jobs + agent_runs tables');
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id            TEXT PRIMARY KEY,
+      task_id       TEXT NOT NULL,
+      agent_type    TEXT NOT NULL DEFAULT 'coding-agent',
+      status        TEXT NOT NULL DEFAULT 'pending',
+      payload       TEXT NOT NULL DEFAULT '{}',
+      result        TEXT,
+      error         TEXT,
+      started_at    TEXT,
+      heartbeat_at  TEXT,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+    CREATE INDEX IF NOT EXISTS idx_jobs_task ON jobs (task_id);
+
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id            TEXT PRIMARY KEY,
+      job_id        TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'running',
+      logs          TEXT NOT NULL DEFAULT '',
+      started_at    TEXT NOT NULL,
+      completed_at  TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_job ON agent_runs (job_id);
+  `);
+}
+
 /** V4: Add prompt_overrides column to playbooks */
 function migrateV4PlaybookPromptOverrides(database: Database.Database): void {
   console.log('[RALPH TASK DB] Running migration v4: playbook prompt overrides');
@@ -420,6 +460,19 @@ interface StmtCache {
   deleteByWorkspace: Database.Statement;
   tasksByParent: Database.Statement;
   getStatusById: Database.Statement;
+
+  // Job statements
+  insertJob: Database.Statement;
+  getJob: Database.Statement;
+  listJobs: Database.Statement;
+  listJobsByTask: Database.Statement;
+  claimJob: Database.Statement;
+  nextPendingJob: Database.Statement;
+  heartbeatJob: Database.Statement;
+
+  // Agent run statements
+  insertAgentRun: Database.Statement;
+  agentRunsByJob: Database.Statement;
 }
 
 let stmts: StmtCache | null = null;
@@ -505,6 +558,35 @@ function getStmts(): StmtCache {
     `),
 
     getStatusById: database.prepare('SELECT status FROM ralph_tasks WHERE id = ?'),
+
+    // Job statements
+    insertJob: database.prepare(`
+      INSERT INTO jobs (id, task_id, agent_type, status, payload, result, error, created_at, updated_at)
+      VALUES (@id, @task_id, @agent_type, @status, @payload, @result, @error, @created_at, @updated_at)
+    `),
+    getJob: database.prepare('SELECT * FROM jobs WHERE id = ?'),
+    listJobs: database.prepare('SELECT * FROM jobs ORDER BY created_at DESC'),
+    listJobsByTask: database.prepare(
+      'SELECT * FROM jobs WHERE task_id = ? ORDER BY created_at DESC'
+    ),
+    claimJob: database.prepare(
+      "UPDATE jobs SET status = 'running', started_at = ?, heartbeat_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'"
+    ),
+    nextPendingJob: database.prepare(
+      "SELECT * FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1"
+    ),
+    heartbeatJob: database.prepare(
+      "UPDATE jobs SET heartbeat_at = ? WHERE id = ? AND status = 'running'"
+    ),
+
+    // Agent run statements
+    insertAgentRun: database.prepare(`
+      INSERT INTO agent_runs (id, job_id, status, logs, started_at, completed_at)
+      VALUES (@id, @job_id, @status, @logs, @started_at, @completed_at)
+    `),
+    agentRunsByJob: database.prepare(
+      'SELECT * FROM agent_runs WHERE job_id = ? ORDER BY started_at DESC'
+    ),
   };
 
   return stmts;
@@ -919,6 +1001,190 @@ export function dbDeletePlaybook(id: string): boolean {
     const result = database.prepare('DELETE FROM ralph_playbooks WHERE id = ?').run(id);
     return result.changes > 0;
   })();
+}
+
+// ---------------------------------------------------------------------------
+// Job types (unified — replaces OmnidevJob/OmnidevAgentRun from lib/db)
+// ---------------------------------------------------------------------------
+
+export type RalphJobStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface RalphJob {
+  id: string;
+  task_id: string;
+  agent_type: string;
+  status: RalphJobStatus;
+  payload: string; // JSON
+  result: string | null;
+  error: string | null;
+  started_at: string | null;
+  heartbeat_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RalphAgentRun {
+  id: string;
+  job_id: string;
+  status: string;
+  logs: string;
+  started_at: string;
+  completed_at: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Job CRUD
+// ---------------------------------------------------------------------------
+
+export function dbCreateJob(job: RalphJob): void {
+  getStmts().insertJob.run({
+    id: job.id,
+    task_id: job.task_id,
+    agent_type: job.agent_type,
+    status: job.status,
+    payload: job.payload,
+    result: job.result,
+    error: job.error,
+    created_at: job.created_at,
+    updated_at: job.updated_at,
+  });
+}
+
+export function dbGetJob(id: string): RalphJob | null {
+  return (getStmts().getJob.get(id) as RalphJob | undefined) ?? null;
+}
+
+/**
+ * Atomically claim the next pending job.
+ * Prevents two worker instances from grabbing the same job.
+ */
+export function dbClaimNextPendingJob(): RalphJob | null {
+  const database = getDb();
+  const s = getStmts();
+  const now = new Date().toISOString();
+
+  let claimed: RalphJob | null = null;
+
+  database.transaction(() => {
+    const row = s.nextPendingJob.get() as RalphJob | undefined;
+    if (!row) return;
+
+    const result = s.claimJob.run(now, now, now, row.id);
+    if (result.changes > 0) {
+      claimed = { ...row, status: 'running', started_at: now, heartbeat_at: now, updated_at: now };
+    }
+  })();
+
+  return claimed;
+}
+
+export function dbUpdateJob(
+  id: string,
+  updates: Partial<Pick<RalphJob, 'status' | 'result' | 'error'>>
+): boolean {
+  const database = getDb();
+  const now = new Date().toISOString();
+  const sets: string[] = ['updated_at = ?'];
+  const values: unknown[] = [now];
+
+  if (updates.status !== undefined) {
+    sets.push('status = ?');
+    values.push(updates.status);
+  }
+  if (updates.result !== undefined) {
+    sets.push('result = ?');
+    values.push(updates.result);
+  }
+  if (updates.error !== undefined) {
+    sets.push('error = ?');
+    values.push(updates.error);
+  }
+
+  values.push(id);
+  const result = database.prepare(`UPDATE jobs SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+  return result.changes > 0;
+}
+
+export function dbListJobs(filters?: { task_id?: string }): RalphJob[] {
+  if (filters?.task_id) {
+    return getStmts().listJobsByTask.all(filters.task_id) as RalphJob[];
+  }
+  return getStmts().listJobs.all() as RalphJob[];
+}
+
+/**
+ * Update heartbeat timestamp for a running job.
+ */
+export function dbHeartbeatJob(jobId: string): boolean {
+  const now = new Date().toISOString();
+  const result = getStmts().heartbeatJob.run(now, jobId);
+  return result.changes > 0;
+}
+
+/**
+ * Mark stale running jobs as failed.
+ * Returns the number of recovered jobs.
+ */
+export function dbRecoverStaleJobs(cutoffIso: string): number {
+  const database = getDb();
+  const now = new Date().toISOString();
+  const result = database
+    .prepare(
+      `UPDATE jobs
+       SET status = 'failed', error = 'Job timed out (no heartbeat for 10+ minutes)', updated_at = ?
+       WHERE status = 'running' AND (heartbeat_at IS NULL OR heartbeat_at < ?)`
+    )
+    .run(now, cutoffIso);
+  return result.changes;
+}
+
+// ---------------------------------------------------------------------------
+// Agent Run CRUD
+// ---------------------------------------------------------------------------
+
+export function dbCreateAgentRun(run: RalphAgentRun): void {
+  getStmts().insertAgentRun.run({
+    id: run.id,
+    job_id: run.job_id,
+    status: run.status,
+    logs: run.logs,
+    started_at: run.started_at,
+    completed_at: run.completed_at,
+  });
+}
+
+export function dbUpdateAgentRun(
+  id: string,
+  updates: Partial<Pick<RalphAgentRun, 'status' | 'logs' | 'completed_at'>>
+): boolean {
+  const database = getDb();
+  const sets: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.status !== undefined) {
+    sets.push('status = ?');
+    values.push(updates.status);
+  }
+  if (updates.logs !== undefined) {
+    sets.push('logs = ?');
+    values.push(updates.logs);
+  }
+  if (updates.completed_at !== undefined) {
+    sets.push('completed_at = ?');
+    values.push(updates.completed_at);
+  }
+
+  if (sets.length === 0) return false;
+
+  values.push(id);
+  const result = database
+    .prepare(`UPDATE agent_runs SET ${sets.join(', ')} WHERE id = ?`)
+    .run(...values);
+  return result.changes > 0;
+}
+
+export function dbGetAgentRunsByJob(jobId: string): RalphAgentRun[] {
+  return getStmts().agentRunsByJob.all(jobId) as RalphAgentRun[];
 }
 
 /**

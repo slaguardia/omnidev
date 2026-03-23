@@ -5,7 +5,7 @@ import { Chip } from '@heroui/chip';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/dropdown';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
-import { Link, Plus, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, X, Loader2, AlertTriangle } from 'lucide-react';
 import { chipSize, infoChipClasses } from '@/components/Primitives';
 import { useRalphTaskDependencies } from '@/hooks/queries/useRalphTaskDependencies';
 import { useRalphTasks } from '@/hooks/queries/useRalphTasks';
@@ -116,11 +116,11 @@ export default function DependencySection({
 
   return (
     <div>
-      <div className="text-xs font-medium text-default-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-        <Link className="w-3 h-3" />
-        Dependencies
-        {(saving || isLoading) && <Loader2 className="w-3 h-3 animate-spin" />}
-      </div>
+      {(saving || isLoading) && (
+        <div className="flex items-center gap-1 mb-1.5">
+          <Loader2 className="w-3 h-3 animate-spin text-default-400" />
+        </div>
+      )}
 
       {/* Blocked By */}
       {(hasBlockers || canEdit) && (

@@ -14,7 +14,8 @@ import {
   resolvePrTargetBranch,
 } from '@/lib/managers/ralph-task-manager';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
-import { executeOrQueue } from '@/lib/queue';
+import { dbCreateJob, type RalphJob } from '@/lib/managers/ralph-task-db';
+import { nanoid } from 'nanoid';
 import { loadWorkflowDefinition } from '@/lib/managers/workflow-definition-manager';
 import { DEFAULT_WORKFLOW_DEFINITION, findStageDefinition, isEditStage } from '@/lib/workflow';
 import { resolvePromptTemplate } from '@/lib/workflow';
@@ -192,11 +193,29 @@ export async function startStageRun(
     let previousStageOutput: string | null = null;
 
     if (task.stageOutputs) {
-      // Extract last iteration output from each stage
+      // Extract canonical output from each stage: prefer fileOutput (from .ralph/{stage}.md)
+      // over raw iteration output, since fileOutput is the refined artifact.
+      // Append any answered Q&A so downstream stages have full context.
       for (const [sid, so] of Object.entries(task.stageOutputs)) {
-        const lastIter = so.iterations[so.iterations.length - 1];
-        if (lastIter?.output) {
-          stageOutputVars[sid] = lastIter.output;
+        let baseOutput = '';
+        if (so.fileOutput) {
+          baseOutput = so.fileOutput;
+        } else {
+          const lastIter = so.iterations[so.iterations.length - 1];
+          if (lastIter?.output) {
+            baseOutput = lastIter.output;
+          }
+        }
+
+        // Append answered questions as formatted Q&A pairs
+        const answeredQs = so.pendingQuestions?.filter((q) => q.answer) ?? [];
+        if (answeredQs.length > 0) {
+          const qaParts = answeredQs.map((q) => `**Q:** ${q.question}\n**A:** ${q.answer}`);
+          baseOutput += '\n\n## Answered Questions\n\n' + qaParts.join('\n\n');
+        }
+
+        if (baseOutput) {
+          stageOutputVars[sid] = baseOutput;
         }
       }
 
@@ -214,6 +233,9 @@ export async function startStageRun(
       }
     }
 
+    // Build task-scoped artifact path: .ralph/tasks/{taskId}/{stageName}.md
+    const artifactPath = `.ralph/tasks/${taskId}/${stageName}.md`;
+
     resolvedPrompt = resolvePromptTemplate(
       promptTemplate,
       {
@@ -222,6 +244,7 @@ export async function startStageRun(
         filePaths: task.filePaths ?? [],
         previousStageOutput,
         stageOutputs: stageOutputVars,
+        artifactPath,
       },
       stageDef.config.returnQuestions
     );
@@ -261,8 +284,23 @@ export async function startStageRun(
     autoLoop,
   };
 
-  const execution = await executeOrQueue('ralph-stage', payload, { forceQueue: true });
-  const jobId = !execution.immediate ? (execution.jobId as string) : null;
+  const now = new Date().toISOString();
+  const jobId = nanoid(10);
+  const job: RalphJob = {
+    id: jobId,
+    task_id: taskId,
+    agent_type: 'ralph-stage',
+    status: 'pending',
+    payload: JSON.stringify(payload),
+    result: null,
+    error: null,
+    started_at: null,
+    heartbeat_at: null,
+    created_at: now,
+    updated_at: now,
+  };
+  dbCreateJob(job);
+  console.log(`[STAGE-RUNNER] Created SQLite job ${jobId} for stage '${stageName}'`);
 
   // Write activeJobId into the task's stageOutputs so the UI can poll
   if (jobId) {
@@ -280,6 +318,7 @@ export async function startStageRun(
           returnQuestions: currentStage?.returnQuestions ?? stageDef.config.returnQuestions,
           iterations: currentStage?.iterations ?? [],
           pendingQuestions: currentStage?.pendingQuestions ?? [],
+          fileOutput: currentStage?.fileOutput,
           activeJobId: jobId,
           autoLoopActive: autoLoop ? true : undefined,
           completionReason: undefined,
@@ -289,5 +328,5 @@ export async function startStageRun(
     });
   }
 
-  return jobId ? { jobId } : {};
+  return { jobId };
 }

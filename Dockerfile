@@ -75,8 +75,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_SHOWCASE_MODE=false
 ENV NEXT_PUBLIC_SHOWCASE_MODE=${NEXT_PUBLIC_SHOWCASE_MODE}
 
-# Build the application
+# Build the Next.js application
 RUN pnpm run build
+
+# Build the standalone worker bundle
+RUN pnpm run worker:build
 
 # =============================================================================
 # STAGE 3: Production Runtime
@@ -107,6 +110,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Ensure better-sqlite3 native addon is present (standalone tracing may miss .node binaries)
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+
+# Copy the pre-built standalone worker bundle
+COPY --from=builder --chown=nextjs:nodejs /app/dist/index.cjs ./worker.cjs
+COPY --from=builder --chown=nextjs:nodejs /app/dist/index.cjs.map ./worker.cjs.map
 
 # Copy docs directory for documentation pages (read at runtime)
 COPY --chown=nextjs:nodejs docs/ ./docs/

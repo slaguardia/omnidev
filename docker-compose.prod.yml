@@ -43,3 +43,26 @@ services:
       start_period: 40s
     entrypoint: ['/entrypoint.sh']
     command: ['node', 'server.js']
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workflow-worker
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_TOKEN=${GITLAB_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
+      - workflow_claude_config:/home/nextjs/.claude
+    restart: unless-stopped
+    entrypoint: ['/entrypoint.sh']
+    command: ['node', 'worker.cjs']
