@@ -78,10 +78,12 @@ export async function executeAgentRun(
 
     if (request.editMode && request.git) {
       const sourceBranch = request.git.featureBranch;
+      const isDirectCommit = request.git.deliveryMethod === 'direct-commit';
 
       console.log(`${LOG_PREFIX} Initializing git workflow for ${tag}`, {
         featureBranch: sourceBranch,
         deliveryMethod: request.git.deliveryMethod,
+        isDirectCommit,
       });
 
       const gitWorkflowOpts: Parameters<typeof initializeGitWorkflow>[0] = {
@@ -89,7 +91,7 @@ export async function executeAgentRun(
       };
       if (sourceBranch) {
         gitWorkflowOpts.sourceBranch = sourceBranch;
-        gitWorkflowOpts.createMR = true;
+        gitWorkflowOpts.createMR = !isDirectCommit;
       }
 
       const initResult = await initializeGitWorkflow(gitWorkflowOpts);
@@ -102,7 +104,6 @@ export async function executeAgentRun(
         };
       }
 
-      const isDirectCommit = request.git.deliveryMethod === 'direct-commit';
       gitInitResult = {
         ...initResult.data,
         mergeRequestRequired: !isDirectCommit && initResult.data.mergeRequestRequired,
