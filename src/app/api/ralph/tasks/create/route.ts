@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
 import {
   createRalphTask,
-  addChildToRalphTask,
+  createSubtask,
   getRalphPlaybook,
 } from '@/lib/managers/ralph-task-manager';
 import { getWorkspaceReadonly } from '@/lib/managers/workspace-manager';
@@ -12,27 +12,39 @@ import { startStageRun } from '@/lib/ralph/stage-runner';
 import type { WorkspaceId } from '@/lib/types';
 
 /**
- * Request body schema for creating a new Ralph task
+ * Request body schema for creating a new Ralph task.
+ * When parentId is provided, workspaceId is optional (inherited from parent).
  */
-const CreateTaskRequestSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  workspaceId: z.string().min(1, 'Workspace is required'),
-  description: z.string().min(1, 'Description is required'),
-  instructions: z.string().nullable().optional(),
-  filePaths: z.array(z.string()).default([]),
-  baseBranch: z.string().nullable().optional(),
-  featureBranch: z.string().nullable().optional(),
-  prTargetBranch: z.string().nullable().optional(),
-  deliveryMethod: z.enum(['merge-request', 'direct-commit']).default('merge-request'),
-  // Optional parent ID to create as a subtask
-  parentId: z.string().nullable().optional(),
-  // Optional project ID to associate with a project
-  projectId: z.string().nullable().optional(),
-  // Optional playbook ID to associate with a playbook
-  playbookId: z.string().nullable().optional(),
-  // If true and playbookId is set, auto-start the first playbook stage after creation
-  autoRun: z.boolean().default(false),
-});
+const CreateTaskRequestSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required'),
+    workspaceId: z.string().min(1, 'Workspace is required').optional(),
+    description: z.string().min(1, 'Description is required'),
+    instructions: z.string().nullable().optional(),
+    filePaths: z.array(z.string()).default([]),
+    baseBranch: z.string().nullable().optional(),
+    featureBranch: z.string().nullable().optional(),
+    prTargetBranch: z.string().nullable().optional(),
+    deliveryMethod: z.enum(['merge-request', 'direct-commit']).default('merge-request'),
+    // Optional parent ID to create as a subtask
+    parentId: z.string().nullable().optional(),
+    // Optional project ID to associate with a project
+    projectId: z.string().nullable().optional(),
+    // Optional playbook ID to associate with a playbook
+    playbookId: z.string().nullable().optional(),
+    // If true and playbookId is set, auto-start the first playbook stage after creation
+    autoRun: z.boolean().default(false),
+  })
+  .superRefine((data, ctx) => {
+    // workspaceId is required when creating a top-level task (no parentId)
+    if (!data.parentId && !data.workspaceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Workspace is required for top-level tasks',
+        path: ['workspaceId'],
+      });
+    }
+  });
 
 /**
  * POST /api/ralph/tasks/create
@@ -61,10 +73,58 @@ export async function POST(request: NextRequest) {
 
     const taskData = parseResult.data;
 
+    // --- Subtask creation: delegate to createSubtask() for full inheritance ---
+    if (taskData.parentId) {
+      const createResult = await createSubtask(taskData.parentId, {
+        title: taskData.title,
+        description: taskData.description,
+      });
+
+      if (!createResult.success) {
+        console.error('[RALPH TASKS CREATE API] Failed to create subtask:', createResult.error);
+        return NextResponse.json(
+          { error: 'Failed to create subtask', details: createResult.error.message },
+          { status: 500 }
+        );
+      }
+
+      console.log('[RALPH TASKS CREATE API] Subtask created:', createResult.data.id);
+
+      // Auto-run: if the subtask inherited a playbookId, start first stage
+      let autoRunJobId: string | undefined;
+      if (taskData.autoRun && createResult.data.playbookId) {
+        try {
+          const pbResult = await getRalphPlaybook(createResult.data.playbookId);
+          if (pbResult.success && pbResult.data.stageIds.length > 0) {
+            const firstStage = pbResult.data.stageIds[0]!;
+            console.log(
+              `[RALPH TASKS CREATE API] Auto-run: starting stage '${firstStage}' for subtask ${createResult.data.id}`
+            );
+            const stageResult = await startStageRun(createResult.data.id, firstStage);
+            if (stageResult.error) {
+              console.warn(`[RALPH TASKS CREATE API] Auto-run stage failed: ${stageResult.error}`);
+            } else {
+              autoRunJobId = stageResult.jobId;
+            }
+          }
+        } catch (err) {
+          console.warn('[RALPH TASKS CREATE API] Auto-run failed, subtask still created:', err);
+        }
+      }
+
+      return NextResponse.json({
+        task: createResult.data,
+        autoRunJobId,
+        message: 'Subtask created successfully',
+      });
+    }
+
+    // --- Top-level task creation ---
+
     // Block direct-commit to protected branches the user can't push to
     if (taskData.deliveryMethod === 'direct-commit' && taskData.baseBranch) {
       try {
-        const wsResult = await getWorkspaceReadonly(taskData.workspaceId as WorkspaceId);
+        const wsResult = await getWorkspaceReadonly(taskData.workspaceId! as WorkspaceId);
         if (wsResult.success) {
           const workspace = wsResult.data;
           let isProtected = false;
@@ -106,9 +166,9 @@ export async function POST(request: NextRequest) {
     // Create the task
     const createResult = await createRalphTask({
       ...taskData,
-      workspaceId: taskData.workspaceId as WorkspaceId,
+      workspaceId: taskData.workspaceId! as WorkspaceId,
       status: 'draft',
-      parentId: taskData.parentId ?? null,
+      parentId: null,
     });
 
     if (!createResult.success) {
@@ -117,17 +177,6 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create task', details: createResult.error.message },
         { status: 500 }
       );
-    }
-
-    // If parentId was provided, link the new task as a child of the parent
-    if (taskData.parentId) {
-      const linkResult = await addChildToRalphTask(taskData.parentId, createResult.data.id);
-      if (!linkResult.success) {
-        console.warn(
-          '[RALPH TASKS CREATE API] Failed to link subtask to parent:',
-          linkResult.error?.message
-        );
-      }
     }
 
     console.log('[RALPH TASKS CREATE API] Task created:', createResult.data.id);
@@ -157,7 +206,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       task: createResult.data,
       autoRunJobId,
-      message: taskData.parentId ? 'Subtask created successfully' : 'Task created successfully',
+      message: 'Task created successfully',
     });
   } catch (error) {
     console.error('[RALPH TASKS CREATE API] Error creating task:', error);
