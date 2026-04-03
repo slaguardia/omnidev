@@ -1025,8 +1025,6 @@ export async function addChildToRalphTask(
  */
 export interface CreateSubtaskInput {
   title: string;
-  userStory?: string;
-  acceptanceCriteria?: string[];
   description?: string;
   subtaskOrder?: number;
 }
@@ -1062,8 +1060,9 @@ export async function createSubtask(
     const childInput: CreateRalphTaskInput = {
       title: subtaskInput.title,
       workspaceId: parent.workspaceId,
-      userStory: subtaskInput.userStory ?? null,
-      acceptanceCriteria: subtaskInput.acceptanceCriteria ?? [],
+      userStory: null,
+      acceptanceCriteria: [],
+      instructions: null,
       description: subtaskInput.description ?? null,
       filePaths: [],
       subtaskOrder,
@@ -1072,6 +1071,9 @@ export async function createSubtask(
       featureBranch: parent.featureBranch,
       prTargetBranch: parent.prTargetBranch,
       deliveryMethod: parent.deliveryMethod,
+      // Inherit project and playbook from parent
+      projectId: parent.projectId,
+      playbookId: parent.playbookId,
       parentId: parent.id,
       status: 'draft',
     };
@@ -1957,8 +1959,6 @@ export async function approveGeneratedStories(
     for (const story of approvedStories) {
       const childResult = await createSubtask(parentTaskId, {
         title: story.title,
-        userStory: story.userStory,
-        acceptanceCriteria: story.acceptanceCriteria,
         subtaskOrder: story.order,
       });
 

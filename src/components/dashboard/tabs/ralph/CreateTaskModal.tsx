@@ -290,7 +290,7 @@ export default function CreateTaskModal({
       setError('Title is required');
       return;
     }
-    if (!form.workspaceId) {
+    if (!form.parentId && !form.workspaceId) {
       setError('Workspace is required');
       return;
     }
@@ -356,8 +356,9 @@ export default function CreateTaskModal({
     selectedWorkspace?.permissions?.targetBranchProtected === true &&
     selectedWorkspace?.permissions?.canPushToProtected === false;
 
-  const isFormValid =
-    form.title.trim() && form.workspaceId && form.description.trim() && !isDirectCommitBlocked;
+  const isFormValid = form.parentId
+    ? form.title.trim() && form.description.trim()
+    : form.title.trim() && form.workspaceId && form.description.trim() && !isDirectCommitBlocked;
 
   // Resolve display names for toolbar buttons
   const selectedProject = projectOptions.find((p) => p.id === form.projectId);
@@ -422,8 +423,8 @@ export default function CreateTaskModal({
                   }}
                 />
 
-                {/* File Paths — only when workspace is set */}
-                {form.workspaceId && (
+                {/* File Paths — only for top-level tasks when workspace is set */}
+                {!form.parentId && form.workspaceId && (
                   <div className="flex flex-col gap-1.5">
                     <div className="relative" ref={suggestionsRef}>
                       <Input
@@ -523,47 +524,48 @@ export default function CreateTaskModal({
             <ModalFooter className="flex items-center justify-between px-6 pb-5 pt-3">
               {/* Left: metadata toolbar */}
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Workspace Dropdown */}
-                <Dropdown onOpenChange={handleDropdownOpenChange}>
-                  <DropdownTrigger>
-                    <Button
-                      size="sm"
-                      variant="bordered"
-                      className="h-8 min-w-0 px-3 gap-2 text-xs rounded-md shadow-small"
-                      isDisabled={!!form.parentId}
-                      isLoading={isLoadingWorkspaces}
+                {/* Workspace Dropdown — hidden for subtasks (inherited from parent) */}
+                {!form.parentId && (
+                  <Dropdown onOpenChange={handleDropdownOpenChange}>
+                    <DropdownTrigger>
+                      <Button
+                        size="sm"
+                        variant="bordered"
+                        className="h-8 min-w-0 px-3 gap-2 text-xs rounded-md shadow-small"
+                        isLoading={isLoadingWorkspaces}
+                      >
+                        <Folder className="w-3.5 h-3.5" />
+                        <span>{selectedWorkspace ? selectedWorkspace.name : 'Workspace'}</span>
+                        <ChevronDown className="w-3 h-3 opacity-50" />
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                      aria-label="Select workspace"
+                      selectionMode="single"
+                      selectedKeys={
+                        form.workspaceId ? new Set([form.workspaceId]) : new Set<string>()
+                      }
+                      onAction={(key) => {
+                        setForm((prev) => ({
+                          ...prev,
+                          workspaceId: key as string,
+                          baseBranch: '',
+                          featureBranch: '',
+                          prTargetBranch: '',
+                        }));
+                      }}
                     >
-                      <Folder className="w-3.5 h-3.5" />
-                      <span>{selectedWorkspace ? selectedWorkspace.name : 'Workspace'}</span>
-                      <ChevronDown className="w-3 h-3 opacity-50" />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="Select workspace"
-                    selectionMode="single"
-                    selectedKeys={
-                      form.workspaceId ? new Set([form.workspaceId]) : new Set<string>()
-                    }
-                    onAction={(key) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        workspaceId: key as string,
-                        baseBranch: '',
-                        featureBranch: '',
-                        prTargetBranch: '',
-                      }));
-                    }}
-                  >
-                    {workspaces.map((ws) => (
-                      <DropdownItem key={ws.id} description={ws.repoUrl} textValue={ws.name}>
-                        {ws.name}
-                      </DropdownItem>
-                    ))}
-                  </DropdownMenu>
-                </Dropdown>
+                      {workspaces.map((ws) => (
+                        <DropdownItem key={ws.id} description={ws.repoUrl} textValue={ws.name}>
+                          {ws.name}
+                        </DropdownItem>
+                      ))}
+                    </DropdownMenu>
+                  </Dropdown>
+                )}
 
-                {/* Project Dropdown */}
-                {projectOptions.length > 0 && (
+                {/* Project Dropdown — hidden for subtasks (inherited from parent) */}
+                {!form.parentId && projectOptions.length > 0 && (
                   <Dropdown onOpenChange={handleDropdownOpenChange}>
                     <DropdownTrigger>
                       <Button
@@ -626,8 +628,8 @@ export default function CreateTaskModal({
                   </Dropdown>
                 )}
 
-                {/* Playbook Dropdown */}
-                {playbookOptions.length > 0 && (
+                {/* Playbook Dropdown — hidden for subtasks (inherited from parent) */}
+                {!form.parentId && playbookOptions.length > 0 && (
                   <Dropdown onOpenChange={handleDropdownOpenChange}>
                     <DropdownTrigger>
                       <Button
@@ -681,8 +683,8 @@ export default function CreateTaskModal({
                   </Dropdown>
                 )}
 
-                {/* Auto Run Switch */}
-                {playbookOptions.length > 0 && (
+                {/* Auto Run Switch — hidden for subtasks */}
+                {!form.parentId && playbookOptions.length > 0 && (
                   <Switch
                     size="sm"
                     isSelected={form.autoRun}
@@ -802,7 +804,7 @@ export default function CreateTaskModal({
 
               {/* Right: action button */}
               <Button color="primary" onPress={handleSubmit} isDisabled={!isFormValid}>
-                Create Task
+                {form.parentId ? 'Create Subtask' : 'Create Task'}
               </Button>
             </ModalFooter>
           </>
