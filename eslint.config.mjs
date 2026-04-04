@@ -17,6 +17,7 @@ export default [
       'prompt-engineering/',
       'supabase/',
       'dist/',
+      '**/dist/**',
       'next-env.d.ts',
     ],
   },

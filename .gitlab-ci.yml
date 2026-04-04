@@ -1,5 +1,9 @@
 image: node:20
 
+# Merge requests: enable **Pipelines must succeed** under
+# Settings → Merge requests → Merge checks so a green pipeline (including the
+# `test` stage) is required before merge. CI cannot toggle that project setting.
+
 # Define pipeline stages
 stages:
   - test
@@ -32,10 +36,11 @@ workflow:
     # Only run on merge requests (pre-merge validation)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# Test Stage - Run tests with coverage
+# Test Stage - Run tests with coverage (blocks merge when pipeline must succeed)
 # Add label "skip-tests" to MR to skip tests
 test:
   stage: test
+  allow_failure: false
   variables:
     NODE_ENV: test
   script:
@@ -57,18 +62,16 @@ test:
       when: never
     - when: on_success
 
-# Lint Stage - Comprehensive code quality checks
-# Runs typecheck (TypeScript), ESLint, Prettier, and depcheck
-# Optional — does not block merge
+# Lint — typecheck, ESLint, Prettier, depcheck (same stage as `test`; blocks merge)
 lint:
   stage: test
+  allow_failure: false
   variables:
     NODE_ENV: development
   script:
     - pnpm lint:all
   cache:
     policy: pull
-  allow_failure: true
 
 # Docker Build Stage - Build and optionally push Docker image
 docker-build:
