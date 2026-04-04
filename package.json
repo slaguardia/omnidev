@@ -1,5 +1,5 @@
 {
-  "name": "omnidev",
+  "name": "omnidev-app",
   "version": "1.0.0",
   "description": "Agentic workflow automation for git repositories, using Claude Code",
   "type": "module",
@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "typecheck": "npx tsc --noEmit",
+    "typecheck": "npx tsc --noEmit && pnpm typecheck:cli",
+    "typecheck:cli": "pnpm --filter omnidev exec tsc --noEmit",
+    "build:cli": "pnpm --filter omnidev build",
     "lint": "pnpm typecheck && eslint .",
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check .",
@@ -33,7 +35,7 @@
     "worker": "tsx src/worker/index.ts",
     "worker:build": "tsup --config tsup.worker.ts",
     "worker:start": "node dist/index.cjs",
-    "ralph": "tsx src/cli/index.ts"
+    "ralph": "tsx packages/omnidev-cli/src/index.ts"
   },
   "dependencies": {
     "@eslint/js": "^9.29.0",
