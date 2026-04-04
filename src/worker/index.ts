@@ -19,6 +19,7 @@ import {
   dbRecoverStaleJobs,
   type RalphJob,
 } from '@/lib/managers/ralph-task-db';
+import { revokeJobTokens, revokeExpiredTokens } from '@/lib/auth/stage-tokens';
 import { ClaudeCodeAgent } from './agent';
 import { executeV2Job } from './job-executor';
 import { executeRalphStageJob } from '@/lib/queue/job-handlers';
@@ -39,7 +40,7 @@ const agent = new ClaudeCodeAgent();
 async function dispatchJob(job: RalphJob): Promise<{ logs: string }> {
   if (job.agent_type === 'ralph-stage') {
     const payload = JSON.parse(job.payload) as RalphStageJobPayload;
-    const result = await executeRalphStageJob(payload);
+    const result = await executeRalphStageJob(payload, job.id);
     dbUpdateJob(job.id, {
       status: result.error ? 'failed' : 'completed',
       result: JSON.stringify(result),
@@ -82,6 +83,14 @@ async function pollLoop(): Promise<void> {
   const recovered = dbRecoverStaleJobs(cutoff);
   if (recovered > 0) {
     console.log(`[WORKER] Recovered ${recovered} stale job(s) (no heartbeat for 10+ min)`);
+    // Revoke tokens for recovered stale jobs
+    // (dbRecoverStaleJobs doesn't return IDs, so use expired token cleanup as catch-all)
+  }
+
+  // Periodically revoke expired tokens (cheap — runs every poll cycle)
+  const expiredRevoked = revokeExpiredTokens();
+  if (expiredRevoked > 0) {
+    console.log(`[WORKER] Revoked ${expiredRevoked} expired stage token(s)`);
   }
 
   const job = dbClaimNextPendingJob();
@@ -138,6 +147,11 @@ async function pollLoop(): Promise<void> {
     });
   } finally {
     clearInterval(heartbeatHandle);
+    // Revoke any scoped CLI tokens for this job
+    const revoked = revokeJobTokens(job.id);
+    if (revoked > 0) {
+      console.log(`[WORKER] Revoked ${revoked} stage token(s) for job ${job.id}`);
+    }
   }
 
   // Schedule next poll (immediate — there may be more jobs)

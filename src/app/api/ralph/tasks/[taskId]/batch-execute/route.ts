@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   getRalphTask,
   getReadyChildTasks,
@@ -156,6 +157,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedBatchPost = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedBatchPost) return scopeDeniedBatchPost;
 
     // Parse and validate request body
     const body = await request.json();
@@ -313,6 +317,9 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedBatchGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedBatchGet) return scopeDeniedBatchGet;
 
     // Get the parent task
     const taskResult = await getRalphTask(taskId);

@@ -12,6 +12,8 @@ export interface AgentRunnerOptions {
   question: string;
   workingDirectory: string;
   editRequest: boolean;
+  /** Extra environment variables to pass to the agent subprocess */
+  extraEnv?: Record<string, string> | undefined;
 }
 
 export interface AgentRunnerResult {
@@ -31,6 +33,7 @@ export class ClaudeCodeAgent implements AgentRunner {
       question: options.question,
       workingDirectory: options.workingDirectory as FilePath,
       editRequest: options.editRequest,
+      extraEnv: options.extraEnv,
     });
     if (!result.success) {
       throw new Error(result.error.message);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import { getRalphTask } from '@/lib/managers/ralph-task-manager';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
 import { unlink } from 'node:fs/promises';
@@ -21,6 +22,10 @@ export async function DELETE(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
+
     const stage = request.nextUrl.searchParams.get('stage');
 
     if (!stage) {

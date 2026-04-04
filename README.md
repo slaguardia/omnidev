@@ -120,6 +120,10 @@ GITHUB_TOKEN=your_github_token_here
 
 See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
 
+### Ralph CLI
+
+Manage tasks from the terminal (`pnpm ralph tasks list`, `pnpm ralph tasks show RLP-42`, …). Set **`OMNIDEV_URL`** and **`OMNIDEV_API_KEY`** in `.env` or `.env.local` at the repo root; the CLI loads them automatically and finds the repo when run from a subdirectory. For remote instances, HTTPS, agent tokens, and troubleshooting, see **[docs/RALPH_CLI.md](docs/RALPH_CLI.md)**.
+
 ## Docker Deployment
 
 Omnidev is designed to run anywhere — cloud infrastructure, VPS, or local environments.

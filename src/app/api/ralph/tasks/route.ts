@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requirePermission } from '@/lib/auth/permission-check';
 import {
   getFeatureExecutionStatus,
   updateRalphTask,
@@ -171,10 +172,22 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
     }
 
     // Orphan detection: task is in 'executing' with no active job anywhere
+    // Only flag as orphaned if the *executing* stage itself was actually run
+    // (has iterations or a completionReason). A task that was merely
+    // transitioned to 'executing' without a stage-run is not orphaned.
     if (!taskPatched && task.status === 'executing' && !task.executionJobId) {
       const hasAnyActiveJob = Object.values(patchedOutputs).some((so) => so.activeJobId);
-      if (!hasAnyActiveJob && !task.executionError) {
+      const executingStage = patchedOutputs['executing'];
+      const executingStageRan =
+        executingStage && (executingStage.iterations.length > 0 || executingStage.completionReason);
+      if (!hasAnyActiveJob && executingStageRan && !task.executionError) {
         task.executionError = 'Execution ended without result';
+        taskPatched = true;
+      }
+      // Clear a stale executionError that was incorrectly persisted for a task
+      // whose executing stage never actually ran
+      if (!hasAnyActiveJob && !executingStageRan && task.executionError) {
+        task.executionError = null;
         taskPatched = true;
       }
     }
@@ -341,6 +354,7 @@ async function enrichTasks(tasks: RalphTask[]): Promise<RalphTaskResponse[]> {
  * Query params:
  * - status: filter by task status (optional)
  * - workspaceId: filter by workspace (optional)
+ * - taskNumber: filter by sequential task number (optional)
  * - includeArchived: include archived tasks (default: false)
  * - archivedOnly: show only archived tasks (default: false)
  */
@@ -349,14 +363,27 @@ export async function GET(request: NextRequest) {
     const authResult = await withAuth(request);
     if (!authResult.success) return authResult.response!;
 
+    const denied = requirePermission(authResult.auth!, 'tasks:read');
+    if (denied) return denied;
+
     const url = new URL(request.url);
     const statusFilter = url.searchParams.get('status');
     const workspaceIdFilter = url.searchParams.get('workspaceId');
+    const taskNumberFilter = url.searchParams.get('taskNumber');
     const includeArchived = url.searchParams.get('includeArchived') === 'true';
     const archivedOnly = url.searchParams.get('archivedOnly') === 'true';
 
     // Single SQL query returns all tasks (full objects, sorted)
-    let tasks = dbGetBoardTasks({ includeArchived, archivedOnly });
+    let tasks = dbGetBoardTasks({
+      includeArchived: includeArchived || !!taskNumberFilter,
+      archivedOnly,
+    });
+
+    // Scoped stage tokens may only see their own task (prevents listing the full board)
+    if (authResult.auth?.stageToken) {
+      const tid = authResult.auth.stageToken.taskId;
+      tasks = tasks.filter((t) => t.id === tid);
+    }
 
     // Apply in-memory filters (status and workspace are rarely used)
     if (statusFilter) {
@@ -364,6 +391,12 @@ export async function GET(request: NextRequest) {
     }
     if (workspaceIdFilter) {
       tasks = tasks.filter((task) => task.workspaceId === workspaceIdFilter);
+    }
+    if (taskNumberFilter) {
+      const num = parseInt(taskNumberFilter, 10);
+      if (!isNaN(num)) {
+        tasks = tasks.filter((task) => task.taskNumber === num);
+      }
     }
 
     // Enrich with workspace names, job info, feature status

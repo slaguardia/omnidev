@@ -1,8 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RalphTaskData, RalphTaskDetail } from '@/components/dashboard/tabs/ralph/types';
 
-async function fetchRalphTaskDetail(taskId: string): Promise<RalphTaskDetail> {
-  const response = await fetch(`/api/ralph/tasks/${taskId}`);
+async function fetchRalphTaskDetail(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<RalphTaskDetail> {
+  const response = await fetch(`/api/ralph/tasks/${taskId}`, signal ? { signal } : {});
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -52,12 +55,12 @@ function listDataToPlaceholder(t: RalphTaskData): RalphTaskDetail {
   };
 }
 
-export function useRalphTaskDetail(taskId: string) {
+export function useRalphTaskDetail(taskId: string, options?: { suppressRefetch?: boolean }) {
   const queryClient = useQueryClient();
 
-  return useQuery({
+  return useQuery<RalphTaskDetail>({
     queryKey: ['ralph-task-detail', taskId],
-    queryFn: () => fetchRalphTaskDetail(taskId),
+    queryFn: ({ signal }) => fetchRalphTaskDetail(taskId, signal),
     staleTime: 10_000,
     // Show list data instantly while the detail fetch runs in the background
     placeholderData: () => {
@@ -69,17 +72,22 @@ export function useRalphTaskDetail(taskId: string) {
       }
       return undefined;
     },
-    refetchInterval: (query) => {
-      const task = query.state.data;
-      if (!task) return false;
-      // System statuses don't need polling
-      if (task.status === 'draft' || task.status === 'complete') return false;
-      // Poll if the current stage has an active job or zero iterations
-      const currentStageOutput = task.stageOutputs?.[task.status];
-      if (currentStageOutput?.activeJobId) return 5000;
-      if (currentStageOutput && currentStageOutput.iterations.length === 0) return 5000;
-      return false;
-    },
+    // Suppress polling while a stage-run POST is in-flight to prevent stale
+    // refetches from overwriting the optimistic activeJobId before the server
+    // has finished git operations and created the job in SQLite.
+    refetchInterval: options?.suppressRefetch
+      ? false
+      : (query) => {
+          const task = query.state.data;
+          if (!task) return false;
+          // System statuses don't need polling
+          if (task.status === 'draft' || task.status === 'complete') return false;
+          // Poll if the current stage has an active job or zero iterations
+          const currentStageOutput = task.stageOutputs?.[task.status];
+          if (currentStageOutput?.activeJobId) return 5000;
+          if (currentStageOutput && currentStageOutput.iterations.length === 0) return 5000;
+          return false;
+        },
   });
 }
 

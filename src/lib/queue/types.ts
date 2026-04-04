@@ -146,6 +146,8 @@ export interface RalphStageJobPayload {
   repoUrl?: string;
   /** Whether to automatically enqueue next iteration after completion (default: false) */
   autoLoop?: boolean;
+  /** CLI access configuration for the agent during this stage */
+  cli?: { enabled: boolean; permissions: string[] };
 }
 
 /**

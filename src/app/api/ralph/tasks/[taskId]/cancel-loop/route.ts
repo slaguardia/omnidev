@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import { getRalphTask, updateRalphTask } from '@/lib/managers/ralph-task-manager';
 
 const CancelLoopRequestSchema = z.object({
@@ -23,6 +24,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
 
     const body = await request.json();
     const parseResult = CancelLoopRequestSchema.safeParse(body);

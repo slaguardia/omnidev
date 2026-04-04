@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requirePermission, requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   transitionRalphTask,
   getRalphTask,
@@ -42,6 +43,12 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
+
+    const denied = requirePermission(authResult.auth!, 'tasks:transition');
+    if (denied) return denied;
 
     // Parse and validate request body
     const body = await request.json();
@@ -140,6 +147,9 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedGet) return scopeDeniedGet;
 
     // Get the task to find its current status
     const taskResult = await getRalphTask(taskId);

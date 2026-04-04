@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import { archiveRalphTask, unarchiveRalphTask } from '@/lib/managers/ralph-task-manager';
 
 /**
@@ -17,6 +18,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedArchivePost = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedArchivePost) return scopeDeniedArchivePost;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
@@ -59,6 +63,9 @@ export async function DELETE(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedArchiveDelete = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedArchiveDelete) return scopeDeniedArchiveDelete;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });

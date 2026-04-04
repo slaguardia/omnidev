@@ -20,6 +20,8 @@ export interface ClaudeCodeOptions {
     removeSourceBranch?: boolean;
     squash?: boolean;
   };
+  /** Extra environment variables to merge into the child process env */
+  extraEnv?: Record<string, string> | undefined;
 }
 
 export interface GitWorkflowOptions {

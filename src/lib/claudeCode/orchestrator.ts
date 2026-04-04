@@ -138,6 +138,8 @@ export async function askClaudeCode(
         // Ensure non-interactive environment variables for automation
         TERM: 'dumb',
         NO_COLOR: '1',
+        // Merge caller-provided extra env vars (e.g. CLI tokens)
+        ...(options.extraEnv ?? {}),
       };
 
       // CLI auth: never pass API key to subprocess — Claude Code uses subscription login

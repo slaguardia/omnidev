@@ -26,6 +26,20 @@ export type StageColor = (typeof STAGE_COLORS)[number];
 /**
  * Zod schema for a single workflow stage definition
  */
+/**
+ * Valid CLI permission scopes
+ */
+const CLI_PERMISSIONS = [
+  'tasks:read',
+  'tasks:create',
+  'subtasks:create',
+  'tasks:update',
+  'tasks:transition',
+  'deps:read',
+  'deps:write',
+  'stages:run',
+] as const;
+
 export const WorkflowStageDefinitionSchema = z.object({
   id: z
     .string()
@@ -39,6 +53,12 @@ export const WorkflowStageDefinitionSchema = z.object({
     maxIterations: z.number().int().min(1),
     returnQuestions: z.boolean(),
     autoLoop: z.boolean().default(false),
+    cli: z
+      .object({
+        enabled: z.boolean(),
+        permissions: z.array(z.enum(CLI_PERMISSIONS)),
+      })
+      .optional(),
   }),
   onEnter: z.enum(['branch-creation', 'confirm-pr']).optional(),
 });
@@ -186,6 +206,62 @@ Structure the plan as numbered steps. Each step names the file and describes the
 Do not write code. Describe *what* to change, not the code itself. Code will be written in the executing stage.`;
 
 /**
+ * Default decomp prompt template
+ */
+const DEFAULT_DECOMP_PROMPT = `You are evaluating whether a task should be decomposed into subtasks. Review the implementation plan and decide if splitting is warranted.
+
+## Task: {title}
+
+### Implementation Plan
+{stageOutput:planning}
+
+### Relevant Files
+{filePaths}
+
+### Background
+{description}
+
+---
+
+## Steps
+
+### 1. Review the Plan
+
+Read the implementation plan above. Understand the scope, number of files, and logical groupings of work.
+
+### 2. Assess Complexity
+
+Consider:
+- How many independent units of work exist?
+- Are there natural boundaries (e.g., backend vs frontend, types vs implementation vs tests)?
+- Would a single agent execution be able to hold all the context?
+- Is there risk of a monolithic change that is hard to review?
+
+### 3. Decide
+
+**Do NOT split if:**
+- The task touches fewer than ~5 files
+- All changes are tightly coupled
+- Splitting would create artificial dependencies between subtasks
+- The task is already a subtask
+
+**Consider splitting if:**
+- The task has clearly independent workstreams
+- Different areas of the codebase are involved with minimal coupling
+- The change set is large enough that review would benefit from separation
+- There are natural phases (e.g., "add types" then "add UI" then "add API routes")
+
+### 4. Act
+
+If splitting: use the CLI to create subtasks. Each subtask needs a clear title, description, and relevant file paths. Subtasks should be independently executable.
+
+If NOT splitting: state that the task should execute as a single unit and briefly explain why.
+
+---
+
+Keep the assessment concise. The goal is a clear split-or-not decision with reasoning.`;
+
+/**
  * Default research prompt template
  */
 const DEFAULT_RESEARCH_PROMPT = `You are reviewing an implementation plan. Validate it against the actual codebase. You are a reviewer — find problems, do not rewrite the plan.
@@ -258,13 +334,17 @@ const DEFAULT_EXECUTING_PROMPT = `You are executing one iteration of implementat
 
 ## Task: {title}
 
-{description}
+### Implementation Plan
+{stageOutput:planning}
+
+### Review Notes
+{stageOutput:research}
 
 ### Relevant Files
 {filePaths}
 
-### Previous Stage Output
-{previousStageOutput}
+### Background
+{description}
 
 ### Constraints
 
@@ -281,7 +361,7 @@ Also read the relevant source files to understand the current state of the imple
 ### 2. Decide What To Do This Iteration
 
 Pick ONE logical unit of work:
-- If a plan or analysis was provided in the Previous Stage Output above, follow the next uncompleted step
+- If an Implementation Plan is provided above, follow the next uncompleted step
 - If no plan exists, identify the smallest meaningful change that moves the task forward
 - If previous iterations had errors, fix those first
 
@@ -362,6 +442,7 @@ export const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
         maxIterations: 2,
         returnQuestions: true,
         autoLoop: false,
+        cli: { enabled: true, permissions: ['tasks:read', 'deps:read'] },
       },
     },
     {
@@ -374,6 +455,26 @@ export const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
         maxIterations: 3,
         returnQuestions: true,
         autoLoop: false,
+        cli: {
+          enabled: true,
+          permissions: ['tasks:read', 'deps:read', 'deps:write'],
+        },
+      },
+    },
+    {
+      id: 'decomp',
+      label: 'Decomp',
+      color: 'secondary',
+      executionMode: 'readonly',
+      config: {
+        prompt: DEFAULT_DECOMP_PROMPT,
+        maxIterations: 2,
+        returnQuestions: true,
+        autoLoop: false,
+        cli: {
+          enabled: true,
+          permissions: ['tasks:read', 'subtasks:create', 'deps:read'],
+        },
       },
     },
     {
@@ -386,6 +487,7 @@ export const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
         maxIterations: 2,
         returnQuestions: false,
         autoLoop: false,
+        cli: { enabled: true, permissions: ['tasks:read', 'deps:read'] },
       },
     },
     {
@@ -410,6 +512,10 @@ export const DEFAULT_WORKFLOW_DEFINITION: WorkflowDefinition = {
         maxIterations: 10,
         returnQuestions: false,
         autoLoop: true,
+        cli: {
+          enabled: true,
+          permissions: ['tasks:read', 'subtasks:create', 'tasks:update', 'deps:read', 'deps:write'],
+        },
       },
       onEnter: 'branch-creation',
     },

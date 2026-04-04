@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import { getRalphTask, getFeatureDependencyGraph } from '@/lib/managers/ralph-task-manager';
 
 interface RouteParams {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
 
     // Get task to verify it exists and is a feature
     const taskResult = await getRalphTask(taskId);

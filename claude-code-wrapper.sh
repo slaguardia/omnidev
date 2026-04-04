@@ -82,7 +82,7 @@ if [ "$(id -u)" = "0" ]; then
   # gosu changes uid/gid but does NOT update HOME — set it explicitly
   # so Claude Code finds the login credentials stored in /home/nextjs
   export HOME=/home/nextjs
-  exec gosu nextjs claude "$@"
+  exec /usr/sbin/gosu nextjs claude "$@"
 else
   exec claude "$@"
 fi

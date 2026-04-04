@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   getRalphTask,
   updateGeneratedStories,
@@ -24,6 +25,9 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedStoriesGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedStoriesGet) return scopeDeniedStoriesGet;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
@@ -93,6 +97,9 @@ export async function PUT(
 
     const { taskId } = await params;
 
+    const scopeDeniedStoriesPut = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedStoriesPut) return scopeDeniedStoriesPut;
+
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
     }
@@ -158,6 +165,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedStoriesPost = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedStoriesPost) return scopeDeniedStoriesPost;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });

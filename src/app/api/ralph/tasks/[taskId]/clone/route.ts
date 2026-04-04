@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import { cloneRalphTask } from '@/lib/managers/ralph-task-manager';
 import { getWorkspace } from '@/lib/managers/repository-manager';
 import { getProjectDisplayName } from '@/lib/dashboard/helpers';
@@ -21,6 +22,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });

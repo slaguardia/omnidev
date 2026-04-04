@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requirePermission } from '@/lib/auth/permission-check';
 import {
   createRalphTask,
   createSubtask,
@@ -60,6 +61,21 @@ export async function POST(request: NextRequest) {
 
     // Validate request body
     const parseResult = CreateTaskRequestSchema.safeParse(body);
+
+    // Permission check: stage tokens need tasks:create or subtasks:create (scoped to parent)
+    if (authResult.auth?.stageToken) {
+      const parsedBody = parseResult.success ? parseResult.data : null;
+      const parentId = parsedBody?.parentId;
+      if (parentId) {
+        const denied = requirePermission(authResult.auth, 'subtasks:create', {
+          taskId: parentId,
+        });
+        if (denied) return denied;
+      } else {
+        const denied = requirePermission(authResult.auth, 'tasks:create');
+        if (denied) return denied;
+      }
+    }
     if (!parseResult.success) {
       console.error('[RALPH TASKS CREATE API] Validation failed:', parseResult.error.flatten());
       return NextResponse.json(

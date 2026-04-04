@@ -6,7 +6,6 @@ import { Button } from '@heroui/button';
 import { Chip } from '@heroui/chip';
 import { Textarea } from '@heroui/input';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
-import { Tab, Tabs } from '@heroui/tabs';
 import dynamic from 'next/dynamic';
 import {
   Plus,
@@ -14,26 +13,18 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
-  RotateCcw,
   AlertTriangle,
   History,
-  Save,
 } from 'lucide-react';
+import { RalphSubTabs } from './ralph/RalphSubTabs';
 import { usePersistedState } from '@/hooks';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRalphTasks, useInvalidateRalphTasks } from '@/hooks/queries/useRalphTasks';
 import DeleteTaskConfirmationModal from '@/components/dashboard/DeleteTaskConfirmationModal';
-import {
-  BoardFilterBar,
-  TaskCard,
-  TaskDetailScreen,
-  getTaskStates,
-  getStatusColors,
-} from './ralph';
+import { BoardFilterBar, TaskCard, getTaskStates, getStatusColors } from './ralph';
 import type {
   RalphTaskStatus,
-  RalphScreen,
   RalphTaskData,
   RalphProject,
   WorkspaceFilterOption,
@@ -43,17 +34,13 @@ import { useWorkflowDefinition } from '@/hooks/queries/useWorkflowDefinition';
 import { findStageDefinition } from '@/lib/workflow/definition';
 import { useRalphProjects } from '@/hooks/queries/useRalphProjects';
 import { useRalphPlaybooks } from '@/hooks/queries/useRalphPlaybooks';
-import WorkflowSettingsTab from './WorkflowSettingsTab';
-import type { WorkflowSettingsHandle, WorkflowBusyState } from './WorkflowSettingsTab';
 
 // Dynamic imports for modals — only loaded when user opens them
 const CreateTaskModal = dynamic(() => import('./ralph/CreateTaskModal'));
-const ProjectsSubtab = dynamic(() => import('./ralph/ProjectsSubtab'));
 const ExecuteModal = dynamic(() => import('./ralph/ExecuteModal'));
 const CompleteModal = dynamic(() => import('./ralph/CompleteModal'));
 const StoriesModal = dynamic(() => import('./ralph/StoriesModal'));
 const FeatureCompleteModal = dynamic(() => import('./ralph/FeatureCompleteModal'));
-const PlaybooksSubtab = dynamic(() => import('./ralph/PlaybooksSubtab'));
 
 // RalphBoardTab is fully self-contained — no props needed
 
@@ -346,10 +333,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
   const { definition } = useWorkflowDefinition();
   const taskStates = getTaskStates(definition);
   const statusColors = getStatusColors(definition);
-  const [ralphSubTab, setRalphSubTab] = usePersistedState<string>('ralphBoard.subTab', 'board');
-  const workflowSettingsRef = useRef<WorkflowSettingsHandle>(null);
-  const [workflowBusyState, setWorkflowBusyState] = useState<WorkflowBusyState>('idle');
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   // Track in-flight task operations for visual feedback
   const [processingTaskIds, setProcessingTaskIds] = useState<Set<string>>(new Set());
@@ -374,16 +357,7 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
     workspaceId: string;
   } | null>(null);
 
-  // Screen stack for full-screen task detail navigation
-  const [screenStack, setScreenStack] = useState<RalphScreen[]>([{ type: 'board' }]);
-  const currentScreen: RalphScreen = screenStack[screenStack.length - 1] ?? { type: 'board' };
-  const pushScreen = useCallback((screen: RalphScreen) => {
-    setScreenStack((prev) => [...prev, screen]);
-  }, []);
-
-  const popScreen = useCallback(() => {
-    setScreenStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
-  }, []);
+  // Task navigation uses URL routing — no screen stack needed
 
   // Action modal state — each modal manages its own internal state
   const [executeModalTaskId, setExecuteModalTaskId] = useState<string | null>(null);
@@ -581,25 +555,14 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
   );
 
   /**
-   * Handle expanding a task (navigate to full-screen detail view)
+   * Handle expanding a task (navigate to task detail route)
    */
   const handleExpandTask = useCallback(
     (taskId: string) => {
       console.log('[RALPH BOARD TAB] Navigate to task:', taskId);
-      pushScreen({ type: 'task-detail', taskId });
+      router.push(`/dashboard/ralph-board/task/${taskId}`);
     },
-    [pushScreen]
-  );
-
-  /**
-   * Handle navigating to a subtask from within a task detail view
-   */
-  const handleNavigateToTask = useCallback(
-    (taskId: string) => {
-      console.log('[RALPH BOARD TAB] Navigate to subtask:', taskId);
-      pushScreen({ type: 'task-detail', taskId });
-    },
-    [pushScreen]
+    [router]
   );
 
   // Listen for custom events from the command palette
@@ -718,16 +681,22 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
       const url = `/api/ralph/tasks/${taskId}/transition`;
       const body = JSON.stringify({ toStatus });
 
-      // Fire the API call in the background
+      // Fire the API call in the background — optimistic updates already applied above
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
       })
         .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
           if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+          // Use server response to update detail cache precisely (picks up updatedAt etc.)
+          if (data?.task) {
+            queryClient.setQueryData(detailKey, (old: Record<string, unknown> | undefined) =>
+              old ? { ...old, ...data.task } : old
+            );
           }
         })
         .catch((err) => {
@@ -735,15 +704,9 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
           // Rollback both caches
           if (prevList) queryClient.setQueryData(listKey, prevList);
           if (prevDetail) queryClient.setQueryData(detailKey, prevDetail);
-        })
-        .finally(() => {
-          // Sync both caches with server state
-          fetchTasks();
-          queryClient.invalidateQueries({ queryKey: detailKey });
         });
     },
     [
-      fetchTasks,
       tasks,
       definition,
       showArchived,
@@ -1119,9 +1082,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
     // Close modal and navigate away immediately
     setIsDeleteModalOpen(false);
     setDeleteTargetTask(null);
-    if (currentScreen.type === 'task-detail' && currentScreen.taskId === taskId) {
-      popScreen();
-    }
 
     // Snapshot previous cache for rollback
     const prevTasks = queryClient.getQueryData<RalphTaskData[]>(queryKey);
@@ -1150,7 +1110,7 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
         // Sync with server state
         fetchTasks();
       });
-  }, [deleteTargetTask, queryClient, showArchived, fetchTasks, currentScreen, popScreen]);
+  }, [deleteTargetTask, queryClient, showArchived, fetchTasks]);
 
   /**
    * Handle cloning a task as a new draft
@@ -1265,7 +1225,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
     !!featureCompleteModalTaskId ||
     isOverrideModalOpen ||
     isDeleteModalOpen ||
-    isResetConfirmOpen ||
     isShortcutsHelpOpen ||
     (isPaletteOpen ?? false);
 
@@ -1291,82 +1250,39 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
     },
     state: {
       isAnyModalOpen,
-      currentScreenType: currentScreen.type,
-      currentSubTab: ralphSubTab,
+      currentScreenType: 'board' as const,
+      currentSubTab: 'board' as const,
     },
   });
 
   return (
     <div className="space-y-6">
-      {/* Tabs + Controls header (board view only) */}
-      {currentScreen.type === 'board' && (
-        <div className="flex justify-between items-center flex-wrap gap-4">
-          <Tabs
-            selectedKey={ralphSubTab}
-            onSelectionChange={(key) => setRalphSubTab(String(key))}
-            size="md"
-            color="primary"
-            variant="light"
-            classNames={{
-              tabList: 'gap-2',
-              panel: 'hidden',
-              cursor: 'opacity-0 data-[initialized]:opacity-100',
-            }}
-          >
-            <Tab key="board" title="Board" />
-            <Tab key="projects" title="Projects" />
-            <Tab key="workflow" title="Workflow" />
-            <Tab key="playbooks" title="Playbooks" />
-          </Tabs>
-
-          {ralphSubTab === 'board' && (
-            <BoardFilterBar
-              searchFilter={searchFilter}
-              onSearchFilterChange={setSearchFilter}
-              searchInputRef={searchInputRef}
-              workspaceFilter={workspaceFilter}
-              workspaceOptions={workspaceOptions}
-              onWorkspaceFilterChange={handleWorkspaceFilterChange}
-              projectFilter={projectFilter}
-              projects={projects}
-              onProjectFilterChange={setProjectFilter}
-              statusFilter={statusFilter}
-              taskStates={taskStates}
-              statusColors={statusColors}
-              onStatusFilterChange={setStatusFilter}
-              playbookFilter={playbookFilter}
-              playbooks={playbooks}
-              onPlaybookFilterChange={setPlaybookFilter}
-              showArchived={showArchived}
-              onShowArchivedChange={setShowArchived}
-              onCreateTask={openCreateModal}
-            />
-          )}
-
-          {ralphSubTab === 'workflow' && (
-            <div className="flex items-center gap-3">
-              <Button
-                color="primary"
-                size="sm"
-                startContent={<Save className="w-4 h-4" />}
-                onPress={() => workflowSettingsRef.current?.save()}
-                isLoading={workflowBusyState === 'saving'}
-              >
-                Save
-              </Button>
-              <Button
-                variant="bordered"
-                size="sm"
-                startContent={<RotateCcw className="w-4 h-4" />}
-                onPress={() => setIsResetConfirmOpen(true)}
-                isLoading={workflowBusyState === 'resetting'}
-              >
-                Reset
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Sub-tab navigation + board filter bar */}
+      <RalphSubTabs
+        trailing={
+          <BoardFilterBar
+            searchFilter={searchFilter}
+            onSearchFilterChange={setSearchFilter}
+            searchInputRef={searchInputRef}
+            workspaceFilter={workspaceFilter}
+            workspaceOptions={workspaceOptions}
+            onWorkspaceFilterChange={handleWorkspaceFilterChange}
+            projectFilter={projectFilter}
+            projects={projects}
+            onProjectFilterChange={setProjectFilter}
+            statusFilter={statusFilter}
+            taskStates={taskStates}
+            statusColors={statusColors}
+            onStatusFilterChange={setStatusFilter}
+            playbookFilter={playbookFilter}
+            playbooks={playbooks}
+            onPlaybookFilterChange={setPlaybookFilter}
+            showArchived={showArchived}
+            onShowArchivedChange={setShowArchived}
+            onCreateTask={openCreateModal}
+          />
+        }
+      />
 
       {/* Create Task Modal */}
       <CreateTaskModal
@@ -1527,49 +1443,6 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
         loading={false}
       />
 
-      {/* Projects sub-tab */}
-      {currentScreen.type === 'board' && ralphSubTab === 'projects' && <ProjectsSubtab />}
-
-      {/* Workflow Settings sub-tab */}
-      {currentScreen.type === 'board' && ralphSubTab === 'workflow' && (
-        <WorkflowSettingsTab ref={workflowSettingsRef} onBusyStateChange={setWorkflowBusyState} />
-      )}
-
-      {/* Playbooks sub-tab */}
-      {currentScreen.type === 'board' && ralphSubTab === 'playbooks' && <PlaybooksSubtab />}
-
-      {/* Workflow Reset Confirmation */}
-      <Modal isOpen={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen} size="sm">
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>Reset Workflow</ModalHeader>
-              <ModalBody>
-                <p className="text-default-500">
-                  This will reset all workflow stages back to their defaults. Any custom stages or
-                  configuration will be lost.
-                </p>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose}>
-                  Cancel
-                </Button>
-                <Button
-                  color="danger"
-                  startContent={<RotateCcw className="w-4 h-4" />}
-                  onPress={() => {
-                    onClose();
-                    workflowSettingsRef.current?.reset();
-                  }}
-                >
-                  Reset to Defaults
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
-
       {/* Keyboard Shortcuts Help Modal */}
       <Modal isOpen={isShortcutsHelpOpen} onOpenChange={setIsShortcutsHelpOpen} size="sm">
         <ModalContent>
@@ -1605,58 +1478,40 @@ export default function RalphBoardTab({ isPaletteOpen }: { isPaletteOpen?: boole
         </ModalContent>
       </Modal>
 
-      {/* Loading state (board sub-tab only) */}
-      {currentScreen.type === 'board' &&
-        ralphSubTab === 'board' &&
-        isLoading &&
-        tasks.length === 0 && (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-          </div>
-        )}
-
-      {/* Board / Task Detail view */}
-      {(currentScreen.type !== 'board' || ralphSubTab === 'board') && (
-        <>
-          {currentScreen.type === 'board' ? (
-            !isLoading || tasks.length > 0 ? (
-              <ListView
-                tasks={filteredTasks}
-                processingTaskIds={processingTaskIds}
-                onExpandTask={handleExpandTask}
-                onTransitionTask={handleTransitionTask}
-                onStatusOverride={handleRequestOverride}
-                onResearchAction={handleResearchAction}
-                onAnswerQuestion={handleAnswerQuestion}
-                onCancelExecution={handleCancelExecution}
-                onArchive={handleArchiveTask}
-                onUnarchive={handleUnarchiveTask}
-                onDelete={handleRequestDeleteTask}
-                onClone={handleCloneTask}
-                onViewStories={openStoriesModal}
-                onExecuteNext={handleExecuteNext}
-                onExecuteAll={handleExecuteAll}
-                onCompleteFeature={openFeatureCompleteModal}
-                onCreateSubtask={handleCreateSubtask}
-                onCreateTask={openCreateModal}
-                projects={projects}
-                onChangeProject={handleChangeProject}
-                focusedTaskId={focusedTaskId}
-                onVisibleTaskIdsChange={handleVisibleTaskIdsChange}
-              />
-            ) : null
-          ) : (
-            <TaskDetailScreen
-              taskId={currentScreen.taskId}
-              onBack={popScreen}
-              onNavigateToTask={handleNavigateToTask}
-              onTransition={handleTransitionTask}
-              onCreateSubtask={handleCreateSubtask}
-              onDelete={handleRequestDeleteTask}
-            />
-          )}
-        </>
+      {/* Loading state */}
+      {isLoading && tasks.length === 0 && (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
       )}
+
+      {/* Board list view */}
+      {!isLoading || tasks.length > 0 ? (
+        <ListView
+          tasks={filteredTasks}
+          processingTaskIds={processingTaskIds}
+          onExpandTask={handleExpandTask}
+          onTransitionTask={handleTransitionTask}
+          onStatusOverride={handleRequestOverride}
+          onResearchAction={handleResearchAction}
+          onAnswerQuestion={handleAnswerQuestion}
+          onCancelExecution={handleCancelExecution}
+          onArchive={handleArchiveTask}
+          onUnarchive={handleUnarchiveTask}
+          onDelete={handleRequestDeleteTask}
+          onClone={handleCloneTask}
+          onViewStories={openStoriesModal}
+          onExecuteNext={handleExecuteNext}
+          onExecuteAll={handleExecuteAll}
+          onCompleteFeature={openFeatureCompleteModal}
+          onCreateSubtask={handleCreateSubtask}
+          onCreateTask={openCreateModal}
+          projects={projects}
+          onChangeProject={handleChangeProject}
+          focusedTaskId={focusedTaskId}
+          onVisibleTaskIdsChange={handleVisibleTaskIdsChange}
+        />
+      ) : null}
     </div>
   );
 }

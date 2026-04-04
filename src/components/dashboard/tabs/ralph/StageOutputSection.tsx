@@ -167,6 +167,8 @@ export default function StageOutputSection({
   const isAutoLooping = !!stageOutput?.autoLoopActive;
   const completionReason = stageOutput?.completionReason;
   const iterations = stageOutput?.iterations ?? [];
+  const lastIterationError = iterations.at(-1)?.error;
+  const displayError = executionError || lastIterationError;
   const fileOutput = stageOutput?.fileOutput;
   const hasOutput = !!fileOutput || iterations.length > 0;
   const iconColorClass = STAGE_COLOR_CLASSES[stageDef.color] || 'text-default-500';
@@ -324,10 +326,10 @@ export default function StageOutputSection({
       {isExpanded && (
         <div className="p-3 space-y-3">
           {/* Error banner */}
-          {completionReason === 'error' && executionError && (
+          {completionReason === 'error' && displayError && (
             <div className="p-3 rounded-lg bg-danger-50 dark:bg-danger-500/10 border border-danger-200 dark:border-danger-500/20">
               <p className="text-sm text-danger-700 dark:text-danger-400 whitespace-pre-wrap">
-                {executionError}
+                {displayError}
               </p>
             </div>
           )}

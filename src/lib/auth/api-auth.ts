@@ -4,11 +4,20 @@ import { resolve } from 'node:path';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { compare, hash } from 'bcryptjs';
 
+export interface StageTokenAuth {
+  tokenId: string;
+  jobId: string;
+  taskId: string;
+  permissions: import('@/lib/types/index').CliPermission[];
+}
+
 export interface AuthResult {
   success: boolean;
   error?: string;
   userId?: string;
   clientName?: string;
+  /** Present when authenticated via a scoped stage token (X-CLI-Token header) */
+  stageToken?: StageTokenAuth;
 }
 
 interface StoredHashedApiKey {

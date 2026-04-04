@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   forceTransitionRalphTask,
   getManualOverrideInfo,
@@ -41,6 +42,9 @@ export async function POST(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedOverridePost = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedOverridePost) return scopeDeniedOverridePost;
 
     // Parse and validate request body
     const body = await request.json();
@@ -118,6 +122,10 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedOverrideGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedOverrideGet) return scopeDeniedOverrideGet;
+
     const { searchParams } = new URL(request.url);
     const toStatus = searchParams.get('toStatus');
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from './auth';
 import { validateApiKey, checkRateLimit, checkIpWhitelist, type AuthResult } from './api-auth';
+import { validateStageToken } from './stage-tokens';
 
 /**
  * Simple authentication check for API routes
@@ -41,7 +42,38 @@ export async function withAuth(request: NextRequest): Promise<{
       };
     }
 
-    // 3. Fall back to API key validation (external clients)
+    // 3. Check for scoped stage token (X-CLI-Token header)
+    const cliToken = request.headers.get('x-cli-token');
+    if (cliToken) {
+      const tokenInfo = validateStageToken(cliToken);
+      if (!tokenInfo) {
+        console.log(`[AUTH] Stage token validation failed (expired, revoked, or unknown)`);
+        return {
+          success: false,
+          response: NextResponse.json({ error: 'Invalid or expired CLI token' }, { status: 401 }),
+        };
+      }
+
+      console.log(
+        `[AUTH] Stage token authentication successful (job: ${tokenInfo.jobId}, task: ${tokenInfo.taskId})`
+      );
+      return {
+        success: true,
+        auth: {
+          success: true,
+          userId: `stage-token:${tokenInfo.jobId}`,
+          clientName: `Stage Token (job ${tokenInfo.jobId})`,
+          stageToken: {
+            tokenId: tokenInfo.tokenId,
+            jobId: tokenInfo.jobId,
+            taskId: tokenInfo.taskId,
+            permissions: tokenInfo.permissions,
+          },
+        },
+      };
+    }
+
+    // 4. Fall back to API key validation (external clients)
     const authResult = await validateApiKey(request);
     if (!authResult.success) {
       console.log(`[AUTH] Authentication failed: ${authResult.error}`);
@@ -51,7 +83,7 @@ export async function withAuth(request: NextRequest): Promise<{
       };
     }
 
-    // 4. Check rate limits
+    // 5. Check rate limits
     const rateLimitResult = await checkRateLimit(authResult.userId!);
     if (!rateLimitResult.allowed) {
       console.log(`[AUTH] Rate limit exceeded for user: ${authResult.userId}`);

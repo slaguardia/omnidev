@@ -224,6 +224,29 @@ export enum WorkspaceErrorCode {
 }
 
 /**
+ * CLI permission scopes for stage tokens
+ */
+export type CliPermission =
+  | 'tasks:read'
+  | 'tasks:create'
+  | 'subtasks:create'
+  | 'tasks:update'
+  | 'tasks:transition'
+  | 'deps:read'
+  | 'deps:write'
+  | 'stages:run';
+
+/**
+ * CLI access configuration for a workflow stage
+ */
+export interface StageCliConfig {
+  /** Whether the CLI is available to the agent during this stage */
+  enabled: boolean;
+  /** Permission scopes granted to the stage token */
+  permissions: CliPermission[];
+}
+
+/**
  * Stage configuration for workflow stages
  */
 export interface StageConfig {
@@ -235,6 +258,8 @@ export interface StageConfig {
   returnQuestions: boolean;
   /** Whether the stage auto-loops iterations until completion signal or maxIterations (default: false) */
   autoLoop: boolean;
+  /** Optional CLI access configuration for the agent during this stage */
+  cli?: StageCliConfig | undefined;
 }
 
 /**
