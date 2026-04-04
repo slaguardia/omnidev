@@ -119,6 +119,7 @@ export async function executeAgentRun(
         question: request.prompt,
         workingDirectory: request.workspacePath,
         editRequest: request.editMode,
+        extraEnv: request.extraEnv,
       });
       output = runResult.output;
     } catch (runError) {

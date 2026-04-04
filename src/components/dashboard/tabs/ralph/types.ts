@@ -8,8 +8,6 @@ export type RalphTaskStatus = string;
 
 export type ViewMode = 'kanban' | 'list';
 
-export type RalphScreen = { type: 'board' } | { type: 'task-detail'; taskId: string };
-
 // Execution job info for tasks in executing state
 export interface ExecutionJobInfo {
   id: string;

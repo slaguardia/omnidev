@@ -5,6 +5,10 @@
 # Called by Claude Code inside the container to create tasks.
 # Validates required inputs and calls POST /api/ralph/tasks/create.
 #
+# Env (same as the Omnidev Ralph CLI, with legacy aliases):
+#   OMNIDEV_URL or OMNIDEV_API_URL — API base (default http://localhost:$PORT)
+#   OMNIDEV_API_KEY or API_KEY — API key for X-API-Key
+#
 # Usage:
 #   create-task --workspace-id <id> --title <title> --description <desc> [options]
 #
@@ -98,14 +102,18 @@ PAYLOAD=$(jq -n \
   + (if $projectId != "" then {projectId: $projectId} else {} end)'
 )
 
-# Determine API base URL
-API_BASE="${OMNIDEV_API_URL:-http://localhost:${PORT:-3000}}"
+# Determine API base URL (OMNIDEV_URL matches the Ralph CLI; OMNIDEV_API_URL is legacy)
+API_BASE="${OMNIDEV_URL:-${OMNIDEV_API_URL:-http://localhost:${PORT:-3000}}}"
+API_BASE="${API_BASE%/}"
+
+# API key header (OMNIDEV_API_KEY matches the CLI; API_KEY is legacy)
+API_KEY_HEADER="${OMNIDEV_API_KEY:-${API_KEY:-}}"
 
 # Call the API
 RESPONSE=$(curl -s -w "\n%{http_code}" \
   -X POST \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: ${API_KEY:-}" \
+  -H "X-API-Key: ${API_KEY_HEADER}" \
   -d "$PAYLOAD" \
   "${API_BASE}/api/ralph/tasks/create" 2>/dev/null)
 

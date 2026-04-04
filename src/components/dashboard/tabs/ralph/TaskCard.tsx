@@ -142,6 +142,11 @@ export default function TaskCard({
 
   const isExecuting = task.status === 'executing';
   const hasExecutionError = isExecuting && task.executionError;
+  const isJobFailed = task.executionJobInfo?.status === 'failed';
+  const isTimeout =
+    (isJobFailed && task.executionJobInfo?.error?.includes('timed out')) ||
+    (hasExecutionError && task.executionError?.includes('timed out'));
+  const hasHardFailure = (hasExecutionError || isJobFailed) && !isTimeout;
   const isComplete = task.status === 'complete';
   const isBlockedByDeps = task.isBlocked && task.blockedBy.length > 0;
 
@@ -183,7 +188,7 @@ export default function TaskCard({
                   <GitBranch className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[100px]">
                     {task.deliveryMethod === 'direct-commit'
-                      ? task.featureBranch || 'direct'
+                      ? (task.baseBranch ?? '')
                       : task.featureBranch}
                   </span>
                 </div>
@@ -306,10 +311,10 @@ export default function TaskCard({
           </div>
         )}
 
-        {/* Row 5: Execution one-liner (if executing) */}
-        {isExecuting && (
+        {/* Row 5: Execution one-liner (only if there's a job or error to show) */}
+        {isExecuting && (hasExecutionError || task.executionJobInfo) && (
           <div className="flex items-center gap-2 mt-2 text-xs text-default-500">
-            {hasExecutionError || task.executionJobInfo?.status === 'failed' ? (
+            {hasHardFailure ? (
               <>
                 <AlertTriangle className="w-3 h-3 text-danger" />
                 <span className="text-danger">
@@ -319,6 +324,10 @@ export default function TaskCard({
                       ? `Failed: ${task.executionError.slice(0, 80)}${task.executionError.length > 80 ? '...' : ''}`
                       : 'Execution failed'}
                 </span>
+              </>
+            ) : isTimeout ? (
+              <>
+                <span className="text-default-400">Job finished — ready to transition</span>
               </>
             ) : (
               <>
@@ -727,11 +736,6 @@ export default function TaskCard({
               <span className="text-xs font-medium">{task.pendingQuestionsCount}</span>
             </span>
           )}
-          {isExecuting && hasExecutionError && (
-            <span title="Execution error">
-              <AlertTriangle className="w-3.5 h-3.5 text-danger flex-shrink-0" />
-            </span>
-          )}
           {hasChildren && (
             <span
               className={`text-xs tabular-nums flex-shrink-0 ${completedChildren === totalChildren ? 'text-success' : 'text-default-400'}`}
@@ -756,25 +760,25 @@ export default function TaskCard({
               <Archive className="w-3.5 h-3.5 text-default-300 flex-shrink-0" />
             </span>
           )}
-          {isExecuting && (
+          {isExecuting && (hasExecutionError || task.executionJobInfo) && (
             <span className="flex items-center gap-1 text-xs flex-shrink-0">
-              {hasExecutionError || task.executionJobInfo?.status === 'failed' ? (
+              {hasHardFailure ? (
                 <>
                   <AlertTriangle className="w-3 h-3 text-danger" />
                   <span className="text-danger">Failed</span>
                 </>
+              ) : isTimeout ? (
+                <span className="text-default-400">Done</span>
               ) : (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin text-primary" />
                   <span className="text-default-400">
-                    {task.executionJobInfo ? (
+                    {task.executionJobInfo && (
                       <>
                         {task.executionJobInfo.status}
                         {task.executionJobInfo.startedAt &&
                           ` · ${formatRelativeTime(task.executionJobInfo.startedAt)}`}
                       </>
-                    ) : (
-                      'Starting...'
                     )}
                   </span>
                 </>
@@ -882,7 +886,7 @@ export default function TaskCard({
               <GitBranch className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">
                 {task.deliveryMethod === 'direct-commit'
-                  ? `${task.baseBranch} (direct)`
+                  ? (task.baseBranch ?? '')
                   : task.featureBranch}
               </span>
             </>

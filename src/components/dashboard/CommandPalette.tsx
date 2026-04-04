@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
 import { Kbd } from '@heroui/kbd';
 import { Chip } from '@heroui/chip';
@@ -28,8 +29,6 @@ import { formatTaskNumber } from '@/components/dashboard/tabs/ralph/types';
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onTabChange: (tab: string) => void;
-  onNavigateToTask: (taskId: string) => void;
 }
 
 interface NavItem {
@@ -49,12 +48,8 @@ const navItems: NavItem[] = [
   { key: 'security', title: 'Account Security', icon: Lock },
 ];
 
-export default function CommandPalette({
-  isOpen,
-  onClose,
-  onTabChange,
-  onNavigateToTask,
-}: CommandPaletteProps) {
+export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: tasks = [] } = useRalphTasks();
   const { data: workspaces = [] } = useRalphWorkspaces({ includeBranches: false });
@@ -63,7 +58,6 @@ export default function CommandPalette({
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
-      // Small delay to ensure the portal is mounted
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [isOpen]);
@@ -87,6 +81,9 @@ export default function CommandPalette({
     fn();
     onClose();
   };
+
+  const navigateTo = (tab: string) => router.push(`/dashboard/${tab}`);
+  const navigateToTask = (taskId: string) => router.push(`/dashboard/ralph-board/task/${taskId}`);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -122,7 +119,7 @@ export default function CommandPalette({
                   value="action: Create Task"
                   onSelect={() =>
                     selectAndClose(() => {
-                      onTabChange('ralph-board');
+                      navigateTo('ralph-board');
                       window.dispatchEvent(new CustomEvent('ralph:openCreateModal'));
                     })
                   }
@@ -136,7 +133,7 @@ export default function CommandPalette({
                   value="action: Toggle Archive View"
                   onSelect={() =>
                     selectAndClose(() => {
-                      onTabChange('ralph-board');
+                      navigateTo('ralph-board');
                       window.dispatchEvent(new CustomEvent('ralph:toggleArchived'));
                     })
                   }
@@ -156,7 +153,7 @@ export default function CommandPalette({
                   <Command.Item
                     key={item.key}
                     value={`navigate: ${item.title}`}
-                    onSelect={() => selectAndClose(() => onTabChange(item.key))}
+                    onSelect={() => selectAndClose(() => navigateTo(item.key))}
                     className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg cursor-pointer text-sm transition-colors data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary hover:bg-default-100"
                   >
                     <item.icon className="w-4 h-4 text-default-400 shrink-0" />
@@ -177,7 +174,7 @@ export default function CommandPalette({
                       <Command.Item
                         key={task.id}
                         value={`task: ${taskNum ?? ''} ${task.title} ${task.workspaceName}`}
-                        onSelect={() => selectAndClose(() => onNavigateToTask(task.id))}
+                        onSelect={() => selectAndClose(() => navigateToTask(task.id))}
                         className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg cursor-pointer text-sm transition-colors data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary hover:bg-default-100"
                       >
                         <FileText className="w-4 h-4 text-default-400 shrink-0" />
@@ -208,7 +205,7 @@ export default function CommandPalette({
                     <Command.Item
                       key={ws.id}
                       value={`workspace: ${ws.name} ${ws.repoUrl}`}
-                      onSelect={() => selectAndClose(() => onTabChange('workspaces'))}
+                      onSelect={() => selectAndClose(() => navigateTo('workspaces'))}
                       className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg cursor-pointer text-sm transition-colors data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary hover:bg-default-100"
                     >
                       <FolderOpen className="w-4 h-4 text-default-400 shrink-0" />
@@ -228,7 +225,7 @@ export default function CommandPalette({
                     <Command.Item
                       key={project.id}
                       value={`project: ${project.name}`}
-                      onSelect={() => selectAndClose(() => onTabChange('ralph-board'))}
+                      onSelect={() => selectAndClose(() => navigateTo('ralph-board'))}
                       className="flex items-center gap-3 px-3 py-2 mx-2 rounded-lg cursor-pointer text-sm transition-colors data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary hover:bg-default-100"
                     >
                       <Folder className="w-4 h-4 shrink-0" style={{ color: project.color }} />

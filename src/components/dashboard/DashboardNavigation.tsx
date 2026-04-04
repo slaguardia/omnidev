@@ -19,6 +19,7 @@ import clsx from 'clsx';
 import { Tooltip } from '@heroui/tooltip';
 import { Kbd } from '@heroui/kbd';
 import NextLink from 'next/link';
+import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { usePersistedState } from '@/hooks';
 import { motion, AnimatePresence } from '@/components/motion';
@@ -27,8 +28,6 @@ import { ThemeSwitch } from '@/components/ThemeSwitch';
 import type { LucideIcon } from 'lucide-react';
 
 interface DashboardNavigationProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
   collapsed?: boolean;
   onOpenPalette: () => void;
 }
@@ -55,23 +54,21 @@ const configNavItems: NavItem[] = [
 
 const configTabKeys = new Set(configNavItems.map((item) => item.key));
 
-function NavButton({
+function NavLink({
   item,
   isActive,
   collapsed,
-  onTabChange,
 }: {
   item: NavItem;
   isActive: boolean;
   collapsed?: boolean;
-  onTabChange: (tab: string) => void;
 }) {
   const Icon = item.icon;
   return (
     <li>
       <Tooltip content={item.title} placement="right" isDisabled={!collapsed}>
-        <button
-          onClick={() => onTabChange(item.key)}
+        <NextLink
+          href={`/dashboard/${item.key}`}
           className={clsx(
             'group w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap overflow-hidden text-left',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
@@ -87,18 +84,16 @@ function NavButton({
             )}
           />
           {item.title}
-        </button>
+        </NextLink>
       </Tooltip>
     </li>
   );
 }
 
-export function DashboardNavigation({
-  activeTab,
-  onTabChange,
-  collapsed,
-  onOpenPalette,
-}: DashboardNavigationProps) {
+export function DashboardNavigation({ collapsed, onOpenPalette }: DashboardNavigationProps) {
+  const pathname = usePathname();
+  const activeTab = pathname.split('/')[2] || 'ralph-board';
+
   const [configExpanded, setConfigExpanded] = usePersistedState(
     'dashboard-nav-config-expanded',
     false
@@ -114,6 +109,8 @@ export function DashboardNavigation({
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/signin' });
   };
+
+  const isActive = (key: string) => pathname.startsWith(`/dashboard/${key}`);
 
   return (
     <nav className="h-full flex flex-col w-full">
@@ -163,12 +160,11 @@ export function DashboardNavigation({
       {/* Top-level tabs */}
       <ul className="space-y-0.5">
         {topNavItems.map((item) => (
-          <NavButton
+          <NavLink
             key={item.key}
             item={item}
-            isActive={activeTab === item.key}
+            isActive={isActive(item.key)}
             collapsed={collapsed ?? false}
-            onTabChange={onTabChange}
           />
         ))}
       </ul>
@@ -176,7 +172,6 @@ export function DashboardNavigation({
       {/* Configuration section */}
       <div className="mt-4">
         {collapsed ? (
-          // Collapsed sidebar: show a divider then items
           <>
             <Tooltip content="Configuration" placement="right">
               <div className="flex justify-center py-1.5 mb-1">
@@ -185,18 +180,16 @@ export function DashboardNavigation({
             </Tooltip>
             <ul className="space-y-0.5">
               {configNavItems.map((item) => (
-                <NavButton
+                <NavLink
                   key={item.key}
                   item={item}
-                  isActive={activeTab === item.key}
+                  isActive={isActive(item.key)}
                   collapsed={collapsed ?? false}
-                  onTabChange={onTabChange}
                 />
               ))}
             </ul>
           </>
         ) : (
-          // Expanded sidebar: collapsible section
           <>
             <button
               onClick={() => setConfigExpanded((prev) => !prev)}
@@ -223,12 +216,11 @@ export function DashboardNavigation({
                   className="overflow-hidden space-y-0.5"
                 >
                   {configNavItems.map((item) => (
-                    <NavButton
+                    <NavLink
                       key={item.key}
                       item={item}
-                      isActive={activeTab === item.key}
+                      isActive={isActive(item.key)}
                       collapsed={collapsed ?? false}
-                      onTabChange={onTabChange}
                     />
                   ))}
                 </motion.ul>
@@ -238,7 +230,7 @@ export function DashboardNavigation({
         )}
       </div>
 
-      {/* Theme switch — above divider */}
+      {/* Theme switch */}
       <div
         className={clsx(
           'mt-auto flex items-center h-9 pb-3',
@@ -248,7 +240,7 @@ export function DashboardNavigation({
         <ThemeSwitch />
       </div>
 
-      {/* Sign out — below divider */}
+      {/* Sign out */}
       <div className="pt-3 border-t border-divider/60">
         <Tooltip content="Sign out" placement="right" isDisabled={!collapsed}>
           <button

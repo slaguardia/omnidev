@@ -16,9 +16,10 @@ import { Switch } from '@heroui/switch';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { Chip } from '@heroui/chip';
 import { Select, SelectItem } from '@heroui/select';
-import { ChevronDown, Plus, Trash2, Info, GripVertical, Eye, Pencil } from 'lucide-react';
+import { Checkbox } from '@heroui/checkbox';
+import { ChevronDown, Plus, Trash2, Info, GripVertical, Eye, Pencil, Terminal } from 'lucide-react';
 import { Reorder, useDragControls } from 'framer-motion';
-import type { WorkflowStageDefinition, WorkflowDefinition } from '@/lib/types/index';
+import type { WorkflowStageDefinition, WorkflowDefinition, CliPermission } from '@/lib/types/index';
 import { DEFAULT_WORKFLOW_DEFINITION, STAGE_COLORS } from '@/lib/workflow/definition';
 
 /**
@@ -48,7 +49,7 @@ function StageItem({
   stage,
   index,
   isExpanded,
-  enableLayoutAnimation,
+  enableLayoutAnimation: _enableLayoutAnimation,
   onToggleExpanded,
   onUpdateStage,
   onRemoveStage,
@@ -56,6 +57,7 @@ function StageItem({
 }: StageItemProps) {
   const controls = useDragControls();
   const isDragging = useRef(false);
+  const [_dragging, setDragging] = useState(false);
 
   return (
     <Reorder.Item
@@ -64,15 +66,18 @@ function StageItem({
       dragControls={controls}
       onDragStart={() => {
         isDragging.current = true;
+        setDragging(true);
       }}
       onDragEnd={() => {
         requestAnimationFrame(() => {
           isDragging.current = false;
+          setDragging(false);
         });
       }}
       whileDrag={{ boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}
-      {...(enableLayoutAnimation ? { layout: 'position' as const } : {})}
-      transition={{ duration: 0.15 }}
+      initial={false}
+      animate={false}
+      transition={{ layout: { duration: 0 }, default: { duration: 0 } }}
       className="list-none"
     >
       <Card className="glass-card-static">
@@ -217,13 +222,34 @@ function StageItem({
               description="The prompt sent to Claude Code when this stage runs. Leave empty to skip execution."
             />
 
-            <div className="flex items-center gap-2 text-xs text-foreground-400 bg-content2/50 p-2 rounded-lg">
-              <Info className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>
-                Available variables: <code className="text-primary-500">{'{title}'}</code>,{' '}
-                <code className="text-primary-500">{'{description}'}</code>,{' '}
-                <code className="text-primary-500">{'{filePaths}'}</code>
-              </span>
+            <div className="text-xs text-foreground-400 bg-content2/50 p-2 rounded-lg space-y-1">
+              <div className="flex items-center gap-2">
+                <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="font-medium">Available template variables:</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-5">
+                <span>
+                  <code className="text-primary-500">{'{title}'}</code> — task title
+                </span>
+                <span>
+                  <code className="text-primary-500">{'{description}'}</code> — task description
+                </span>
+                <span>
+                  <code className="text-primary-500">{'{filePaths}'}</code> — relevant file paths
+                </span>
+                <span>
+                  <code className="text-primary-500">{'{artifactPath}'}</code> — stage artifact file
+                  path
+                </span>
+                <span>
+                  <code className="text-primary-500">{'{previousStageOutput}'}</code> — output from
+                  preceding stage
+                </span>
+                <span>
+                  <code className="text-primary-500">{'{stageOutput:name}'}</code> — output from a
+                  specific stage
+                </span>
+              </div>
             </div>
 
             {/* Iteration & Questions */}
@@ -263,6 +289,74 @@ function StageItem({
                   answers before continuing.
                 </p>
               </div>
+            </div>
+
+            {/* CLI Access */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  isSelected={stage.config.cli?.enabled ?? false}
+                  onValueChange={(val) =>
+                    onUpdateStage(index, {
+                      config: {
+                        ...stage.config,
+                        cli: val
+                          ? {
+                              enabled: true,
+                              permissions: stage.config.cli?.permissions ?? ['tasks:read'],
+                            }
+                          : { enabled: false, permissions: [] },
+                      },
+                    })
+                  }
+                  size="sm"
+                  startContent={<Terminal className="w-3 h-3" />}
+                >
+                  CLI Access
+                </Switch>
+                <p className="text-xs text-foreground-400">
+                  Allow the agent to use the <code>ralph</code> CLI during this stage.
+                </p>
+              </div>
+              {stage.config.cli?.enabled && (
+                <div className="pl-2 space-y-2">
+                  <p className="text-xs text-foreground-400 font-medium">Permissions:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(
+                      [
+                        ['tasks:read', 'Read tasks'],
+                        ['tasks:create', 'Create tasks'],
+                        ['subtasks:create', 'Create subtasks'],
+                        ['tasks:update', 'Update tasks'],
+                        ['tasks:transition', 'Transition tasks'],
+                        ['deps:read', 'Read deps'],
+                        ['deps:write', 'Write deps'],
+                        ['stages:run', 'Run stages'],
+                      ] as [CliPermission, string][]
+                    ).map(([perm, label]) => (
+                      <Checkbox
+                        key={perm}
+                        size="sm"
+                        isSelected={stage.config.cli?.permissions.includes(perm) ?? false}
+                        onValueChange={(checked) => {
+                          const current = stage.config.cli?.permissions ?? [];
+                          const next = checked
+                            ? [...current, perm]
+                            : current.filter((p) => p !== perm);
+                          onUpdateStage(index, {
+                            config: {
+                              ...stage.config,
+                              cli: { enabled: true, permissions: next },
+                            },
+                          });
+                        }}
+                      >
+                        <span className="text-xs">{label}</span>
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Delete button */}

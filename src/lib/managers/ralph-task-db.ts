@@ -132,6 +132,11 @@ function runMigrations(database: Database.Database): void {
     migrateV5Jobs(database);
     setSchemaVersion(database, 5);
   }
+
+  if (version < 6) {
+    migrateV6StageTokens(database);
+    setSchemaVersion(database, 6);
+  }
 }
 
 function getSchemaVersion(database: Database.Database): number {
@@ -321,6 +326,28 @@ function migrateV5Jobs(database: Database.Database): void {
   `);
 }
 
+/** V6: Add stage_tokens table for scoped CLI tokens */
+function migrateV6StageTokens(database: Database.Database): void {
+  console.log('[RALPH TASK DB] Running migration v6: stage_tokens');
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS stage_tokens (
+      id          TEXT PRIMARY KEY,
+      token_hash  TEXT NOT NULL UNIQUE,
+      job_id      TEXT NOT NULL,
+      task_id     TEXT NOT NULL,
+      permissions TEXT NOT NULL,
+      expires_at  TEXT NOT NULL,
+      revoked     INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL,
+      revoked_at  TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_stage_tokens_hash ON stage_tokens (token_hash);
+    CREATE INDEX IF NOT EXISTS idx_stage_tokens_job ON stage_tokens (job_id);
+  `);
+}
+
 /** V4: Add prompt_overrides column to playbooks */
 function migrateV4PlaybookPromptOverrides(database: Database.Database): void {
   console.log('[RALPH TASK DB] Running migration v4: playbook prompt overrides');
@@ -473,6 +500,12 @@ interface StmtCache {
   // Agent run statements
   insertAgentRun: Database.Statement;
   agentRunsByJob: Database.Statement;
+
+  // Stage token statements
+  insertStageToken: Database.Statement;
+  getStageTokenByHash: Database.Statement;
+  revokeTokensByJob: Database.Statement;
+  revokeExpiredTokens: Database.Statement;
 }
 
 let stmts: StmtCache | null = null;
@@ -586,6 +619,21 @@ function getStmts(): StmtCache {
     `),
     agentRunsByJob: database.prepare(
       'SELECT * FROM agent_runs WHERE job_id = ? ORDER BY started_at DESC'
+    ),
+
+    // Stage token statements
+    insertStageToken: database.prepare(`
+      INSERT INTO stage_tokens (id, token_hash, job_id, task_id, permissions, expires_at, revoked, created_at)
+      VALUES (@id, @token_hash, @job_id, @task_id, @permissions, @expires_at, 0, @created_at)
+    `),
+    getStageTokenByHash: database.prepare(
+      'SELECT * FROM stage_tokens WHERE token_hash = ? AND revoked = 0'
+    ),
+    revokeTokensByJob: database.prepare(
+      'UPDATE stage_tokens SET revoked = 1, revoked_at = ? WHERE job_id = ? AND revoked = 0'
+    ),
+    revokeExpiredTokens: database.prepare(
+      'UPDATE stage_tokens SET revoked = 1, revoked_at = ? WHERE revoked = 0 AND expires_at < ?'
     ),
   };
 
@@ -1185,6 +1233,50 @@ export function dbUpdateAgentRun(
 
 export function dbGetAgentRunsByJob(jobId: string): RalphAgentRun[] {
   return getStmts().agentRunsByJob.all(jobId) as RalphAgentRun[];
+}
+
+// ---------------------------------------------------------------------------
+// Stage Token CRUD
+// ---------------------------------------------------------------------------
+
+export interface DbStageToken {
+  id: string;
+  token_hash: string;
+  job_id: string;
+  task_id: string;
+  permissions: string; // JSON array
+  expires_at: string;
+  revoked: number;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export function dbInsertStageToken(token: Omit<DbStageToken, 'revoked' | 'revoked_at'>): void {
+  getStmts().insertStageToken.run({
+    id: token.id,
+    token_hash: token.token_hash,
+    job_id: token.job_id,
+    task_id: token.task_id,
+    permissions: token.permissions,
+    expires_at: token.expires_at,
+    created_at: token.created_at,
+  });
+}
+
+export function dbGetStageTokenByHash(tokenHash: string): DbStageToken | null {
+  return (getStmts().getStageTokenByHash.get(tokenHash) as DbStageToken | undefined) ?? null;
+}
+
+export function dbRevokeTokensByJob(jobId: string): number {
+  const now = new Date().toISOString();
+  const result = getStmts().revokeTokensByJob.run(now, jobId);
+  return result.changes;
+}
+
+export function dbRevokeExpiredTokens(): number {
+  const now = new Date().toISOString();
+  const result = getStmts().revokeExpiredTokens.run(now, now);
+  return result.changes;
 }
 
 /**

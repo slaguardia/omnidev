@@ -81,6 +81,9 @@ RUN pnpm run build
 # Build the standalone worker bundle
 RUN pnpm run worker:build
 
+# Build the CLI as a standalone executable
+RUN npx tsup src/cli/index.ts --out-dir dist/cli --format cjs --target node18 --no-splitting --clean
+
 # =============================================================================
 # STAGE 3: Production Runtime
 # =============================================================================
@@ -139,6 +142,12 @@ RUN chmod 755 ./scripts/*.sh
 # Install create-task script so Claude Code can call it directly
 COPY scripts/create-task.sh /usr/local/bin/create-task
 RUN chmod 755 /usr/local/bin/create-task
+
+# Install the ralph CLI binary so agents can call it
+COPY --from=builder --chown=nextjs:nodejs /app/dist/cli/index.cjs /opt/internal/bin/ralph.cjs
+RUN echo '#!/usr/bin/env node' > /usr/local/bin/ralph && \
+    echo 'require("/opt/internal/bin/ralph.cjs");' >> /usr/local/bin/ralph && \
+    chmod 755 /usr/local/bin/ralph
 
 # Run as non-root user for security. If you persist Claude auth via a named volume,
 # prefer using the docker-compose init service to chown it on first run.

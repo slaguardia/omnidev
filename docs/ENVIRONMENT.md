@@ -421,6 +421,7 @@ The application checks for configuration in this order:
 
 ## Related Documentation
 
+- [Ralph CLI](./RALPH_CLI.md) — `pnpm ralph`, `OMNIDEV_URL`, `OMNIDEV_API_KEY`, remote and agent usage
 - [API Authentication](/docs/api-authentication) - Detailed auth setup
 - [Docker Configuration](/docs/docker) - Docker environment variables
 - [Quick Start Guide](/docs/quickstart) - Getting started

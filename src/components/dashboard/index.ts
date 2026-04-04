@@ -5,4 +5,6 @@ export { default as ConfirmClearApiKeyModal } from '@/components/dashboard/Confi
 export { default as ConfirmDeleteWorkspaceModal } from '@/components/dashboard/ConfirmDeleteWorkspaceModal';
 export { default as WorkspaceDetailModal } from '@/components/dashboard/WorkspaceDetailModal';
 export { DashboardNavigation } from '@/components/dashboard/DashboardNavigation';
+export { DashboardProvider, useDashboard } from '@/components/dashboard/DashboardContext';
+export { DashboardShell } from '@/components/dashboard/DashboardShell';
 export * from '@/lib/dashboard/types';

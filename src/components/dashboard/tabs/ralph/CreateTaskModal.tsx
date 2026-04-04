@@ -51,7 +51,7 @@ const INITIAL_CREATE_FORM: CreateTaskForm = {
   baseBranch: '',
   featureBranch: '',
   prTargetBranch: '',
-  deliveryMethod: 'direct-commit',
+  deliveryMethod: 'merge-request',
   parentId: null,
   parentTitle: null,
   projectId: null,

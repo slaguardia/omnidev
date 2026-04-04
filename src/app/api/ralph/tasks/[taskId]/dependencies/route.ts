@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/middleware';
+import { requirePermission, requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   getRalphTask,
   updateTaskDependencies,
@@ -22,6 +23,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedGet) return scopeDeniedGet;
+
+    const denied = requirePermission(authResult.auth!, 'deps:read');
+    if (denied) return denied;
 
     // Get task to verify it exists
     const taskResult = await getRalphTask(taskId);
@@ -94,6 +101,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedPut = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedPut) return scopeDeniedPut;
+
+    const denied = requirePermission(authResult.auth!, 'deps:write');
+    if (denied) return denied;
 
     // Get task to verify it exists
     const taskResult = await getRalphTask(taskId);

@@ -7,6 +7,7 @@ import { Input, Textarea } from '@heroui/input';
 
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/dropdown';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
+import { Popover, PopoverTrigger, PopoverContent } from '@heroui/popover';
 import {
   statusChipClasses,
   infoChipClasses,
@@ -54,6 +55,21 @@ import StageOutputSection from './StageOutputSection';
 import DependencySection from './DependencySection';
 import { ChatMarkdown } from '@/components/dashboard/tabs/chat/ChatMarkdown';
 
+/** Fills space next to the row icon so branch/delivery controls share one column width */
+const SIDEBAR_PROP_CONTROL_WRAP = 'min-w-0 flex-1';
+
+/**
+ * Branch + delivery dropdowns — identical native buttons (HeroUI bordered Button
+ * used different border tokens and looked heavier than plain buttons in dark mode).
+ * Uses `border-divider` to match TaskCard / board controls.
+ */
+const SIDEBAR_PROP_SELECT_TRIGGER =
+  'flex h-8 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border border-divider bg-content1 px-2.5 text-left text-sm text-foreground shadow-sm transition-colors hover:bg-content2/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:hover:bg-content2/40';
+
+/** Locked / read-only value — same border weight as triggers */
+const SIDEBAR_PROP_VALUE_BOX =
+  'flex h-8 w-full min-w-0 items-center rounded-md border border-divider bg-content2/25 px-2.5 text-sm text-default-700 dark:bg-content2/20';
+
 /**
  * Props for TaskDetailScreen component
  */
@@ -81,7 +97,12 @@ export default function TaskDetailScreen({
   const { definition } = useWorkflowDefinition();
   const taskStates = getTaskStates(definition);
   const statusColors = getStatusColors(definition);
-  const { data: task = null, isLoading, error: queryError } = useRalphTaskDetail(taskId);
+  const [stageRunPending, setStageRunPending] = useState(false);
+  const {
+    data: task = null,
+    isLoading,
+    error: queryError,
+  } = useRalphTaskDetail(taskId, { suppressRefetch: stageRunPending });
   const { data: allProjects = [] } = useRalphProjects();
   const { data: allPlaybooks = [] } = useRalphPlaybooks();
   const queryClient = useQueryClient();
@@ -121,12 +142,16 @@ export default function TaskDetailScreen({
   const [selectedEditSuggestionIndex, setSelectedEditSuggestionIndex] = useState(-1);
   const editSuggestionsRef = useRef<HTMLDivElement>(null);
   const editDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [_workspaceBranches, setWorkspaceBranches] = useState<string[]>([]);
+  const [workspaceBranches, setWorkspaceBranches] = useState<string[]>([]);
+  const [branchInput, setBranchInput] = useState('');
+  const [isBranchPopoverOpen, setIsBranchPopoverOpen] = useState(false);
   const [savingField, setSavingField] = useState<string | null>(null);
 
   // Statuses where editing is locked
   const LOCKED_STATUSES = ['executing', 'complete'];
   const canEdit = task ? !LOCKED_STATUSES.includes(task.status) : false;
+  /** Branch name + MR vs direct — only editable in draft (permissions to push are separate). */
+  const canEditBranchConfig = task?.status === 'draft';
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -280,6 +305,12 @@ export default function TaskDetailScreen({
     // Auto-expand the stage section so the loading skeleton is visible
     setExpandedSections((prev) => ({ ...prev, [stageId]: true }));
 
+    // Suppress polling while the run-stage POST is in-flight. The POST does
+    // git fetch/sync before creating the job (~6s), so without this guard the
+    // 5-second refetchInterval fires a GET that returns stale data (no
+    // activeJobId yet) and overwrites the optimistic update.
+    setStageRunPending(true);
+
     // Cancel any in-flight detail queries to prevent stale server data
     // from overwriting our optimistic update before the API call completes
     queryClient.cancelQueries({ queryKey: ['ralph-task-detail', taskId] });
@@ -318,19 +349,28 @@ export default function TaskDetailScreen({
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `HTTP ${response.status}`);
         }
-        // Don't set raw task data into the detail cache — the run-stage
-        // response returns a RalphTask, not the enriched RalphTaskDetail.
-        // The invalidation in .finally() will refetch the enriched version.
+        // Merge server task with existing cache to preserve enriched fields
+        // (workspaceName, childTasks, etc.) that only the detail GET includes.
+        // This avoids the race where a stale refetch overwrites the optimistic
+        // update before a delayed invalidation fires.
+        const data = await response.json();
+        if (data.task) {
+          const current = queryClient.getQueryData<RalphTaskDetail>(['ralph-task-detail', taskId]);
+          setTaskCache(taskId, { ...(current ?? prevTask), ...data.task });
+        } else {
+          invalidateDetail(taskId);
+        }
+        invalidateTasks();
       })
       .catch((err) => {
         console.error(`[TASK DETAIL SCREEN] Failed to run stage '${stageId}', rolling back:`, err);
         setTaskCache(taskId, prevTask);
-      })
-      .finally(() => {
-        // Refetch enriched detail data (with real activeJobId) so
-        // refetchInterval polling kicks in correctly
         invalidateDetail(taskId);
         invalidateTasks();
+      })
+      .finally(() => {
+        // Re-enable polling now that the server has the real activeJobId
+        setStageRunPending(false);
       });
   };
 
@@ -428,6 +468,8 @@ export default function TaskDetailScreen({
 
   const saveField = async (fieldName: string, value: string | string[] | null) => {
     if (!task || !canEdit) return;
+    const branchKeys = new Set(['baseBranch', 'featureBranch', 'prTargetBranch', 'deliveryMethod']);
+    if (branchKeys.has(fieldName) && !canEditBranchConfig) return;
 
     const currentValue = task[fieldName as keyof RalphTaskDetail];
     if (value === currentValue) return;
@@ -456,6 +498,38 @@ export default function TaskDetailScreen({
       invalidateTasks();
     } catch (err) {
       console.error(`[TASK DETAIL SCREEN] Failed to save ${fieldName}:`, err);
+      invalidateDetail(taskId);
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  const saveDeliveryMethod = async (method: 'merge-request' | 'direct-commit') => {
+    if (!task || !canEditBranchConfig || task.deliveryMethod === method) return;
+    setSavingField('deliveryMethod');
+    try {
+      const body =
+        method === 'direct-commit'
+          ? {
+              deliveryMethod: 'direct-commit' as const,
+              featureBranch: null,
+              prTargetBranch: null,
+            }
+          : { deliveryMethod: 'merge-request' as const };
+      const response = await fetch(`/api/ralph/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      setTaskCache(taskId, data.task);
+      invalidateTasks();
+    } catch (err) {
+      console.error('[TASK DETAIL SCREEN] Failed to save delivery method:', err);
       invalidateDetail(taskId);
     } finally {
       setSavingField(null);
@@ -1107,40 +1181,229 @@ export default function TaskDetailScreen({
                     {/* Branch */}
                     {(task.featureBranch ||
                       (task.deliveryMethod === 'direct-commit' && task.baseBranch) ||
-                      canEdit) && (
-                      <div className="flex items-center gap-1.5 py-1.5 pl-4">
-                        <GitBranch className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
-                        {canEdit && task.deliveryMethod !== 'direct-commit' ? (
-                          <input
-                            type="text"
-                            className="text-sm font-mono text-default-700 bg-transparent border-b border-transparent hover:border-default-300 focus:border-primary focus:outline-none truncate w-full py-0"
-                            defaultValue={task.featureBranch ?? ''}
-                            placeholder="Set branch..."
-                            onBlur={(e) => {
-                              const val = e.target.value.trim();
-                              if (val && val !== task.featureBranch) {
-                                saveField('featureBranch', val);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                          />
+                      canEditBranchConfig) && (
+                      <div className="flex items-center gap-1.5 py-1.5 pl-4 pr-3">
+                        <GitBranch className="w-3.5 h-3.5 flex-shrink-0 text-default-400" />
+                        {canEditBranchConfig && task.deliveryMethod === 'merge-request' ? (
+                          <div className={SIDEBAR_PROP_CONTROL_WRAP}>
+                            <Popover
+                              isOpen={isBranchPopoverOpen}
+                              onOpenChange={(open) => {
+                                setIsBranchPopoverOpen(open);
+                                if (open) setBranchInput(task.featureBranch ?? '');
+                              }}
+                              placement="bottom-start"
+                              offset={4}
+                            >
+                              <PopoverTrigger>
+                                <button type="button" className={SIDEBAR_PROP_SELECT_TRIGGER}>
+                                  <span className="min-w-0 flex-1 truncate font-mono text-default-700">
+                                    {task.featureBranch || (
+                                      <span className="text-default-400">Set branch...</span>
+                                    )}
+                                  </span>
+                                  <ChevronDown className="h-3 w-3 flex-shrink-0 text-default-400 opacity-70" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0 w-[240px] min-w-[240px] max-w-[240px]">
+                                <div className="flex max-h-60 flex-col overflow-y-auto">
+                                  <input
+                                    type="text"
+                                    className="sticky top-0 z-10 w-full border-b border-default-200 bg-content1 px-3 py-2 font-mono text-sm text-default-700 focus:outline-none"
+                                    placeholder="Type or select branch..."
+                                    value={branchInput}
+                                    onChange={(e) => setBranchInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = branchInput.trim();
+                                        if (val && val !== task.featureBranch) {
+                                          saveField('featureBranch', val);
+                                        }
+                                        setIsBranchPopoverOpen(false);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setIsBranchPopoverOpen(false);
+                                      }
+                                    }}
+                                    autoFocus
+                                  />
+                                  {workspaceBranches.length > 0 && (
+                                    <div className="py-1">
+                                      {workspaceBranches
+                                        .filter(
+                                          (b) =>
+                                            !branchInput ||
+                                            b.toLowerCase().includes(branchInput.toLowerCase())
+                                        )
+                                        .map((branch) => (
+                                          <button
+                                            key={branch}
+                                            type="button"
+                                            className={`w-full truncate px-3 py-1.5 text-left font-mono text-sm transition-colors hover:bg-default-100 ${
+                                              branch === task.featureBranch
+                                                ? 'text-primary'
+                                                : 'text-default-700'
+                                            }`}
+                                            onClick={() => {
+                                              if (branch !== task.featureBranch) {
+                                                saveField('featureBranch', branch);
+                                              }
+                                              setIsBranchPopoverOpen(false);
+                                            }}
+                                          >
+                                            {branch}
+                                          </button>
+                                        ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : canEditBranchConfig && task.deliveryMethod === 'direct-commit' ? (
+                          <div className={SIDEBAR_PROP_CONTROL_WRAP}>
+                            <Popover
+                              isOpen={isBranchPopoverOpen}
+                              onOpenChange={(open) => {
+                                setIsBranchPopoverOpen(open);
+                                if (open) setBranchInput(task.baseBranch ?? '');
+                              }}
+                              placement="bottom-start"
+                              offset={4}
+                            >
+                              <PopoverTrigger>
+                                <button
+                                  type="button"
+                                  className={SIDEBAR_PROP_SELECT_TRIGGER}
+                                  aria-label="Target branch for direct commit"
+                                >
+                                  <span className="min-w-0 flex-1 truncate font-mono text-default-700">
+                                    {task.baseBranch || (
+                                      <span className="text-default-400">Set target branch...</span>
+                                    )}
+                                  </span>
+                                  <ChevronDown className="h-3 w-3 flex-shrink-0 text-default-400 opacity-70" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="p-0 w-[240px] min-w-[240px] max-w-[240px]">
+                                <div className="flex flex-col max-h-60 overflow-y-auto">
+                                  <input
+                                    type="text"
+                                    className="text-sm font-mono text-default-700 bg-transparent px-3 py-2 border-b border-default-200 focus:outline-none w-full sticky top-0 bg-content1 z-10"
+                                    placeholder="Type or select branch..."
+                                    value={branchInput}
+                                    onChange={(e) => setBranchInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const val = branchInput.trim();
+                                        if (val !== (task.baseBranch ?? '')) {
+                                          saveField('baseBranch', val || null);
+                                        }
+                                        setIsBranchPopoverOpen(false);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setIsBranchPopoverOpen(false);
+                                      }
+                                    }}
+                                    autoFocus
+                                  />
+                                  {workspaceBranches.length > 0 && (
+                                    <div className="py-1">
+                                      {workspaceBranches
+                                        .filter(
+                                          (b) =>
+                                            !branchInput ||
+                                            b.toLowerCase().includes(branchInput.toLowerCase())
+                                        )
+                                        .map((branch) => (
+                                          <button
+                                            key={branch}
+                                            type="button"
+                                            className={`w-full text-left px-3 py-1.5 text-sm font-mono hover:bg-default-100 transition-colors truncate ${
+                                              branch === task.baseBranch
+                                                ? 'text-primary'
+                                                : 'text-default-700'
+                                            }`}
+                                            onClick={() => {
+                                              if (branch !== task.baseBranch) {
+                                                saveField('baseBranch', branch);
+                                              }
+                                              setIsBranchPopoverOpen(false);
+                                            }}
+                                          >
+                                            {branch}
+                                          </button>
+                                        ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         ) : (
-                          <span className="text-sm font-mono text-default-700 truncate">
-                            {task.deliveryMethod === 'direct-commit'
-                              ? `${task.baseBranch} (direct)`
-                              : task.featureBranch}
-                          </span>
+                          <div className={SIDEBAR_PROP_CONTROL_WRAP}>
+                            <div className={`${SIDEBAR_PROP_VALUE_BOX} font-mono`}>
+                              <span className="min-w-0 truncate">
+                                {task.deliveryMethod === 'direct-commit'
+                                  ? (task.baseBranch ?? '')
+                                  : task.featureBranch}
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
 
                     {/* Delivery */}
                     {task.deliveryMethod && (
-                      <div className="flex items-center gap-1.5 py-1.5 pl-4 text-sm text-default-700">
-                        <Package className="w-3.5 h-3.5 text-default-400 flex-shrink-0" />
-                        <span className="capitalize">{task.deliveryMethod.replace(/-/g, ' ')}</span>
+                      <div className="flex items-center gap-1.5 py-1.5 pl-4 pr-3 text-sm text-default-700">
+                        <Package className="w-3.5 h-3.5 flex-shrink-0 text-default-400" />
+                        {canEditBranchConfig ? (
+                          <div className={SIDEBAR_PROP_CONTROL_WRAP}>
+                            <Dropdown>
+                              <DropdownTrigger>
+                                <button
+                                  type="button"
+                                  disabled={!!savingField}
+                                  className={`${SIDEBAR_PROP_SELECT_TRIGGER} capitalize disabled:cursor-not-allowed disabled:opacity-50`}
+                                >
+                                  <span className="min-w-0 flex-1 truncate text-left">
+                                    {task.deliveryMethod.replace(/-/g, ' ')}
+                                  </span>
+                                  <ChevronDown className="h-3 w-3 flex-shrink-0 text-default-400 opacity-70" />
+                                </button>
+                              </DropdownTrigger>
+                              <DropdownMenu
+                                aria-label="Delivery method"
+                                selectionMode="single"
+                                selectedKeys={new Set([task.deliveryMethod])}
+                                onAction={(key) => {
+                                  const m = key as 'merge-request' | 'direct-commit';
+                                  if (m !== task.deliveryMethod) saveDeliveryMethod(m);
+                                }}
+                              >
+                                <DropdownItem key="merge-request" textValue="Merge request">
+                                  Merge request
+                                </DropdownItem>
+                                <DropdownItem
+                                  key="direct-commit"
+                                  textValue="Direct commit"
+                                  description="Commit to target branch"
+                                >
+                                  Direct commit
+                                </DropdownItem>
+                              </DropdownMenu>
+                            </Dropdown>
+                          </div>
+                        ) : (
+                          <div className={SIDEBAR_PROP_CONTROL_WRAP}>
+                            <div className={`${SIDEBAR_PROP_VALUE_BOX} capitalize`}>
+                              <span className="min-w-0 truncate">
+                                {task.deliveryMethod.replace(/-/g, ' ')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

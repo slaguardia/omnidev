@@ -106,57 +106,82 @@ export async function startStageRun(
     );
   }
 
-  // If edit mode: ensure feature branch exists
+  // If edit mode: MR tasks get a feature branch; direct-commit stays on the target branch only
   if (isEditStage(definition, stageName)) {
-    const featureBranch = task.featureBranch || `ralph/${taskId}`;
+    const baseBranch = resolveBaseBranch(task, workspace.targetBranch);
+    const isDirectCommit = (task.deliveryMethod ?? 'merge-request') === 'direct-commit';
 
-    if (!task.featureBranch) {
-      const baseBranch = resolveBaseBranch(task, workspace.targetBranch);
-
+    if (isDirectCommit) {
       console.log(
-        `[STAGE-RUNNER] Creating branch '${featureBranch}' from '${baseBranch}' for edit stage '${stageName}'`
+        `[STAGE-RUNNER] Direct commit: switching workspace to target branch '${baseBranch}' for edit stage '${stageName}'`
       );
-
-      const localBranchesResult = await getLocalBranches(workspacePath);
-      const branchExists =
-        localBranchesResult.success && localBranchesResult.data.includes(featureBranch);
-
-      if (!branchExists) {
-        const switchToBaseResult = await switchBranch(workspacePath, baseBranch);
-        if (!switchToBaseResult.success) {
-          return {
-            error: `Failed to switch to base branch '${baseBranch}': ${switchToBaseResult.error.message}`,
-            statusCode: 500,
-          };
-        }
-
-        const createBranchResult = await switchBranch(workspacePath, featureBranch);
-        if (!createBranchResult.success) {
-          return {
-            error: `Failed to create feature branch '${featureBranch}': ${createBranchResult.error.message}`,
-            statusCode: 500,
-          };
-        }
-      } else {
-        const switchResult = await switchBranch(workspacePath, featureBranch);
-        if (!switchResult.success) {
-          return {
-            error: `Failed to switch to existing branch '${featureBranch}': ${switchResult.error.message}`,
-            statusCode: 500,
-          };
-        }
+      const switchResult = await switchBranch(workspacePath, baseBranch);
+      if (!switchResult.success) {
+        return {
+          error: `Failed to switch to branch '${baseBranch}' for direct commit: ${switchResult.error.message}`,
+          statusCode: 500,
+        };
       }
-
       const branchUpdateResult = await updateRalphTask(taskId, {
         baseBranch,
-        featureBranch,
-        prTargetBranch: resolvePrTargetBranch(task, workspace.targetBranch),
+        featureBranch: null,
+        prTargetBranch: null,
       });
       if (!branchUpdateResult.success) {
         return {
-          error: `Failed to persist feature branch: ${branchUpdateResult.error.message}`,
+          error: `Failed to persist branch fields: ${branchUpdateResult.error.message}`,
           statusCode: 500,
         };
+      }
+    } else {
+      const featureBranch = task.featureBranch || `ralph/${taskId}`;
+
+      if (!task.featureBranch) {
+        console.log(
+          `[STAGE-RUNNER] Creating branch '${featureBranch}' from '${baseBranch}' for edit stage '${stageName}'`
+        );
+
+        const localBranchesResult = await getLocalBranches(workspacePath);
+        const branchExists =
+          localBranchesResult.success && localBranchesResult.data.includes(featureBranch);
+
+        if (!branchExists) {
+          const switchToBaseResult = await switchBranch(workspacePath, baseBranch);
+          if (!switchToBaseResult.success) {
+            return {
+              error: `Failed to switch to base branch '${baseBranch}': ${switchToBaseResult.error.message}`,
+              statusCode: 500,
+            };
+          }
+
+          const createBranchResult = await switchBranch(workspacePath, featureBranch);
+          if (!createBranchResult.success) {
+            return {
+              error: `Failed to create feature branch '${featureBranch}': ${createBranchResult.error.message}`,
+              statusCode: 500,
+            };
+          }
+        } else {
+          const switchResult = await switchBranch(workspacePath, featureBranch);
+          if (!switchResult.success) {
+            return {
+              error: `Failed to switch to existing branch '${featureBranch}': ${switchResult.error.message}`,
+              statusCode: 500,
+            };
+          }
+        }
+
+        const branchUpdateResult = await updateRalphTask(taskId, {
+          baseBranch,
+          featureBranch,
+          prTargetBranch: resolvePrTargetBranch(task, workspace.targetBranch),
+        });
+        if (!branchUpdateResult.success) {
+          return {
+            error: `Failed to persist feature branch: ${branchUpdateResult.error.message}`,
+            statusCode: 500,
+          };
+        }
       }
     }
   }
@@ -282,6 +307,9 @@ export async function startStageRun(
     editRequest: stageDef.executionMode === 'edit',
     repoUrl: workspace.repoUrl as string,
     autoLoop,
+    ...(stageDef.config.cli?.enabled
+      ? { cli: { enabled: true, permissions: stageDef.config.cli.permissions } }
+      : {}),
   };
 
   const now = new Date().toISOString();

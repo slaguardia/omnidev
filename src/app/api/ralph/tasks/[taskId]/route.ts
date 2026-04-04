@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requirePermission, requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   getRalphTask,
   updateRalphTask,
@@ -30,9 +31,17 @@ const UpdateTaskRequestSchema = z.object({
 });
 
 /**
- * Statuses where branch configuration can no longer be edited.
+ * Statuses where most task fields can no longer be edited (stage output patches still allowed).
  */
 const LOCKED_STATUSES = ['executing', 'complete'] as const;
+
+/** Branch / delivery fields — only editable while task is in `draft` */
+const BRANCH_DELIVERY_KEYS = [
+  'baseBranch',
+  'featureBranch',
+  'prTargetBranch',
+  'deliveryMethod',
+] as const;
 
 /**
  * GET /api/ralph/tasks/[taskId]
@@ -49,6 +58,12 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDenied = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDenied) return scopeDenied;
+
+    const denied = requirePermission(authResult.auth!, 'tasks:read');
+    if (denied) return denied;
 
     // Get the full task
     const taskResult = await getRalphTask(taskId);
@@ -168,8 +183,8 @@ export async function GET(
 /**
  * PATCH /api/ralph/tasks/[taskId]
  *
- * Update task fields. Branch configuration can only be updated
- * when task is not in 'executing' or 'complete' status.
+ * Update task fields. Branch and delivery can only change in `draft`.
+ * Other fields stay editable until the task is `executing` or `complete`.
  */
 export async function PATCH(
   request: NextRequest,
@@ -180,6 +195,12 @@ export async function PATCH(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopePatch = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopePatch) return scopePatch;
+
+    const patchDenied = requirePermission(authResult.auth!, 'tasks:update');
+    if (patchDenied) return patchDenied;
 
     // Get the existing task
     const taskResult = await getRalphTask(taskId);
@@ -212,6 +233,20 @@ export async function PATCH(
 
     if (Object.keys(filteredUpdates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    if (existingTask.status !== 'draft') {
+      const branchPatchKeys = Object.keys(filteredUpdates).filter((k) =>
+        BRANCH_DELIVERY_KEYS.includes(k as (typeof BRANCH_DELIVERY_KEYS)[number])
+      );
+      if (branchPatchKeys.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Branch and delivery settings can only be changed while the task is in draft.',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if task is in a locked status — stageOutputs updates are always
@@ -273,6 +308,9 @@ export async function DELETE(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDel = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDel) return scopeDel;
 
     const result = await deleteRalphTask(taskId);
 

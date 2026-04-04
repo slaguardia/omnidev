@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withAuth } from '@/lib/auth/middleware';
+import { requireStageTokenMatchesRouteTask } from '@/lib/auth/permission-check';
 import {
   getRalphTask,
   getFeatureCompletionStats,
@@ -56,6 +57,9 @@ export async function GET(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedCfGet = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedCfGet) return scopeDeniedCfGet;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
@@ -142,6 +146,9 @@ export async function POST(
 
     const { taskId } = await params;
 
+    const scopeDeniedCfPost = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedCfPost) return scopeDeniedCfPost;
+
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
     }
@@ -221,6 +228,9 @@ export async function PATCH(
     if (!authResult.success) return authResult.response!;
 
     const { taskId } = await params;
+
+    const scopeDeniedCfPatch = requireStageTokenMatchesRouteTask(authResult.auth!, taskId);
+    if (scopeDeniedCfPatch) return scopeDeniedCfPatch;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });

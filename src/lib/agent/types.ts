@@ -61,6 +61,9 @@ export interface AgentRunRequest {
 
   /** Whether to parse QUESTION: lines from the output */
   parseQuestions: boolean;
+
+  /** Extra environment variables to pass to the agent subprocess (e.g. CLI tokens) */
+  extraEnv?: Record<string, string> | undefined;
 }
 
 // ---------------------------------------------------------------------------

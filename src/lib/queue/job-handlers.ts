@@ -13,7 +13,7 @@ import {
 } from '@/lib/claudeCode';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
-import type { FilePath, GitUrl, CommitHash } from '@/lib/types/index';
+import type { FilePath, GitUrl, CommitHash, WorkspaceId } from '@/lib/types/index';
 import type {
   ClaudeCodeJobPayload,
   ClaudeCodeJobResult,
@@ -25,6 +25,73 @@ import type {
   RalphStageJobPayload,
   RalphStageJobResult,
 } from './types';
+
+/**
+ * Permission label mapping for CLI prompt instructions.
+ */
+const PERMISSION_DESCRIPTIONS: Record<string, string> = {
+  'tasks:read': '`pnpm ralph tasks list`, `pnpm ralph tasks show <ref>`',
+  'tasks:create': '`pnpm ralph tasks create -w <workspaceId> -t ... -d ...`',
+  'subtasks:create': '`pnpm ralph tasks create --parent $OMNIDEV_TASK_ID ...`',
+  'tasks:update': '`pnpm ralph tasks update <ref> ...`',
+  'tasks:transition': '`pnpm ralph transition <ref> <status>`',
+  'deps:read': '`pnpm ralph deps show <ref>`',
+  'deps:write':
+    '`pnpm ralph deps add <ref> <blockerRef>`, `pnpm ralph deps remove <ref> <blockerRef>`',
+  'stages:run': '`pnpm ralph run-stage <ref> <stage>`',
+};
+
+/**
+ * Build the CLI instruction block appended to the agent prompt when CLI is enabled.
+ */
+function buildCliPromptSection(taskId: string, permissions: string[]): string {
+  const allowed = permissions
+    .map((p) => `- **${p}**: ${PERMISSION_DESCRIPTIONS[p] ?? p}`)
+    .join('\n');
+
+  return `
+
+---
+
+## Omnidev CLI Access
+
+You have access to the \`ralph\` CLI via \`pnpm ralph\` from the Omnidev repo (or \`pnpm ralph\` when \`package.json\` defines the script). Authentication is pre-configured via environment variables — do not set or modify \`OMNIDEV_CLI_TOKEN\`, \`OMNIDEV_URL\`, or \`OMNIDEV_TASK_ID\`.
+
+Your current task ID is \`${taskId}\` (also available as \`$OMNIDEV_TASK_ID\`). Use \`<ref>\` = \`.\` when \`OMNIDEV_TASK_ID\` is set to mean this task.
+
+### Allowed operations
+
+${allowed}
+
+### Usage examples
+
+\`\`\`bash
+# List all tasks
+pnpm ralph tasks list
+
+# Show this task (pass ID, RLP-N, or . when OMNIDEV_TASK_ID is set)
+pnpm ralph tasks show ${taskId}
+pnpm ralph tasks show .
+
+# Run a workflow stage (e.g. decomp, executing)
+pnpm ralph run-stage ${taskId} <stageName>
+
+# Poll a queued job after run-stage
+pnpm ralph job <jobId>
+
+# Answer pending stage questions (human-in-the-loop), then run-stage again to continue
+pnpm ralph stage-answer ${taskId} --stage <stageName> --answers '{"<questionId>":"..."}'
+
+# Create a subtask of this task
+pnpm ralph tasks create --parent ${taskId} -w <workspaceId> -t "Subtask title" -d "Description"
+
+# View / edit dependencies
+pnpm ralph deps show ${taskId}
+pnpm ralph deps add ${taskId} <blockerRef>
+\`\`\`
+
+Operations outside your granted permissions will be rejected with a 403 error. Do not attempt to work around permission errors.`;
+}
 
 /**
  * Extract usage information from the final 'result' type JSON log.
@@ -450,7 +517,8 @@ export async function executeWorkspaceCleanupJob(
  * 6. Handle auto-loop / auto-advance decisions
  */
 export async function executeRalphStageJob(
-  payload: RalphStageJobPayload
+  payload: RalphStageJobPayload,
+  jobId?: string
 ): Promise<RalphStageJobResult> {
   const startTime = Date.now();
   console.log(
@@ -458,7 +526,9 @@ export async function executeRalphStageJob(
   );
 
   try {
-    const { getRalphTask, updateRalphTask } = await import('@/lib/managers/ralph-task-manager');
+    const { getRalphTask, updateRalphTask, resolveBaseBranch } = await import(
+      '@/lib/managers/ralph-task-manager'
+    );
     const { executeAgentRun } = await import('@/lib/agent');
 
     // ---- 1. Load task ----
@@ -592,9 +662,18 @@ export async function executeRalphStageJob(
       const commitName = appConfig.gitlab?.commitName || appConfig.github?.commitName || '';
       const commitEmail = appConfig.gitlab?.commitEmail || appConfig.github?.commitEmail || '';
 
-      // Resolve feature branch: prefer task.featureBranch, fall back for MR tasks
+      // Branch for git init / agent: MR → feature branch (or ralph/{taskId}); direct-commit → target branch only
       let featureBranch = task.featureBranch ?? undefined;
-      if (!featureBranch && task.deliveryMethod === 'merge-request') {
+      const delivery = task.deliveryMethod ?? 'merge-request';
+      if (delivery === 'direct-commit') {
+        const { loadWorkspace } = await import('@/lib/managers/workspace-manager');
+        const wsResult = await loadWorkspace(task.workspaceId as WorkspaceId);
+        const target = wsResult.success ? wsResult.data.targetBranch : undefined;
+        featureBranch = resolveBaseBranch(task, target);
+        console.log(
+          `[JOB] Direct commit: using target branch '${featureBranch}' for git workflow (task ${payload.taskId})`
+        );
+      } else if (!featureBranch) {
         featureBranch = `ralph/${payload.taskId}`;
         console.warn(
           `[JOB] ⚠️ Task ${payload.taskId} has deliveryMethod=merge-request but no featureBranch — using fallback: ${featureBranch}`
@@ -610,6 +689,29 @@ export async function executeRalphStageJob(
       };
     }
 
+    // ---- 3b. Generate scoped CLI token if configured ----
+    let extraEnv: Record<string, string> | undefined;
+    if (payload.cli?.enabled && jobId) {
+      const { generateStageToken } = await import('@/lib/auth/stage-tokens');
+      const rawToken = generateStageToken({
+        jobId,
+        taskId: payload.taskId,
+        permissions: payload.cli.permissions as import('@/lib/types/index').CliPermission[],
+      });
+      const baseUrl = process.env.OMNIDEV_URL ?? `http://localhost:${process.env.PORT ?? '3000'}`;
+      extraEnv = {
+        OMNIDEV_CLI_TOKEN: rawToken,
+        OMNIDEV_URL: baseUrl,
+        OMNIDEV_TASK_ID: payload.taskId,
+      };
+      console.log(
+        `[JOB] Generated scoped CLI token for job ${jobId} (permissions: ${payload.cli.permissions.join(', ')})`
+      );
+
+      // Append CLI usage instructions to the prompt
+      effectivePrompt += buildCliPromptSection(payload.taskId, payload.cli.permissions);
+    }
+
     const agentRequest: AgentRunRequest = {
       taskId: payload.taskId,
       stageName: payload.stageName,
@@ -623,6 +725,7 @@ export async function executeRalphStageJob(
         relativePath: `.ralph/tasks/${payload.taskId}/${payload.stageName}.md`,
       },
       parseQuestions: payload.returnQuestions,
+      extraEnv,
     };
 
     // ---- 4. Execute agent ----
@@ -656,13 +759,7 @@ export async function executeRalphStageJob(
         activeJobId: undefined as string | undefined,
         lastUpdated: new Date().toISOString(),
         autoLoopActive: payload.autoLoop ? false : (undefined as boolean | undefined),
-        completionReason: (payload.autoLoop ? 'error' : undefined) as
-          | 'complete'
-          | 'max-iterations'
-          | 'error'
-          | 'questions'
-          | 'cancelled'
-          | undefined,
+        completionReason: 'error' as const,
       };
 
       await updateRalphTask(payload.taskId, {
