@@ -84,11 +84,12 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
 
 #### NEXTAUTH_SECRET
 
-- **Required:** Yes
-- **Description:** Secret key for NextAuth.js JWT token signing and encryption
+- **Required:** Yes (both **web** and **worker** services in split deployments)
+- **Description:** Secret key for NextAuth.js JWT token signing and encryption. The worker uses this for stage token validation.
 - **Format:** String (minimum 32 characters recommended)
 - **Generate:** `openssl rand -base64 32`
 - **Example:** `jFQOQfMxoJmilm9tKJUzzL1lMnihAaAl4jcoTgBkH9k=`
+- **Important:** In Railway or Docker Compose with separate web/worker containers, the **same** value must be set on **both** services.
 
 #### NEXTAUTH_URL
 

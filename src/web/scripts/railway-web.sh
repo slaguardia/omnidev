@@ -1,14 +1,35 @@
 #!/bin/sh
-# Railway web service: wait for Postgres, run migrations, then Next.js only (no worker).
+# Railway web service: validate env, wait for Postgres, run migrations, then Next.js only (no worker).
 set -e
-i=0
-until prisma migrate deploy --schema=/app/prisma/schema.prisma; do
-  i=$((i + 1))
-  if [ "$i" -ge 30 ]; then
-    echo "[railway-web] prisma migrate deploy failed after 30 attempts — is DATABASE_URL correct and Postgres running?"
-    exit 1
+
+# ---------- required env var checks ----------
+missing=""
+for var in NEXTAUTH_SECRET NEXTAUTH_URL; do
+  eval val=\$$var
+  if [ -z "$val" ]; then
+    missing="$missing $var"
   fi
-  echo "[railway-web] Waiting for Postgres (attempt $i)..."
-  sleep 2
 done
+
+if [ -n "$missing" ]; then
+  echo "[railway-web] ERROR: Missing required environment variable(s):$missing"
+  echo "[railway-web] Set these on the web service or use Railway shared variables."
+  echo "[railway-web] See docs/RAILWAY.md for the full list."
+  exit 1
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "[railway-web] DATABASE_URL not set — skipping Prisma migrations (SQLite fallback)."
+else
+  i=0
+  until prisma migrate deploy --schema=/app/prisma/schema.prisma; do
+    i=$((i + 1))
+    if [ "$i" -ge 30 ]; then
+      echo "[railway-web] prisma migrate deploy failed after 30 attempts — is DATABASE_URL correct and Postgres running?"
+      exit 1
+    fi
+    echo "[railway-web] Waiting for Postgres (attempt $i)..."
+    sleep 2
+  done
+fi
 exec node src/web/server.js

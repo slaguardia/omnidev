@@ -67,14 +67,16 @@ Railway only **auto-loads** `railway.json` at the **repository root** per servic
 
 ## Required environment variables
 
-Set on **each** service (or use [shared variables](https://docs.railway.com/guides/variables#shared-variables) in the project):
+Set on **each** service (or use [shared variables](https://docs.railway.com/guides/variables#shared-variables) in the project). The startup scripts validate required vars and exit with a clear error if any are missing.
 
-| Variable               | Notes                                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`         | **Required** for split deploy — **same** Postgres connection string on **web** and **worker**. |
-| `NEXTAUTH_SECRET`      | `openssl rand -base64 32`                                                                      |
-| `NEXTAUTH_URL`         | Public `https://…` URL of the **web** service (no trailing slash).                             |
-| `INITIAL_SIGNUP_TOKEN` | Recommended: `openssl rand -hex 32` for first-user signup.                                     |
+| Variable               | Web | Worker | Notes                                                                                         |
+| ---------------------- | --- | ------ | --------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Yes | Yes    | **Same** Postgres connection string on **both** services.                                     |
+| `NEXTAUTH_SECRET`      | Yes | Yes    | `openssl rand -base64 32`. **Must be the same value on both services** (used for token encryption). |
+| `NEXTAUTH_URL`         | Yes | No     | Public `https://…` URL of the **web** service (no trailing slash).                            |
+| `INITIAL_SIGNUP_TOKEN` | Yes | No     | Recommended: `openssl rand -hex 32` for first-user signup.                                    |
+
+**Recommended:** Use Railway [shared variables](https://docs.railway.com/guides/variables#shared-variables) for `DATABASE_URL` and `NEXTAUTH_SECRET` so both services stay in sync automatically.
 
 ### `DATABASE_URL` on both services (Postgres plugin)
 
