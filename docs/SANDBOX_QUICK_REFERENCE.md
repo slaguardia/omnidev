@@ -1,4 +1,6 @@
-# Sandbox Quick Reference Guide
+# Sandbox Quick Reference
+
+Commands below use the **production** Compose container name `omnidev-app` (`container_name` in `docker/docker-compose.prod.yml`). In development the container is often `omnidev-dev`. Run `docker compose -f docker/docker-compose.yml ps` to see the actual name on your machine.
 
 ## TL;DR
 
@@ -105,7 +107,7 @@ View results in your GitLab pipeline → `docker-test` stage → `docker-sandbox
 Test git blocking:
 
 ```bash
-docker exec workflow-app git --version
+docker exec omnidev-app git --version
 ```
 
 Expected: `[BLOCKED] git access denied`
@@ -113,7 +115,7 @@ Expected: `[BLOCKED] git access denied`
 Test internal git:
 
 ```bash
-docker exec workflow-app /opt/internal/bin/git --version
+docker exec omnidev-app /opt/internal/bin/git --version
 ```
 
 Expected: `git version 2.x.x`
@@ -121,7 +123,7 @@ Expected: `git version 2.x.x`
 Test standard tools (should work):
 
 ```bash
-docker exec workflow-app curl --version
+docker exec omnidev-app curl --version
 ```
 
 Expected: `curl 7.x.x`
@@ -131,7 +133,7 @@ Expected: `curl 7.x.x`
 Run comprehensive sandbox tests:
 
 ```bash
-docker exec workflow-app /app/scripts/verify-sandbox.sh
+docker exec omnidev-app /app/scripts/verify-sandbox.sh
 ```
 
 ## Common Scenarios
@@ -190,7 +192,7 @@ console.log('Git accessible:', isOk);
 **Solution**: Verify git is blocked:
 
 ```bash
-docker exec workflow-app git --version
+docker exec omnidev-app git --version
 ```
 
 Should output: `[BLOCKED] git access denied`
@@ -200,7 +202,7 @@ Should output: `[BLOCKED] git access denied`
 **Solution**: This is NOT expected. Verify curl/wget are not blocked:
 
 ```bash
-docker exec workflow-app curl --version
+docker exec omnidev-app curl --version
 ```
 
 Should work normally, NOT be blocked
@@ -242,49 +244,49 @@ Should work normally, NOT be blocked
 Build with sandbox:
 
 ```bash
-docker-compose build
+docker compose -f docker/docker-compose.yml build
 ```
 
 Run with sandbox enabled:
 
 ```bash
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 Verify sandbox:
 
 ```bash
-docker exec workflow-app /app/scripts/verify-sandbox.sh
+docker exec omnidev-app /app/scripts/verify-sandbox.sh
 ```
 
 Check git blocking:
 
 ```bash
-docker exec workflow-app git --version
+docker exec omnidev-app git --version
 ```
 
 Check internal git:
 
 ```bash
-docker exec workflow-app /opt/internal/bin/git --version
+docker exec omnidev-app /opt/internal/bin/git --version
 ```
 
 View logs:
 
 ```bash
-docker logs workflow-app | grep CLAUDE
+docker logs omnidev-app | grep CLAUDE
 ```
 
 Shell into container:
 
 ```bash
-docker exec -it workflow-app bash
+docker exec -it omnidev-app bash
 ```
 
 ## Key Files
 
-- **Dockerfile** - Lines 20-31: Git isolation setup
-- **docker-compose.yml** - Lines 20-25: Sandbox environment vars
+- **src/web/Dockerfile** - Lines 20-31: Git isolation setup
+- **docker/docker-compose.yml** - Lines 20-25: Sandbox environment vars
 - **claude-code-wrapper.sh** - Sandboxed execution wrapper
 - **src/lib/git/sandbox.ts** - Sandboxed git configuration
 - **src/lib/git/core.ts** - Uses sandboxed git
@@ -295,9 +297,9 @@ docker exec -it workflow-app bash
 ## Need Help?
 
 1. Read full docs: [Sandbox Architecture](/docs/sandbox-architecture)
-2. Run verification: `docker exec workflow-app /app/scripts/verify-sandbox.sh`
-3. Check logs: `docker logs workflow-app | grep -i "sandbox\|git\|claude"`
-4. Test manually: `docker exec -it workflow-app bash`
+2. Run verification: `docker exec omnidev-app /app/scripts/verify-sandbox.sh`
+3. Check logs: `docker logs omnidev-app | grep -i "sandbox\|git\|claude"`
+4. Test manually: `docker exec -it omnidev-app bash`
 
 ---
 

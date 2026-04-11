@@ -1,0 +1,92 @@
+import fs from 'fs';
+import path from 'path';
+import matter from 'gray-matter';
+import { getDocBySlug } from './config';
+
+/** Repo `docs/` at root, or `docs/` next to cwd when deployed */
+export function resolveDocsDirectory(): string {
+  const cwd = process.cwd();
+  const here = path.join(cwd, 'docs');
+  if (fs.existsSync(here)) return here;
+  const monorepo = path.resolve(cwd, '..', '..', 'docs');
+  if (fs.existsSync(monorepo)) return monorepo;
+  return here;
+}
+
+export interface DocContent {
+  slug: string;
+  title: string;
+  description?: string;
+  content: string;
+  frontmatter: Record<string, unknown>;
+}
+
+/**
+ * Read and parse a markdown file from the docs directory
+ */
+export async function getDocContent(slug: string): Promise<DocContent | null> {
+  const doc = getDocBySlug(slug);
+
+  if (!doc) {
+    return null;
+  }
+
+  const docsDirectory = resolveDocsDirectory();
+  const fullPath = path.join(docsDirectory, doc.file);
+
+  try {
+    const fileContents = fs.readFileSync(fullPath, 'utf8');
+    const { data, content } = matter(fileContents);
+
+    return {
+      slug: doc.slug,
+      title: data.title || doc.title,
+      description: data.description || doc.description,
+      content,
+      frontmatter: data,
+    };
+  } catch (error) {
+    console.error(`Error reading doc file ${doc.file}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Extract headings from markdown content for table of contents
+ */
+export interface Heading {
+  id: string;
+  text: string;
+  level: number;
+}
+
+export function extractHeadings(markdown: string, maxLevel: number = 2): Heading[] {
+  // Remove fenced code blocks before extracting headings
+  // This prevents capturing headings from within code snippets
+  const withoutCodeBlocks = markdown.replace(/```[\s\S]*?```/g, '');
+
+  const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+  const headings: Heading[] = [];
+  let match;
+
+  while ((match = headingRegex.exec(withoutCodeBlocks)) !== null) {
+    if (!match[1] || !match[2]) continue;
+
+    const level = match[1].length;
+
+    // Only include headings up to maxLevel (default h2 only)
+    if (level > maxLevel) continue;
+
+    const text = match[2].trim();
+
+    // Create a slug from the heading text
+    const id = text
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-');
+
+    headings.push({ id, text, level });
+  }
+
+  return headings;
+}

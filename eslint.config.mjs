@@ -11,6 +11,7 @@ export default [
   {
     ignores: [
       '.next/',
+      '**/.next/**',
       'node_modules/',
       'workspaces/',
       'emails/',
@@ -19,6 +20,7 @@ export default [
       'dist/',
       '**/dist/**',
       'next-env.d.ts',
+      '**/next-env.d.ts',
     ],
   },
   {

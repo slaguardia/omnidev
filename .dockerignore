@@ -29,13 +29,17 @@ build/
 ehthumbs.db
 Thumbs.db
 
+# Local task / agent metadata (not needed in image; shrinks build context)
+.tasks/
+.cursor/
+
 # Git
 .git/
 .gitignore
 
-# Docker
-Dockerfile*
-docker-compose*
+# Docker (compose + Dockerfiles are not needed in the image; entrypoints live under docker/ and are copied explicitly)
+src/**/Dockerfile*
+docker/docker-compose*.yml
 .dockerignore
 
 # Test coverage

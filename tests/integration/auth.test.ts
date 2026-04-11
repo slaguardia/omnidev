@@ -2,11 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { validateApiKey, checkIpWhitelist, checkRateLimit } from '@/lib/auth/api-auth';
 import { withAuth } from '@/lib/auth/middleware';
 
-// Mock next-auth to avoid "headers called outside request scope" error
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn().mockResolvedValue(null),
-}));
-
 describe('API Authentication', () => {
   describe('validateApiKey', () => {
     const originalEnv = process.env;
@@ -197,7 +192,6 @@ describe('API Authentication', () => {
     const originalEnv = process.env;
 
     beforeEach(() => {
-      vi.resetModules();
       process.env = { ...originalEnv };
       process.env.VALID_API_KEYS = 'test-key-1';
     });

@@ -25,3 +25,6 @@ workspaces/
 # Other
 .git/
 .env*
+
+# Vendored agent skills (preserve upstream markdown formatting)
+.claude/skills/

@@ -1,5 +1,5 @@
 {
-  "name": "Workflow Ask Flow Template",
+  "name": "Omnidev Ask Flow Template",
   "nodes": [
     {
       "parameters": {
@@ -32,7 +32,7 @@
             {
               "id": "01b3145c-97dd-4eb0-af42-2e5c9f250d0b",
               "leftValue": "={{ $json.data.state.name }}",
-              "rightValue": "Codespider In Progress",
+              "rightValue": "Omnidev: In Progress",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -165,7 +165,7 @@
             {
               "id": "3050db8b-e6d7-4b63-aaa9-c5c366f55ec4",
               "leftValue": "={{ $json.data.body }}",
-              "rightValue": "@codespider",
+              "rightValue": "@omnidev",
               "operator": {
                 "type": "string",
                 "operation": "contains"

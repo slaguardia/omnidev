@@ -1,6 +1,23 @@
 # API Operations
 
-This document covers all API routes, request/response schemas, the job queue system, and git actions that occur after execution.
+This document covers REST APIs, request/response shapes, and execution behavior. Omnidev exposes two overlapping systems: the **task pipeline** (Ralph tasks + SQLite jobs) and the **legacy workspace queue** (`/api/ask`, `/api/edit`).
+
+## Task pipeline API (primary)
+
+Dashboard, `pnpm ralph`, and integrations should prefer these routes. Jobs are stored in **`data/ralph.db`** and executed by the **standalone worker** (`pnpm worker`), not by the in-process file queue.
+
+| Area        | Base path                                     | Notes                                                                                                                    |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Ralph tasks | `/api/ralph/tasks`, `/api/ralph/tasks/:id`, … | List, create, transition, **`POST .../run-stage`**, `stage-answer`, artifacts — see root `CLAUDE.md` for the full table. |
+| V2 adapter  | `/api/v2/tasks`, `/api/v2/jobs`               | V2-style task statuses; `PATCH` with `status: "coding"` can auto-start stage execution.                                  |
+
+**Operations:** run the Next.js server **and** `pnpm worker` (or a platform equivalent such as Railway’s combined start command). Without the worker, SQLite jobs stay pending.
+
+## Legacy workspace queue (`/api/ask`, `/api/edit`)
+
+The sections below document **`POST /api/ask`**, **`POST /api/edit`**, and **`GET /api/jobs/:jobId`**. These use the **file-based job queue** under `data/jobs/`, started from Next.js **`instrumentation.ts`** (in-process worker). This path is separate from Ralph SQLite jobs.
+
+---
 
 ## API Routes
 
@@ -149,7 +166,7 @@ Poll for the status and result of a queued job.
 
 ## Completion Webhook Callback (optional)
 
-If you submit a job with `callback: { url, secret? }`, Workflow will POST to your webhook when the job **completes** or **fails**.
+If you submit a job with `callback: { url, secret? }`, Omnidev POSTs to your webhook when the job **completes** or **fails**.
 
 ### Headers
 
@@ -252,10 +269,11 @@ This design:
 - Prevents git conflicts by ensuring sequential processing
 - Allows the queue UI to show all operations
 
-**Concurrency note (Docker VM):**
+**Concurrency note (legacy queue only):**
 
-- Jobs are processed sequentially by the background worker started at server boot (see `src/instrumentation.ts`).
-- The queue uses an **atomic processing lock file** (`workspaces/queue/processing.lock.json`) to coordinate job processing.
+- `/api/ask` and `/api/edit` jobs are processed sequentially by the in-process worker started at server boot (see `src/instrumentation.ts`).
+- That queue uses an **atomic processing lock file** (`workspaces/queue/processing.lock.json`) to coordinate job processing.
+- Ralph / V2 SQLite jobs use a **separate** `pnpm worker` process and `data/ralph.db`; they are not governed by this lock file.
 
 ### Job States
 

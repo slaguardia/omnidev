@@ -1,0 +1,10 @@
+{
+  "name": "@omnidev/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@omnidev/shared": "workspace:*",
+    "nanoid": "^4.0.2"
+  }
+}

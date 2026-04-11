@@ -1,13 +1,13 @@
 # Environment Variables Reference
 
-This document provides detailed information about all environment variables used in the GitLab Claude Manager application.
+This document provides detailed information about environment variables used by Omnidev.
 
 ## Quick Start
 
 1. **Copy the example file:**
 
    ```bash
-   cp env.example .env
+   cp .env.example .env
    ```
 
 2. **Configure required variables:**
@@ -22,6 +22,8 @@ This document provides detailed information about all environment variables used
    ```
 
 ## Production Deployment
+
+For a full **internet-facing security checklist** (TLS, proxy headers, `INITIAL_SIGNUP_TOKEN`, 2FA, verification commands), see [Secure Deployment](./SECURE_DEPLOYMENT.md).
 
 For production deployments, use the following template. Generate secure values for each secret before deploying.
 
@@ -96,6 +98,12 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
 - **Development:** `http://localhost:3000`
 - **Production:** `https://your-domain.com`
 
+#### DATABASE_URL
+
+- **Required:** No (omit for SQLite + files under `data/` only)
+- **Description:** PostgreSQL connection string for **Prisma** when migrating off SQLite. See [PostgreSQL and Prisma](./POSTGRES.md).
+- **Format:** `postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require` (managed hosts usually require TLS)
+
 ---
 
 ### API Key Configuration
@@ -149,7 +157,7 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
   - **Caddy example** (overwrite headers):
 
     ```caddyfile
-    reverse_proxy workflow-app:3000 {
+    reverse_proxy app:3000 {
       header_up X-Forwarded-For {remote_host}
       header_up X-Real-IP {remote_host}
     }
@@ -261,13 +269,13 @@ echo "INITIAL_SIGNUP_TOKEN=$(openssl rand -hex 32)"
 - **Required:** No
 - **Description:** Prefix for temporary workspace directories
 - **Format:** String
-- **Default:** `gitlab-claude-`
+- **Default:** `omnidev-`
 
 ---
 
 ## Configuration Methods
 
-The GitLab Claude Manager supports multiple configuration methods:
+Omnidev supports multiple configuration methods:
 
 ### 1. Environment Variables (Recommended for Development)
 
@@ -297,7 +305,7 @@ GITLAB_TOKEN=your-token
 1. **Never commit `.env` files**
 
    - The `.env` file is in `.gitignore`
-   - Use `env.example` as a template
+   - Use `.env.example` as a template
 
 2. **Use strong secrets**
 

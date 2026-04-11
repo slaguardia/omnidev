@@ -52,7 +52,7 @@ Shell-exported variables override `.env` except where `.env.local` overrides `.e
 
 ## Local development
 
-1. Copy `env.example` to `.env` if needed and set at least `NEXTAUTH_*` for the app.
+1. Copy `.env.example` to `.env` if needed and set at least `NEXTAUTH_*` for the app.
 2. Add CLI variables to **`.env`** or **`.env.local`** in the **Omnidev repository root**:
 
 ```env

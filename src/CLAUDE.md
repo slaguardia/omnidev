@@ -2,14 +2,32 @@
 
 > Omnidev is a single developer bot orchestration runtime. See root `CLAUDE.md` for project identity and architectural constraints.
 
-## Directory Structure
+## Monorepo Packages
+
+The `src/` directory contains three pnpm workspace packages:
+
+| Package           | Path          | Purpose                                         |
+| ----------------- | ------------- | ----------------------------------------------- |
+| `@omnidev/web`    | `src/web/`    | Next.js App Router (UI, API routes, auth)       |
+| `@omnidev/shared` | `src/shared/` | Core business logic, types, DB access           |
+| `@omnidev/worker` | `src/worker/` | Standalone job processor (polls DB, runs agent) |
+
+The `@/` import alias maps to `src/web/src/` in the web package.
+
+## Directory Structure (`src/web/src/`)
 
 | Directory     | Purpose                                 | Key Files                                 |
 | ------------- | --------------------------------------- | ----------------------------------------- |
 | `app/`        | Next.js App Router pages and API routes | `layout.tsx`, `page.tsx`, `providers.tsx` |
 | `components/` | React UI components                     | See `components/CLAUDE.md`                |
 | `hooks/`      | Custom React hooks for data fetching    | `useWorkspaces.ts`, `useBranches.ts`      |
-| `lib/`        | Core business logic modules             | See `lib/CLAUDE.md`                       |
+| `cli/`        | CLI utilities                           | `index.ts`                                |
+
+## Directory Structure (`src/shared/src/`)
+
+| Directory | Purpose                     | Key Files           |
+| --------- | --------------------------- | ------------------- |
+| `lib/`    | Core business logic modules | See `lib/CLAUDE.md` |
 
 ## Import Aliases
 

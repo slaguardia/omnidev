@@ -12,7 +12,7 @@ If the MCP server is already hosted publicly (like Linear), you just add it to C
 
 This project currently supports **only API key / token-based auth** for MCP servers (for example, setting an `Authorization: Bearer <token>` header).
 
-We **do not support OAuth-based MCP servers yet** (i.e. servers that require completing a browser login flow + redirect/callback to obtain tokens). We’re exploring a future approach that would involve registering this app (CodeSpider) as an OAuth app with each provider, but for now **use token-based MCP auth**.
+We **do not support OAuth-based MCP servers yet** (i.e. servers that require completing a browser login flow + redirect/callback to obtain tokens). A future approach may register Omnidev as an OAuth app with each provider; for now **use token-based MCP auth**.
 
 ### Example (Linear): Bearer token header
 

@@ -88,8 +88,8 @@ All configuration is managed through the web interface in the Settings tab:
 
 **Required:**
 
-- GitLab Token or GitHub Token
-- Claude API Key (your own Anthropic API key)
+- GitLab token and/or GitHub token for repository access (as needed for your remotes)
+- Claude Code CLI installed and authenticated on the host (bring-your-own subscription; see project documentation)
 
 **Optional:**
 
@@ -101,7 +101,7 @@ All configuration is managed through the web interface in the Settings tab:
 For environment-based configuration, copy the example file:
 
 ```bash
-cp env.example .env
+cp .env.example .env
 ```
 
 Required variables:
@@ -118,7 +118,7 @@ GITLAB_TOKEN=your_gitlab_token_here
 GITHUB_TOKEN=your_github_token_here
 ```
 
-See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation.
+See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for complete documentation. For TLS, reverse-proxy trust, IP allowlisting, and a production checklist, see [docs/SECURE_DEPLOYMENT.md](docs/SECURE_DEPLOYMENT.md).
 
 ### Ralph CLI
 
@@ -128,46 +128,46 @@ Manage tasks from the terminal (`pnpm ralph tasks list`, `pnpm ralph tasks show 
 
 Omnidev is designed to run anywhere — cloud infrastructure, VPS, or local environments.
 
-Docker Compose uses override files for different environments. Running `docker compose up` automatically loads `docker-compose.yml` (base) + `docker-compose.override.yml` (dev).
+Docker Compose files live under **`docker/`**. Running `docker compose -f docker/docker-compose.yml up` from the repo root automatically loads `docker/docker-compose.override.yml` (dev) when no other files are specified.
 
 ### Development (Default)
 
 ```bash
-# First time, or after changing dependencies / Dockerfile.dev:
-docker compose up --build --remove-orphans
+# First time, or after changing dependencies / src/web/Dockerfile.dev:
+docker compose -f docker/docker-compose.yml up --build --remove-orphans
 
 # Subsequent runs (reuses cached image, fast startup):
-docker compose up
+docker compose -f docker/docker-compose.yml up
 ```
 
 Source code is bind-mounted into the container. Next.js Turbopack watches for file changes automatically — no restart needed for code edits.
 
 - **Client components** (`'use client'`): True hot module replacement — browser updates instantly.
-- **Server files** (API routes, `src/lib/`, server components): Recompiled on the next request. Save the file, hit the endpoint or reload the page, and the change is picked up.
+- **Server files** (API routes, `src/shared/src/lib/`, server components): Recompiled on the next request. Save the file, hit the endpoint or reload the page, and the change is picked up.
 
 `docker compose watch` is not needed. It exists for setups where source is copied into the image; the dev bind mount makes it redundant.
 
 **When to restart vs rebuild:**
 
-| Change                           | Action                                |
-| -------------------------------- | ------------------------------------- |
-| Edit `.ts`, `.tsx`, `.css` files | Nothing — auto-reload on next request |
-| Edit `next.config.*` or `.env`   | Restart: `docker compose restart`     |
-| Add/remove dependencies          | Rebuild: `docker compose up --build`  |
-| Change `Dockerfile.dev`          | Rebuild: `docker compose up --build`  |
+| Change                           | Action                                                             |
+| -------------------------------- | ------------------------------------------------------------------ |
+| Edit `.ts`, `.tsx`, `.css` files | Nothing — auto-reload on next request                              |
+| Edit `next.config.*` or `.env`   | Restart: `docker compose -f docker/docker-compose.yml restart app` |
+| Add/remove dependencies          | Rebuild: `docker compose -f docker/docker-compose.yml up --build`  |
+| Change `src/web/Dockerfile.dev`  | Rebuild: `docker compose -f docker/docker-compose.yml up --build`  |
 
 ### Production
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
 ```
 
-Includes authentication, dashboard, health checks, and all features. Uses the production `Dockerfile` with multi-stage build.
+Includes authentication, dashboard, health checks, and all features. **Compose** builds **`src/web/Dockerfile`** for the app and **`src/worker/Dockerfile`** for the worker service.
 
 ### Showcase (Read-Only Demo)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.showcase.yml up --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.showcase.yml up --build
 ```
 
 Read-only demo mode with no auth and no dashboard. For publishing a public-facing demo.
@@ -180,7 +180,7 @@ Read-only demo mode with no auth and no dashboard. For publishing a public-facin
 - Workspace data persistence via volumes
 - Built-in health checks (production/showcase)
 
-See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker documentation.
+See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker documentation. For **Railway** (CLI + `railway.json`), see [docs/RAILWAY.md](docs/RAILWAY.md).
 
 ## Architecture
 
