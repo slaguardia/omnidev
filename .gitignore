@@ -22,7 +22,6 @@ coverage/
 .nyc_output
 
 # Dependency directories
-node_modules/
 jspm_packages/
 
 # Optional npm cache directory
@@ -58,6 +57,9 @@ temp/
 # AI Cache files (for development)
 .ai-cache
 
+# Railway CLI local project link
+.railway/
+
 # IDE files
 .vscode/
 .idea/
@@ -86,13 +88,16 @@ repo-*/
 # TypeScript incremental compilation information
 *.tsbuildinfo 
 
-# next.js
-/.next/*
-/out/
+# next.js (match any app dir, e.g. src/web/.next)
+.next/
+out/
 
 .config/*
-# Claude Code local settings (personal permissions)
-.claude/settings.local.json
+# Claude Code local settings (personal permissions; any nesting under .claude/)
+.claude/**/settings.local.json
+
+# npx skills add output (TanStack skills are committed under .claude/skills/)
+.agents/
 
 # Worker build output
 dist/

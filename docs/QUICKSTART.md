@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get up and running with CodeSpider in minutes.
+Get up and running with Omnidev in minutes.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ pnpm install
 ### 2. Configure Environment
 
 ```bash
-cp env.example .env
+cp .env.example .env
 ```
 
 Edit `.env` with your credentials. See [Environment Setup](/docs/environment) for detailed configuration options.

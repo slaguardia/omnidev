@@ -1,36 +1,41 @@
 ## Files Overview
 
-| File                          | Purpose                                        |
-| ----------------------------- | ---------------------------------------------- |
-| `Dockerfile`                  | Production multi-stage build                   |
-| `Dockerfile.dev`              | Development build with hot reload              |
-| `docker-compose.yml`          | Base configuration (volumes, init service)     |
-| `docker-compose.override.yml` | Development overrides (auto-loaded)            |
-| `docker-compose.prod.yml`     | Production overrides                           |
-| `docker-compose.showcase.yml` | Showcase mode (read-only, no auth)             |
-| `.dockerignore`               | Excludes unnecessary files from Docker context |
-| `.env.example`                | Environment variable template                  |
+| File                                 | Purpose                                           |
+| ------------------------------------ | ------------------------------------------------- |
+| `src/web/Dockerfile`                 | Production Next.js / API image (`node server.js`) |
+| `src/worker/Dockerfile`              | Production job worker (`node worker.cjs`)         |
+| `src/web/Dockerfile.dev`             | Development image (bind-mount; app + worker dev)  |
+| `docker/docker-compose.yml`          | Base configuration (volumes, init service)        |
+| `docker/docker-compose.override.yml` | Development overrides (auto-loaded)               |
+| `docker/docker-compose.prod.yml`     | Production overrides                              |
+| `docker/docker-compose.showcase.yml` | Showcase mode (read-only, no auth)                |
+| `.dockerignore`                      | Excludes unnecessary files from Docker context    |
+| `.env.example`                       | Environment variable template                     |
+
+### Faster builds (Railway / CI)
+
+`src/web/Dockerfile` uses **BuildKit cache mounts** (`# syntax=docker/dockerfile:1.4`): shared **pnpm store** between the `deps` and `prod-deps` stages, **Next.js** cache under `src/web/.next`, **apt** package caches, and **npm** global cache for `pnpm` / `@anthropic-ai/claude-code`. The **first** build on a cold builder still does full compile and install; **repeated** builds benefit most when the platform reuses cache layers and cache mounts. Ensure the builder uses **BuildKit** (default on current Docker and most hosted builders).
 
 ## Quick Start
 
 ### Development
 
 ```bash
-docker compose up
+docker compose -f docker/docker-compose.yml up
 ```
 
-This auto-loads `docker-compose.override.yml` which uses `Dockerfile.dev` with hot reload.
+This auto-loads `docker/docker-compose.override.yml` which uses `src/web/Dockerfile.dev` with hot reload.
 
 ### Production
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
 ```
 
 ### Showcase Mode
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.showcase.yml up --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.showcase.yml up --build
 ```
 
 Showcase mode is read-only with no authentication - for public demos.
@@ -38,7 +43,7 @@ Showcase mode is read-only with no authentication - for public demos.
 ### Initialize Volumes (first time only)
 
 ```bash
-docker compose --profile init run --rm init-perms
+docker compose -f docker/docker-compose.yml --profile init run --rm init-perms
 ```
 
 ### Access the Application
@@ -56,13 +61,13 @@ Set these in Coolify if it asks for custom commands (or use them when deploying 
 **Build command**
 
 ```bash
-docker compose -f ./docker-compose.yml -f ./docker-compose.prod.yml build app
+docker compose -f ./docker/docker-compose.yml -f ./docker/docker-compose.prod.yml build app
 ```
 
 **Start command**
 
 ```bash
-docker compose -f ./docker-compose.yml -f ./docker-compose.prod.yml up -d app
+docker compose -f ./docker/docker-compose.yml -f ./docker/docker-compose.prod.yml up -d app
 ```
 
 Notes:
@@ -76,7 +81,7 @@ This app listens on **port 3000 inside the container**. If Coolify/proxy guesses
 
 In Coolify’s **Domains** field you can bind the domain to the container port, e.g.:
 
-- `https://codespider.playdate.events:3000`
+- `https://omnidev.example.com:3000`
 
 This tells Coolify’s proxy: “route this domain to **port 3000 inside the container**”.
 
@@ -90,7 +95,7 @@ For a visual explanation, see `docs/COOLIFY_PORTS_FLOW.md`.
 Example:
 
 ```bash
-NEXTAUTH_URL=https://codespider.playdate.events
+NEXTAUTH_URL=https://omnidev.example.com
 ```
 
 ### Health checks (Coolify / proxy)
@@ -103,7 +108,7 @@ NEXTAUTH_URL=https://codespider.playdate.events
 **Start development with hot reload:**
 
 ```bash
-docker compose up
+docker compose -f docker/docker-compose.yml up
 ```
 
 This runs `pnpm dev` inside the container with your repo bind-mounted for fast iteration.
@@ -112,8 +117,8 @@ The app is available at `http://localhost:3000`.
 If you see `Bind for 0.0.0.0:3000 failed: port is already allocated`, stop any existing containers:
 
 ```bash
-docker compose down
-docker compose up
+docker compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml up
 ```
 
 ## Running Detached
@@ -123,19 +128,19 @@ To run in the background (logs in Docker Desktop instead of terminal):
 ### Development
 
 ```bash
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 ### Production
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
 ```
 
 ### Viewing Logs
 
 ```bash
-docker compose logs -f app
+docker compose -f docker/docker-compose.yml logs -f app
 ```
 
 Or open the container in **Docker Desktop** and view the **Logs** tab.
@@ -143,7 +148,7 @@ Or open the container in **Docker Desktop** and view the **Logs** tab.
 ### Stopping
 
 ```bash
-docker compose down
+docker compose -f docker/docker-compose.yml down
 ```
 
 ## Environment Variables
@@ -151,7 +156,7 @@ docker compose down
 The application supports configuration through environment variables. You can:
 
 1. **Use the Settings UI** (recommended) - All configuration can be done through the web interface
-2. **Set environment variables** - Either in docker-compose.yml or via .env file
+2. **Set environment variables** - Either in `docker/docker-compose.yml` or via .env file
 
 ### Common Environment Variables
 
@@ -178,7 +183,7 @@ Omnidev exclusively uses Claude Code CLI subscription authentication. No API key
 1. Exec into the running container:
 
    ```bash
-   docker compose exec app bash
+   docker compose -f docker/docker-compose.yml exec app bash
    ```
 
 2. Run an **interactive** Claude CLI session and follow the prompts (it will typically print a URL + code):
@@ -193,13 +198,13 @@ Omnidev exclusively uses Claude Code CLI subscription authentication. No API key
 
    ```bash
    exit
-   docker compose restart app
+   docker compose -f docker/docker-compose.yml restart app
    ```
 
 ### Persisting the login across rebuilds/restarts
 
 Claude Code stores its auth + settings under `~/.claude` inside the container.
-`docker-compose.yml` mounts a named volume so your login persists:
+`docker/docker-compose.yml` mounts a named volume so your login persists:
 
 - `/home/nextjs/.claude` (the app runs as the `nextjs` user)
 - `/root/.claude` (if you exec into the container as root and run `claude`, it may write here)
@@ -217,7 +222,7 @@ This project currently supports **only token/API-key based MCP auth** (for examp
 If you want a single consistent location, log in as `nextjs` (recommended):
 
 ```bash
-docker compose exec --user nextjs app bash
+docker compose -f docker/docker-compose.yml exec --user nextjs app bash
 cd /app/workspaces
 claude
 ```
@@ -233,7 +238,7 @@ Per the Claude CLI help, **the workspace trust dialog is skipped in `-p` mode**,
 If you want to "do it the right way" once and have it persist, run an **interactive** Claude session (no `-p`) from `/app/workspaces` and complete the trust prompt once:
 
 ```bash
-docker compose exec --user nextjs app bash
+docker compose -f docker/docker-compose.yml exec --user nextjs app bash
 cd /app/workspaces
 # run any claude command once to trigger the trust prompt if needed
 claude
@@ -242,7 +247,7 @@ claude
 To "log out" / reset Claude CLI credentials, remove the volume (this deletes the stored login):
 
 ```bash
-docker compose down
+docker compose -f docker/docker-compose.yml down
 docker volume rm workflow_workflow_claude_config
 ```
 
@@ -250,7 +255,7 @@ docker volume rm workflow_workflow_claude_config
 
 ```bash
 MAX_WORKSPACE_SIZE_MB=500
-TEMP_DIR_PREFIX=gitlab-claude-
+TEMP_DIR_PREFIX=omnidev-
 LOG_LEVEL=info
 ALLOWED_GITLAB_HOSTS=gitlab.com
 MAX_CONCURRENT_WORKSPACES=3
@@ -271,31 +276,31 @@ The Docker setup includes a named volume `workflow_workspaces` to persist:
 Start the application:
 
 ```bash
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 Stop the application:
 
 ```bash
-docker compose down
+docker compose -f docker/docker-compose.yml down
 ```
 
 View logs:
 
 ```bash
-docker compose logs -f workflow-app
+docker compose -f docker/docker-compose.yml logs -f app
 ```
 
 Restart the application:
 
 ```bash
-docker compose restart workflow-app
+docker compose -f docker/docker-compose.yml restart app
 ```
 
 Update and rebuild:
 
 ```bash
-docker compose up --build -d
+docker compose -f docker/docker-compose.yml up --build -d
 ```
 
 ### Development Commands
@@ -303,19 +308,19 @@ docker compose up --build -d
 Access the container shell:
 
 ```bash
-docker compose exec app bash
+docker compose -f docker/docker-compose.yml exec app bash
 ```
 
 Run tests inside container:
 
 ```bash
-docker compose exec app pnpm test
+docker compose -f docker/docker-compose.yml exec app pnpm test
 ```
 
 Check application health:
 
 ```bash
-docker compose exec app wget -qO- http://localhost:3000/api/config/validate
+docker compose -f docker/docker-compose.yml exec app wget -qO- http://localhost:3000/api/config/validate
 ```
 
 ### Cleanup
@@ -323,19 +328,19 @@ docker compose exec app wget -qO- http://localhost:3000/api/config/validate
 Remove containers and networks:
 
 ```bash
-docker compose down
+docker compose -f docker/docker-compose.yml down
 ```
 
 Remove containers, networks, and volumes:
 
 ```bash
-docker compose down -v
+docker compose -f docker/docker-compose.yml down -v
 ```
 
-Remove all related images:
+Remove images produced by the compose project (optional):
 
 ```bash
-docker rmi workflow-app workflow-app-dev
+docker compose -f docker/docker-compose.yml down --rmi local
 ```
 
 Clean up dangling images:
@@ -351,13 +356,13 @@ docker image prune
 If you're deploying to a single VM (no Swarm), and you have a reverse proxy (Traefik/Caddy/nginx) handling TLS:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
 ```
 
 Notes:
 
-- When deploying behind a reverse proxy, the app should **not publish** `3000` to the host. The `docker-compose.prod.yml` is set up that way by default; your reverse proxy should publish `80/443` and route internally to `workflow-app:3000`.
-- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in your `.env` file.
+- When deploying behind a reverse proxy, the app should **not publish** `3000` to the host. The `docker/docker-compose.prod.yml` is set up that way by default; your reverse proxy should publish `80/443` and route internally to the Compose service **`app` on port 3000** (e.g. `http://app:3000` on the Docker network).
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://omnidev.example.com`) in your `.env` file.
 
 ### Docker Swarm
 
@@ -370,13 +375,13 @@ docker swarm init
 Deploy stack:
 
 ```bash
-docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml workflow
+docker stack deploy -c docker/docker-compose.yml -c docker/docker-compose.prod.yml workflow
 ```
 
 Notes:
 
 - If you are deploying behind **Traefik/Caddy**, the app should **not publish** `3000` to the host. Your reverse proxy should publish `80/443` and route internally to the app on port 3000.
-- Set `NEXTAUTH_URL` to your public URL (e.g. `https://workflow.example.com`) in your `.env` file.
+- Set `NEXTAUTH_URL` to your public URL (e.g. `https://omnidev.example.com`) in your `.env` file.
 
 ### Kubernetes
 
@@ -386,20 +391,20 @@ You can use the Docker images with Kubernetes. Example deployment:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: workflow-app
+  name: omnidev-app
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: workflow-app
+      app: omnidev-app
   template:
     metadata:
       labels:
-        app: workflow-app
+        app: omnidev-app
     spec:
       containers:
-        - name: workflow-app
-          image: workflow-app:latest
+        - name: omnidev-app
+          image: omnidev:latest
           ports:
             - containerPort: 3000
           env:
@@ -413,7 +418,7 @@ spec:
 
 1. **Port already in use:**
 
-   If you are running the app **directly** (no reverse proxy), change the port mapping in `docker-compose.yml`:
+   If you are running the app **directly** (no reverse proxy), change the port mapping in `docker/docker-compose.yml`:
 
    ```yaml
    ports:
@@ -424,14 +429,14 @@ spec:
 
    - Remove `ports:` from the app service
    - Keep the app reachable only on an internal Docker network
-   - Have the reverse proxy publish `80/443` and route to `workflow-app:3000`
+   - Have the reverse proxy publish `80/443` and route to the **`app`** service at `app:3000` on the Docker network
 
 2. **Permission issues with workspaces:**
 
    Fix volume permissions:
 
    ```bash
-   docker compose exec app chown -R nextjs:nodejs /app/workspaces
+   docker compose -f docker/docker-compose.yml exec app chown -R nextjs:nodejs /app/workspaces
    ```
 
 3. **Build failures:**
@@ -439,7 +444,7 @@ spec:
    Clean build with no cache:
 
    ```bash
-   docker compose build --no-cache
+   docker compose -f docker/docker-compose.yml build --no-cache
    ```
 
 ### Local testing with ngrok
@@ -449,7 +454,7 @@ If you want to test webhooks (e.g. n8n callbacks) or access the app from outside
 1. Start the app locally:
 
    ```bash
-   docker compose up -d
+   docker compose -f docker/docker-compose.yml up -d
    ```
 
 2. Expose port 3000:
@@ -471,7 +476,7 @@ If you want to test webhooks (e.g. n8n callbacks) or access the app from outside
 
 4. **Memory issues:**
 
-   Increase Docker memory limit in Docker Desktop settings, or add memory limits to docker-compose.yml:
+   Increase Docker memory limit in Docker Desktop settings, or add memory limits to `docker/docker-compose.yml`:
 
    ```yaml
    deploy:
@@ -491,8 +496,8 @@ The container includes health checks that verify:
 Check health status:
 
 ```bash
-docker compose ps
-docker inspect --format='{{.State.Health.Status}}' workflow-app
+docker compose -f docker/docker-compose.yml ps
+docker inspect --format='{{.State.Health.Status}}' "$(docker compose -f docker/docker-compose.yml ps -q app)"
 ```
 
 ## Performance Optimization
@@ -509,7 +514,7 @@ docker inspect --format='{{.State.Health.Status}}' workflow-app
 Add monitoring with tools like:
 
 - Prometheus + Grafana
-- Docker stats: `docker stats workflow-app`
+- Docker stats: `docker stats "$(docker compose -f docker/docker-compose.yml ps -q app)"`
 - Health endpoint: `curl http://localhost:3000/api/config/validate`
 
 ## Security Considerations
@@ -526,7 +531,7 @@ Add monitoring with tools like:
    - **Caddy example**:
 
      ```caddyfile
-     reverse_proxy workflow-app:3000 {
+     reverse_proxy app:3000 {
        header_up X-Forwarded-For {remote_host}
        header_up X-Real-IP {remote_host}
      }

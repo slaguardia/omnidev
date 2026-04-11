@@ -6,7 +6,7 @@ This guide provides prompt templates for use with n8n workflows and direct API c
 
 ## Async + Task Update Patterns (Recommended)
 
-When requests are large, Workflow may return `queued: true` and you should poll via `/api/jobs/:jobId` (see `docs/N8N_ASYNC_PATTERNS.md`).
+When requests are large, Omnidev may return `queued: true` and you should poll via `/api/jobs/:jobId` (see `docs/N8N_ASYNC_PATTERNS.md`).
 
 There are two common task-update modes:
 
@@ -52,9 +52,9 @@ At the end, output EXACTLY one single-line JSON receipt (no code fences) so auto
 {"status":"completed|blocked","updatedLinear":true,"issueUrl":"${linear.issueUrl}","summary":"..."}
 ```
 
-**What does Workflow “return” for MCP mode?**
+**What does Omnidev return for MCP mode?**
 
-- Workflow returns `job.result.output` (the text Claude printed). If you use the receipt pattern above, this will be a single JSON line.
+- Omnidev returns `job.result.output` (the text Claude printed). If you use the receipt pattern above, this will be a single JSON line.
 - If you don’t care about the output, you can ignore it and rely on **job completion** via polling (`GET /api/jobs/:jobId`) or the **completion webhook callback** (`callback.url`).
 
 ### Template: Manual mode (structured JSON contract)
@@ -154,12 +154,12 @@ ${task.isBug ? "This task appears to be a bug. Your goal is to investigate the c
 
 1. Create a **Set** node to build the prompt using the template above
 2. Replace variables with data from the ClickUp trigger
-3. Send to the Workflow `/api/ask` endpoint
+3. Send to the Omnidev `/api/ask` endpoint
 
 ### Usage with Direct API Call
 
 ```bash
-curl -X POST https://your-workflow-instance/api/ask \
+curl -X POST https://your-omnidev-host/api/ask \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

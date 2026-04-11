@@ -1,0 +1,53 @@
+# ============================================================================
+# Omnidev - Docker Compose Base Configuration
+# ============================================================================
+# Pin project name so it stays `workflow` when compose files live under docker/
+# (default would otherwise be `docker` from the directory name).
+name: workflow
+
+# This file defines shared volumes and the init service.
+# Use with override files for specific environments:
+#
+#   Development:  docker compose -f docker/docker-compose.yml up
+#                 (auto-loads docker/docker-compose.override.yml)
+#
+#   Production:   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
+#
+#   Showcase:     docker compose -f docker/docker-compose.yml -f docker/docker-compose.showcase.yml up --build
+#
+# Or use package.json: pnpm docker:dev | pnpm docker:build
+# ============================================================================
+
+services:
+  # One-time permissions fix for persisted volumes.
+  # Named volumes are root-owned by default; this makes them writable
+  # by the `nextjs` user (uid/gid 1001) before the app starts.
+  init-perms:
+    image: alpine:3.20
+    container_name: omnidev-init-perms
+    user: '0:0'
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        mkdir -p /home/nextjs/.claude /app/workspaces /app/data /secrets
+        chown -R 1001:1001 /home/nextjs/.claude /app/workspaces /app/data /secrets
+    volumes:
+      - workflow_claude_config:/home/nextjs/.claude
+      - workflow_workspaces:/app/workspaces
+      - workflow_data:/app/data
+      - workflow_secrets:/secrets
+    restart: 'no'
+    profiles:
+      - init # Only runs when explicitly requested or overridden
+
+volumes:
+  workflow_workspaces:
+    name: workflow_workspaces
+  workflow_data:
+    name: workflow_data
+  workflow_claude_config:
+    name: workflow_claude_config
+  workflow_secrets:
+    name: workflow_secrets
+  workflow_node_modules:
+  workflow_next_cache:

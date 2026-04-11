@@ -5,7 +5,7 @@
 # This script verifies that the sandbox architecture is working correctly
 # Run inside the Docker container to test security measures
 #
-# Usage: docker exec workflow-app /app/scripts/verify-sandbox.sh
+# Usage: docker exec omnidev-app /app/scripts/verify-sandbox.sh
 # =============================================================================
 
 set -e

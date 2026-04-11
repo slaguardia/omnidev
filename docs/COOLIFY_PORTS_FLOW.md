@@ -14,8 +14,8 @@ When you browse the site, your browser does **not** connect to the container dir
 
 ```mermaid
 flowchart LR
-  U[Your Browser<br/>https://codespider.playdate.events] -->|HTTPS :443| P[Coolify Proxy<br/>Traefik / Caddy<br/>listens on :443]
-  P -->|HTTP :3000 (internal Docker network)| A[workflow-app container<br/>Next.js server<br/>listens on :3000]
+  U[Your Browser<br/>https://omnidev.example.com] -->|HTTPS :443| P[Coolify Proxy<br/>Traefik / Caddy<br/>listens on :443]
+  P -->|HTTP :3000 (internal Docker network)| A[app container<br/>Next.js server<br/>listens on :3000]
   A --> P
   P --> U
 ```
@@ -43,7 +43,7 @@ That strongly indicates the proxy was trying **port 80** instead of **3000**.
 
 When Coolify lets you set a domain like:
 
-`https://codespider.playdate.events:3000`
+`https://omnidev.example.com:3000`
 
 it means:
 
@@ -58,14 +58,14 @@ flowchart LR
   U[Browser] -->|HTTPS :443| P[Proxy]
   P -->|needs correct upstream port| D{Which container port<br/>should proxy use?}
   D -->|wrong guess| W[:80] -->|connection refused| E[502 Bad Gateway]
-  D -->|explicit in Coolify domain<br/>:3000| OK[:3000] --> A[workflow-app :3000 OK]
+  D -->|explicit in Coolify domain<br/>:3000| OK[:3000] --> A[app :3000 OK]
 ```
 
 ## What to set (recommended)
 
-- **Coolify Domain**: `https://codespider.playdate.events:3000`
+- **Coolify Domain**: `https://omnidev.example.com:3000`
   - This tells the proxy to use container port **3000**
-- **NEXTAUTH_URL**: `https://codespider.playdate.events`
+- **NEXTAUTH_URL**: `https://omnidev.example.com`
   - No `:3000` here (this is what users see in the browser)
 
 ## Extra: what “ports:” vs “expose:” means (Docker Compose)

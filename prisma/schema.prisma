@@ -1,0 +1,195 @@
+// Omnidev — PostgreSQL (Railway / managed Postgres)
+// SQLite + files under data/ remain the runtime default until callers migrate to Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RalphMeta {
+  key   String @id
+  value String
+
+  @@map("ralph_meta")
+}
+
+model RalphTask {
+  id               String  @id
+  title            String
+  workspaceId      String  @map("workspace_id")
+  status           String  @default("draft")
+  isArchived       Int     @default(0) @map("is_archived")
+  parentId         String? @map("parent_id")
+  subtaskOrder     Int?    @map("subtask_order")
+  deliveryMethod   String? @default("merge-request") @map("delivery_method")
+  executionJobId   String? @map("execution_job_id")
+  createdAt        String  @map("created_at")
+  updatedAt        String  @map("updated_at")
+  completedAt      String? @map("completed_at")
+  taskNumber       Int?    @unique @map("task_number")
+  projectId        String? @map("project_id")
+  playbookId       String? @map("playbook_id")
+  data             String
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([parentId])
+  @@index([updatedAt(sort: Desc)])
+  @@index([isArchived, updatedAt(sort: Desc)])
+  @@map("ralph_tasks")
+}
+
+model RalphProject {
+  id        String @id
+  name      String @unique
+  color     String? @default("#6366f1")
+  createdAt String @map("created_at")
+  updatedAt String @map("updated_at")
+
+  @@map("ralph_projects")
+}
+
+model RalphPlaybook {
+  id               String @id
+  name             String @unique
+  description      String @default("")
+  stageIds         String @default("[]") @map("stage_ids")
+  promptOverrides  String @default("{}") @map("prompt_overrides")
+  isDefault        Int    @default(0) @map("is_default")
+  createdAt        String @map("created_at")
+  updatedAt        String @map("updated_at")
+
+  @@map("ralph_playbooks")
+}
+
+model Job {
+  id           String  @id
+  taskId       String  @map("task_id")
+  agentType    String  @default("coding-agent") @map("agent_type")
+  status       String  @default("pending")
+  payload      String  @default("{}")
+  result       String?
+  error        String?
+  startedAt    String? @map("started_at")
+  heartbeatAt  String? @map("heartbeat_at")
+  createdAt    String  @map("created_at")
+  updatedAt    String  @map("updated_at")
+
+  agentRuns AgentRun[]
+
+  @@index([status])
+  @@index([taskId])
+  @@map("jobs")
+}
+
+model AgentRun {
+  id          String  @id
+  jobId       String  @map("job_id")
+  status      String  @default("running")
+  logs        String  @default("")
+  startedAt   String  @map("started_at")
+  completedAt String? @map("completed_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("agent_runs")
+}
+
+model StageToken {
+  id          String  @id
+  tokenHash   String  @unique @map("token_hash")
+  jobId       String  @map("job_id")
+  taskId      String  @map("task_id")
+  permissions String
+  expiresAt   String  @map("expires_at")
+  revoked     Int     @default(0)
+  createdAt   String  @map("created_at")
+  revokedAt   String? @map("revoked_at")
+
+  @@index([tokenHash])
+  @@index([jobId])
+  @@map("stage_tokens")
+}
+
+model Workspace {
+  id           String @id
+  path         String?
+  repoUrl      String @map("repo_url")
+  targetBranch String @map("target_branch")
+  provider     String?
+  createdAt    String @map("created_at")
+  lastAccessed String @map("last_accessed")
+  data         String
+
+  @@index([lastAccessed(sort: Desc)])
+  @@map("workspaces")
+}
+
+model ChatConversation {
+  id          String @id
+  workspaceId String @map("workspace_id")
+  title       String
+  sessionId   String? @map("session_id")
+  createdAt   String @map("created_at")
+  updatedAt   String @map("updated_at")
+  isArchived  Int    @default(0) @map("is_archived")
+
+  messages ChatMessage[]
+
+  @@index([workspaceId, updatedAt(sort: Desc)])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String @id
+  conversationId String @map("conversation_id")
+  role           String
+  content        String
+  createdAt      String @map("created_at")
+  usageJson      String? @map("usage_json")
+  durationMs     Int?    @map("duration_ms")
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt(sort: Asc)])
+  @@map("chat_messages")
+}
+
+model ChatMeta {
+  key   String @id
+  value String
+
+  @@map("chat_meta")
+}
+
+model OmnidevUser {
+  username     String  @id
+  passwordHash String  @map("password_hash")
+  twoFactor    String? @map("two_factor")
+
+  @@map("omnidev_users")
+}
+
+model OmnidevApiKey {
+  id        String @id
+  keyHash   String @map("key_hash")
+  name      String?
+  createdAt String @map("created_at")
+  data      String @default("{}")
+
+  @@map("omnidev_api_keys")
+}
+
+/// Single-row app settings (same shape as `data/app-config.json` when using file fallback).
+model OmnidevAppConfig {
+  id        String @id
+  data      Json
+  updatedAt String @map("updated_at")
+
+  @@map("omnidev_app_config")
+}

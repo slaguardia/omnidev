@@ -1,9 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// Mock next-auth to avoid "headers called outside request scope" error
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn().mockResolvedValue(null),
-}));
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 /**
  * Integration tests for API routes
@@ -16,7 +11,6 @@ describe('API Routes Integration', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.resetModules();
     process.env = { ...originalEnv };
     process.env.VALID_API_KEYS = 'test-api-key-123';
   });

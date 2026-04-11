@@ -1,6 +1,6 @@
 # n8n Workflow Integration
 
-This guide covers how to integrate Workflow with n8n for automated task processing.
+This guide covers how to integrate Omnidev with n8n for automated task processing.
 
 For long-running requests and recommended designs (Option A vs Option B), see `docs/N8N_ASYNC_PATTERNS.md`.
 
@@ -34,14 +34,14 @@ The planner flow automates task refinement before development begins.
 
 1. **Trigger**: Assignee change on any task
 2. **Fetch**: Get the task details
-3. **Check**: Verify task was assigned to CodeSpider and is in "To Do" status
+3. **Check**: Verify the task was assigned to the bot and is in the expected status
 4. **Parse**: Extract task information:
    - Title
    - Description
    - Bug label (can be null)
 5. **Template**: Use prompt template to complete the prompt
 6. **Generate**: Create payload for API
-7. **Send**: Send payload to Workflow API
+7. **Send**: Send payload to the Omnidev API
 8. **Receive**: Get response from Claude
 9. **Update Task**:
    - Remove assignee
@@ -54,7 +54,7 @@ The planner flow automates task refinement before development begins.
 | ------------ | --------------------------------------- |
 | Workspace ID | Define in n8n global variables          |
 | Bug Labels   | Configure label detection for bug tasks |
-| API Endpoint | Your Workflow instance URL              |
+| API Endpoint | Omnidev deployment URL (HTTPS origin)   |
 
 ## Setting Up the Integration
 
@@ -62,7 +62,7 @@ The planner flow automates task refinement before development begins.
 
 - n8n instance (self-hosted or cloud)
 - ClickUp workspace with API access
-- Workflow instance with API authentication configured
+- Omnidev instance with API authentication configured
 
 ### Step 1: Configure ClickUp Trigger
 
@@ -70,7 +70,7 @@ Set up a ClickUp trigger node that watches for assignee changes on tasks.
 
 ### Step 2: Add HTTP Request Node
 
-Configure an HTTP request to your Workflow API:
+Configure an HTTP request to Omnidev:
 
 ```
 POST /api/ask

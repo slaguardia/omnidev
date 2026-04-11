@@ -37,7 +37,7 @@ Meanwhile, the Next.js application must:
 
 #### 1. Executable Isolation (Dockerfile)
 
-**Location**: `/Dockerfile` (lines 20-31)
+**Location**: `src/web/Dockerfile` (lines 20-31)
 
 During Docker build:
 
@@ -258,7 +258,7 @@ This job:
 SSH into container and test as nextjs user (Claude Code's context):
 
 ```bash
-docker exec -it workflow-app bash
+docker exec -it omnidev-app bash
 git --version
 ```
 
@@ -269,7 +269,7 @@ Expected: `[BLOCKED] git access denied - use app API instead`
 Check application logs during repository clone:
 
 ```bash
-docker logs workflow-app | grep CLAUDE
+docker logs omnidev-app | grep CLAUDE
 ```
 
 Should show: `Using API key from runtime configuration`
@@ -279,7 +279,7 @@ Should NOT show git blocking errors
 #### Verify Internal Executables
 
 ```bash
-docker exec -it workflow-app bash
+docker exec -it omnidev-app bash
 /opt/internal/bin/git --version
 ```
 
@@ -290,7 +290,7 @@ Expected: `git version 2.x.x`
 Run comprehensive automated tests:
 
 ```bash
-docker exec workflow-app /app/scripts/verify-sandbox.sh
+docker exec omnidev-app /app/scripts/verify-sandbox.sh
 ```
 
 - Exit code 0 = all tests passed
@@ -315,7 +315,7 @@ docker exec workflow-app /app/scripts/verify-sandbox.sh
 
 **Check**:
 
-1. Verify git is blocked: `docker exec workflow-app git --version`
+1. Verify git is blocked: `docker exec omnidev-app git --version`
 2. Check wrapper script execution: `which claude-code-wrapper`
 3. Verify PATH in Claude Code context
 4. Check wrapper script logs
@@ -327,8 +327,8 @@ docker exec workflow-app /app/scripts/verify-sandbox.sh
 **Check**:
 
 1. Verify Dockerfile copies script correctly
-2. Rebuild Docker image: `docker-compose build --no-cache`
-3. Check file exists: `docker exec workflow-app ls -l /usr/local/bin/claude-code-wrapper`
+2. Rebuild Docker image: `docker compose -f docker/docker-compose.yml build --no-cache`
+3. Check file exists: `docker exec omnidev-app ls -l /usr/local/bin/claude-code-wrapper`
 
 ## Future Enhancements
 

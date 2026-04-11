@@ -1,14 +1,14 @@
 # n8n Async Patterns (Option A vs Option B)
 
-This document describes two production-ready patterns for integrating n8n with Workflow's queued API (`/api/ask`, `/api/edit`).
+This document describes two production-ready patterns for integrating n8n with Omnidev’s legacy queued API (`/api/ask`, `/api/edit`).
 
 For API details (payloads, `jobId`, `/api/jobs/:jobId`), see `docs/API_OPERATIONS.md`.
 
 ---
 
-## Background: Always-Queued in Workflow
+## Background: Always-queued (`/api/ask` and `/api/edit`)
 
-When you call `POST /api/ask` or `POST /api/edit`, Workflow always queues the request and returns immediately:
+When you call `POST /api/ask` or `POST /api/edit`, Omnidev always queues the request and returns immediately:
 
 - **Response**: `{ queued: true, jobId: string, ... }`
 
@@ -85,7 +85,7 @@ Storage options:
 - Redis/Postgres (recommended at scale)
 - ClickUp custom field (simple, but more brittle)
 
-### Submitter workflow (Workflow 1)
+### Submitter automation (step 1)
 
 1. **Trigger**
 2. **Build Prompt**
@@ -95,7 +95,7 @@ Storage options:
 5. **Update task** (optional): "Queued. Tracking jobId …"
 6. **Exit**
 
-### Poller/Processor workflow (Workflow 2)
+### Poller/processor automation (step 2)
 
 Trigger:
 
@@ -119,7 +119,7 @@ Steps:
 - **Idempotency**: record-level “processedAt” so you don’t post duplicates.
 - **Retry policy**: transient 500s from `/api/jobs/:jobId` should retry.
 - **Staleness**: if a job is stuck `processing` for too long, mark “timed out” on your side and alert.
-- **Retention**: Workflow deletes finished jobs after ~7 days; poller should process within that window.
+- **Retention**: Omnidev deletes finished jobs after ~7 days; poller should process within that window.
 
 ---
 
@@ -129,7 +129,7 @@ Polling is simple, but it’s not the only option. For large requests, a **compl
 
 - n8n creates an **Incoming Webhook** trigger URL
 - You submit the job with a `callback` object
-- Workflow POSTs to your webhook when the job **completes** or **fails**
+- Omnidev POSTs to your webhook when the job **completes** or **fails**
 
 ### Why webhook can be better
 
@@ -146,7 +146,7 @@ Webhooks can fail due to networking, restarts, n8n downtime, TLS issues, etc. Re
 
 ### Callback payload
 
-When `callback.secret` is provided, Workflow includes:
+When `callback.secret` is provided, Omnidev includes:
 
 - `x-workflow-signature: sha256=<hex>` (HMAC-SHA256 of the JSON body)
 
@@ -191,7 +191,7 @@ function timingSafeEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-export function verifyWorkflowSignature({ secret, rawBody, signatureHeader }) {
+export function verifyOmnidevJobSignature({ secret, rawBody, signatureHeader }) {
   if (!signatureHeader?.startsWith('sha256=')) return false;
   const provided = signatureHeader;
   const digest = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -222,7 +222,7 @@ Why still poll?
 
 **What is the “return” for MCP mode?**
 
-- Workflow always stores/returns whatever Claude printed as `job.result.output`.
+- Omnidev always stores/returns whatever Claude printed as `job.result.output`.
 - For MCP-style “update Linear and exit”, the best practice is to require a **single-line JSON receipt** at the end of the response (see `docs/PROMPT_TEMPLATES.md`).
 - If you truly don’t need response content, you can ignore `job.result.output` and use either:
   - the completion webhook (`callback.url`), or
@@ -267,10 +267,10 @@ Notes:
 ## Recommended: Plan for Option B (large requests)
 
 1. **Define a tracking record schema** (above) and pick storage (n8n Data Store is fine to start).
-2. **Implement Workflow 1 (Submitter)**:
+2. **Implement the submitter automation**:
    - Normalize inputs → build prompt → submit → store `jobId` + metadata
    - Update task with “Queued / Running” and a human-friendly link to your dashboard (optional)
-3. **Implement Workflow 2 (Poller/Processor)**:
+3. **Implement the poller/processor automation**:
    - Schedule trigger
    - Fetch active records
    - Poll `/api/jobs/:jobId` with retry/backoff

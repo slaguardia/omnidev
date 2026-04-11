@@ -1,6 +1,6 @@
 # n8n Templates
 
-Ready-to-import n8n workflow templates for integrating with Workflow. Download the JSON files and import them directly into n8n.
+Ready-to-import n8n workflow templates for integrating with Omnidev. Download the JSON files and import them directly into n8n.
 
 For integration concepts, see [n8n Workflows](/docs/n8n-workflows). For async patterns, see [n8n Async Patterns](/docs/n8n-async-patterns).
 
@@ -21,13 +21,13 @@ A complete workflow that triggers on Linear events and uses Claude to plan tasks
 
 ### What It Does
 
-1. **Assign Flow**: Triggers when an issue is assigned to the bot and moved to "Codespider In Progress"
+1. **Assign Flow**: Triggers when an issue is assigned to the bot and moved to an “in progress” state
 
    - Builds a prompt asking Claude to research and update the Linear issue description
-   - Submits to Workflow API
+   - Submits to the Omnidev API
    - Reassigns the issue when complete
 
-2. **Comment Flow**: Triggers when someone mentions `@codespider` in a comment
+2. **Comment Flow**: Triggers when someone mentions the bot (for example `@your-bot`) in a comment
    - Fetches the issue's project context via GraphQL
    - Asks Claude to address the comment and update the plan
    - Claude replies to the comment when done
@@ -39,15 +39,15 @@ After importing, update these values:
 | Field                  | Location             | Description                              |
 | ---------------------- | -------------------- | ---------------------------------------- |
 | `your-bot@example.com` | If nodes             | Your bot's email address                 |
-| `YOUR_WORKSPACE_ID`    | HTTP Request nodes   | Your Workflow workspace ID               |
+| `YOUR_WORKSPACE_ID`    | HTTP Request nodes   | Omnidev workspace ID                     |
 | `YOUR_TEAM_ID`         | Linear Trigger nodes | Your Linear team ID                      |
 | `YOUR_ASSIGNEE_ID`     | Update Issue node    | User ID to reassign to after planning    |
 | `YOUR_STATE_ID`        | Update Issue node    | State ID to move issue to after planning |
-| Workflow URL           | HTTP Request nodes   | Your Workflow instance URL               |
+| Omnidev base URL       | HTTP Request nodes   | HTTPS origin of the Omnidev deployment   |
 
 ### Credentials Needed
 
-- **Bearer Auth**: Your Workflow API key
+- **Bearer Auth** or **`x-api-key`**: Omnidev API key (see [API Authentication](/docs/api-authentication))
 - **Linear API**: Your Linear API token
 - **Header Auth**: Linear API token (for GraphQL queries)
 
@@ -71,10 +71,10 @@ _(Coming soon - drop your edit flow JSON into `docs/templates/n8n-edit-flow.json
 
 Create these credentials in n8n before activating:
 
-**Bearer Auth (for Workflow API)**
+**Bearer Auth or Header Auth (for Omnidev)**
 
-- Name: `Workflow API`
-- Token: Your Workflow API key
+- Name: `Omnidev API`
+- Token: API key from Dashboard → Account Security, or a legacy key from environment variables
 
 **Linear API**
 
@@ -95,11 +95,11 @@ Search for `YOUR_` in the workflow and replace all placeholder values with your 
 
 For cleaner workflows, configure these in **Settings** → **Variables**:
 
-| Variable             | Example                        | Purpose                   |
-| -------------------- | ------------------------------ | ------------------------- |
-| `workflowBaseUrl`    | `https://workflow.example.com` | Your Workflow instance    |
-| `defaultWorkspaceId` | `ws_abc123`                    | Default workspace ID      |
-| `botEmail`           | `bot@example.com`              | Bot's email for filtering |
+| Variable             | Example                       | Purpose                   |
+| -------------------- | ----------------------------- | ------------------------- |
+| `omnidevBaseUrl`     | `https://omnidev.example.com` | Omnidev deployment origin |
+| `defaultWorkspaceId` | `ws_abc123`                   | Default workspace ID      |
+| `botEmail`           | `bot@example.com`             | Bot's email for filtering |
 
 ---
 

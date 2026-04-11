@@ -10,9 +10,9 @@ This file establishes design principles and writing standards for Omnidev docume
 
 Omnidev is:
 
-- A developer automation platform / workflow orchestration runtime
+- A self-hostable workflow orchestration runtime (task → job → repo change), not a hosted AI service
 - One bot identity spanning many workspaces
-- Workflow-agnostic and deploy-anywhere
+- Modular workflows and deploy-anywhere operation
 
 Omnidev is NOT:
 
