@@ -189,6 +189,33 @@ With GitHub integration enabled, pushing to the connected branch also triggers b
 3. Open the URL, complete signup (with `INITIAL_SIGNUP_TOKEN` if required), enable **2FA**.
 4. Confirm the **worker** service logs show the poll loop and that **jobs** transition from pending to running (tasks moved to coding / Ralph stages).
 
+## Authenticating Claude Code (worker)
+
+The worker runs as the `nextjs` user (uid 1001) with `HOME=/home/nextjs`. The persistent volume at `/home/nextjs/.claude` stores Claude Code credentials across redeploys.
+
+**Important:** When shelling into the container (`railway shell`), the session runs as **root** with `HOME=/root`. Running `claude` directly writes credentials to `/root/.claude`, which is **not** on the persistent volume and will be lost on the next deploy.
+
+Use the `claude-login` helper instead:
+
+```bash
+railway shell -s <worker-service-name>
+claude-login
+```
+
+This runs `claude` as the `nextjs` user with `HOME=/home/nextjs`, ensuring credentials land on the volume.
+
+Alternatively, set HOME manually:
+
+```bash
+HOME=/home/nextjs claude
+```
+
+After authenticating, verify the credentials are on the volume:
+
+```bash
+ls -la /home/nextjs/.claude/
+```
+
 ## Troubleshooting
 
 | Issue                                      | What to check                                                                                                                                                              |
@@ -200,6 +227,7 @@ With GitHub integration enabled, pushing to the connected branch also triggers b
 | 403 from IP rules                          | `ALLOWED_IPS` too strict or wrong; unset temporarily.                                                                                                                      |
 | Permission errors on `/app/data`           | Volume ownership vs `nextjs` user; see Railway volume docs.                                                                                                                |
 | Sign-in shows “first account” after deploy | Ephemeral disk or multiple web replicas without shared `/app/data`. Add a volume for `/app/data`, scale web to one instance, recreate the first user if the file was lost. |
+| Claude Code auth lost after redeploy       | Credentials were written to `/root/.claude` instead of `/home/nextjs/.claude`. Use `claude-login` to re-authenticate (see [Authenticating Claude Code](#authenticating-claude-code-worker)). |
 
 ## PostgreSQL
 

@@ -155,7 +155,8 @@ RUN chmod 755 ./scripts/*.sh ./src/worker/scripts/*.sh 2>/dev/null; \
     chmod 755 ./src/worker/scripts/*.mjs 2>/dev/null; true
 
 COPY src/worker/scripts/create-task.sh /usr/local/bin/create-task
-RUN chmod 755 /usr/local/bin/create-task
+COPY src/worker/scripts/claude-login.sh /usr/local/bin/claude-login
+RUN chmod 755 /usr/local/bin/create-task /usr/local/bin/claude-login
 
 COPY --from=builder --chown=nextjs:nodejs /app/dist/cli/index.cjs /opt/internal/bin/ralph.cjs
 RUN echo '#!/usr/bin/env node' > /usr/local/bin/ralph && \
