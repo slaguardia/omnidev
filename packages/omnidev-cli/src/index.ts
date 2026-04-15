@@ -7,6 +7,7 @@ import { loadCliEnv } from './load-env.js';
 import { setGlobalConfigOverrides } from './config.js';
 import { CLI_VERSION } from './version.js';
 import { Command } from 'commander';
+import { registerAuthCommands } from './commands/auth.js';
 import { registerTaskCommands } from './commands/tasks.js';
 import { registerLifecycleCommands } from './commands/lifecycle.js';
 import { registerDepsCommands } from './commands/deps.js';
@@ -24,6 +25,7 @@ program
   .option('--url <url>', 'Omnidev server URL (overrides OMNIDEV_URL)')
   .option('--api-key <key>', 'API key (overrides OMNIDEV_API_KEY)');
 
+registerAuthCommands(program);
 registerTaskCommands(program);
 registerLifecycleCommands(program);
 registerDepsCommands(program);
