@@ -69,12 +69,12 @@ Railway only **auto-loads** `railway.json` at the **repository root** per servic
 
 Set on **each** service (or use [shared variables](https://docs.railway.com/guides/variables#shared-variables) in the project). The startup scripts validate required vars and exit with a clear error if any are missing.
 
-| Variable               | Web | Worker | Notes                                                                                         |
-| ---------------------- | --- | ------ | --------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`         | Yes | Yes    | **Same** Postgres connection string on **both** services.                                     |
+| Variable               | Web | Worker | Notes                                                                                               |
+| ---------------------- | --- | ------ | --------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Yes | Yes    | **Same** Postgres connection string on **both** services.                                           |
 | `NEXTAUTH_SECRET`      | Yes | Yes    | `openssl rand -base64 32`. **Must be the same value on both services** (used for token encryption). |
-| `NEXTAUTH_URL`         | Yes | No     | Public `https://…` URL of the **web** service (no trailing slash).                            |
-| `INITIAL_SIGNUP_TOKEN` | Yes | No     | Recommended: `openssl rand -hex 32` for first-user signup.                                    |
+| `NEXTAUTH_URL`         | Yes | No     | Public `https://…` URL of the **web** service (no trailing slash).                                  |
+| `INITIAL_SIGNUP_TOKEN` | Yes | No     | Recommended: `openssl rand -hex 32` for first-user signup.                                          |
 
 **Recommended:** Use Railway [shared variables](https://docs.railway.com/guides/variables#shared-variables) for `DATABASE_URL` and `NEXTAUTH_SECRET` so both services stay in sync automatically.
 
@@ -218,15 +218,15 @@ ls -la /home/nextjs/.claude/
 
 ## Troubleshooting
 
-| Issue                                      | What to check                                                                                                                                                              |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Build timeout                              | Retry; first Docker build is large. Increase patience or Railway plan limits.                                                                                              |
-| Health check fails                         | Logs → confirm `node server.js` listens on `PORT`. `railway.json` timeout is 300s.                                                                                         |
-| Worker idle / jobs stuck                   | Worker service not running or wrong start command; `DATABASE_URL` missing on worker; migrations never ran (check web deploy).                                              |
-| Jobs run twice                             | Unlikely with Postgres; if using legacy single SQLite file on one box, do not run two writers.                                                                             |
-| 403 from IP rules                          | `ALLOWED_IPS` too strict or wrong; unset temporarily.                                                                                                                      |
-| Permission errors on `/app/data`           | Volume ownership vs `nextjs` user; see Railway volume docs.                                                                                                                |
-| Sign-in shows “first account” after deploy | Ephemeral disk or multiple web replicas without shared `/app/data`. Add a volume for `/app/data`, scale web to one instance, recreate the first user if the file was lost. |
+| Issue                                      | What to check                                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build timeout                              | Retry; first Docker build is large. Increase patience or Railway plan limits.                                                                                                                |
+| Health check fails                         | Logs → confirm `node server.js` listens on `PORT`. `railway.json` timeout is 300s.                                                                                                           |
+| Worker idle / jobs stuck                   | Worker service not running or wrong start command; `DATABASE_URL` missing on worker; migrations never ran (check web deploy).                                                                |
+| Jobs run twice                             | Unlikely with Postgres; if using legacy single SQLite file on one box, do not run two writers.                                                                                               |
+| 403 from IP rules                          | `ALLOWED_IPS` too strict or wrong; unset temporarily.                                                                                                                                        |
+| Permission errors on `/app/data`           | Volume ownership vs `nextjs` user; see Railway volume docs.                                                                                                                                  |
+| Sign-in shows “first account” after deploy | Ephemeral disk or multiple web replicas without shared `/app/data`. Add a volume for `/app/data`, scale web to one instance, recreate the first user if the file was lost.                   |
 | Claude Code auth lost after redeploy       | Credentials were written to `/root/.claude` instead of `/home/nextjs/.claude`. Use `claude-login` to re-authenticate (see [Authenticating Claude Code](#authenticating-claude-code-worker)). |
 
 ## PostgreSQL

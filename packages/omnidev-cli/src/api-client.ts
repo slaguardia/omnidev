@@ -195,4 +195,33 @@ export async function getJob(jobId: string) {
   return request<Record<string, unknown>>('GET', `/api/jobs/${jobId}`);
 }
 
+// ── Auth validation ──
+
+/**
+ * Validate credentials without relying on getConfig() (which exits if no key is set).
+ * Makes a lightweight API call to confirm both connectivity and authentication.
+ */
+export async function validateCredentials(url: string, apiKey: string): Promise<void> {
+  const endpoint = `${url.replace(/\/+$/, '')}/api/ralph/tasks?limit=1`;
+
+  const res = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+    },
+  });
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as Record<string, unknown>;
+      msg = (body.error as string) ?? (body.message as string) ?? msg;
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(msg, res.status);
+  }
+}
+
 export { ApiError };

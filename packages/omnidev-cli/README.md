@@ -15,11 +15,51 @@ pnpm add -g omnidev
 yarn global add omnidev
 ```
 
+## Authentication
+
+The fastest way to get started is `auth login`:
+
+```bash
+omnidev auth login
+```
+
+This prompts for the Omnidev instance URL and API key, validates credentials against the server, and saves them to `~/.config/omnidev/.env`.
+
+### Auth commands
+
+```bash
+omnidev auth login          # Interactive credential setup
+omnidev auth status         # Show current config source and connectivity
+omnidev auth status --json  # Machine-readable output
+omnidev auth logout         # Remove stored credentials
+```
+
+### Example: first-time setup
+
+```
+$ omnidev auth login
+Omnidev instance URL [http://localhost:3000]: https://omnidev.example.com
+API key: omni_abc123...
+
+Validating credentials...
+Authenticated successfully. Config saved to /home/user/.config/omnidev/.env
+```
+
+### Example: switching instances
+
+Run `omnidev auth login` again — it overwrites the existing config file.
+
 ## Configuration
 
-The CLI needs two values: the Omnidev server URL and an API key.
+The CLI needs two values: the Omnidev server URL and an API key. The `auth login` command handles this automatically, but credentials can also be provided manually.
 
-### Option 1: Config file (recommended for global installs)
+### Option 1: Interactive login (recommended)
+
+```bash
+omnidev auth login
+```
+
+### Option 2: Config file
 
 Create `~/.config/omnidev/.env`:
 
@@ -28,20 +68,20 @@ OMNIDEV_URL=https://your-omnidev-instance.example.com
 OMNIDEV_API_KEY=your-api-key-here
 ```
 
-### Option 2: Environment variables
+### Option 3: Environment variables
 
 ```bash
 export OMNIDEV_URL=https://your-omnidev-instance.example.com
 export OMNIDEV_API_KEY=your-api-key-here
 ```
 
-### Option 3: Command-line flags
+### Option 4: Command-line flags
 
 ```bash
 omnidev --url https://your-instance.example.com --api-key your-key tasks list
 ```
 
-### Env file discovery order
+### Env file discovery and priority
 
 When no `--url` or `--api-key` flags are provided, the CLI searches for `.env` files in this order (first match wins):
 
@@ -49,6 +89,8 @@ When no `--url` or `--api-key` flags are provided, the CLI searches for `.env` f
 2. **Repo-root walk-up** — walk up from cwd to find a `package.json` named `omnidev` or `omnidev-app`, load `.env`/`.env.local` from there
 3. **XDG config** — `$XDG_CONFIG_HOME/omnidev/.env` (default `~/.config/omnidev/.env`)
 4. **Current directory** — `.env`/`.env.local` in the working directory
+
+**Auth override:** After env file discovery completes, the XDG config file is checked again. If it contains `OMNIDEV_URL` or `OMNIDEV_API_KEY`, those values override whatever was loaded from the repo-root `.env`. This ensures that credentials set via `auth login` always take precedence, even when running from inside the Omnidev repo. Other variables from the repo `.env` are preserved.
 
 ## Usage
 

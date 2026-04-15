@@ -407,7 +407,17 @@ Update (or create) \`.ralph/progress.md\` in the workspace root with:
 
 This file persists across iterations so the next instance can pick up where you left off.
 
-### 7. Signal Completion
+### 7. Clean Up Before Completion
+
+When ALL work for this task is complete and you are about to signal completion:
+
+1. Delete \`.ralph/progress.md\` — it is working state and must not be committed to the branch
+2. Remove any other temporary working files you created (scratch notes, debug logs, etc.)
+3. Run \`git add -A\` and commit the cleanup: \`git commit -m "chore: remove working files"\`
+
+This keeps the branch clean for code review. The progress file is only for cross-iteration memory — it must never appear in the final merge request.
+
+### 8. Signal Completion
 
 If ALL work for this task is complete (nothing remaining):
 - Output \`<promise>COMPLETE</promise>\` at the end of your response
@@ -424,6 +434,7 @@ If work remains, do NOT output the completion signal. The system will automatica
 - **Exit cleanly** — the system handles the next iteration
 - **Do not modify files unrelated to the task**
 - **Update .ralph/progress.md** — this is how you communicate state across iterations
+- **Clean up on completion** — delete .ralph/progress.md and any temp files before the final commit
 - **Signal completion** — output \`<promise>COMPLETE</promise>\` only when ALL work is done`;
 
 /**
