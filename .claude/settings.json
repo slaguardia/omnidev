@@ -2,7 +2,27 @@
   "enabledPlugins": {
     "ralph-local-team@slaguardia-plugins": true
   },
+  "permissions": {
+    "deny": [
+      "Bash(glab mr merge:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)"
+    ]
+  },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/protect-branches.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
