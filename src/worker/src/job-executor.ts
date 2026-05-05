@@ -8,6 +8,7 @@
  */
 
 import { rm, mkdir } from 'node:fs/promises';
+import { nanoid } from 'nanoid';
 import { cloneRepository } from '@/lib/git/core';
 import { cloneFromCache } from '@/lib/git/repo-cache';
 import { createSandboxedGit } from '@/lib/git/sandbox';
@@ -15,11 +16,14 @@ import { hasUncommittedChanges, addAllFiles, commitChanges } from '@/lib/git/com
 import { pushChanges } from '@/lib/git/remotes';
 import { detectProviderFromUrl } from '@/lib/git/provider-detection';
 import { getConfig } from '@/lib/config/server-actions';
-import { dbGetTask } from '@/lib/managers/ralph-task-db';
+import {
+  dbAppendAgentEvent,
+  dbGetTask,
+  dbUpdateAgentRunSummary,
+} from '@/lib/managers/ralph-task-db';
 import type { RalphJob } from '@/lib/managers/ralph-task-db';
 import type { FilePath, GitUrl } from '@/lib/common/types';
 import type { AgentRunner } from '@/lib/agent/claude-code-agent';
-import { collapseEventsToOutput } from '@/lib/agent/collapse';
 import {
   getGitCredentials,
   buildBranchName,
@@ -54,8 +58,17 @@ interface JobPayload {
 
 /**
  * Execute a V2 job — single code path, branched by payload.execution_mode.
+ *
+ * @param runId optional agent_runs row id. When set, every AgentEvent emitted
+ *   during the run is persisted to agent_events and usage_update events
+ *   update the run's summary fields. Threaded from src/worker/src/index.ts:
+ *   runJob, where the row is created.
  */
-export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<JobResult> {
+export async function executeV2Job(
+  job: RalphJob,
+  agent: AgentRunner,
+  runId?: string
+): Promise<JobResult> {
   const startTime = Date.now();
   const payload = parsePayload(job);
   const task = await loadTask(payload.task_id);
@@ -114,7 +127,8 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
       task.description ?? payload.description,
       tmpDir,
       isEdit,
-      logTag
+      logTag,
+      runId
     );
     agentMs = Date.now() - agentStart;
 
@@ -203,44 +217,156 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
 // Agent retry logic
 // ---------------------------------------------------------------------------
 
-async function runAgentWithRetry(
+/**
+ * Drain a single AgentRunner.run() invocation. Persists events to
+ * agent_events when runId is set; the workerSeq counter is shared across
+ * attempts so retried runs continue the seq sequence rather than colliding
+ * with the first attempt's seq=0.
+ *
+ * Returns: the assembled assistant text, any error event encountered (used
+ * by the retry path), and the cumulative usage so the caller can write a
+ * single per-run summary.
+ */
+async function consumeAttempt(
   agent: AgentRunner,
   question: string,
   workingDirectory: string,
   editRequest: boolean,
-  logTag: string
+  runId: string | undefined,
+  workerSeq: { next: () => number }
+): Promise<{
+  output: string;
+  errorEvent: { message: string; recoverable: boolean } | null;
+  usage: { inputTokens: number; outputTokens: number; model: string } | null;
+}> {
+  let output = '';
+  let errorEvent: { message: string; recoverable: boolean } | null = null;
+  let usage: { inputTokens: number; outputTokens: number; model: string } | null = null;
+
+  for await (const event of agent.run({ question, workingDirectory, editRequest })) {
+    if (runId) {
+      // Replace the agent's per-stream seq with the worker's per-run counter
+      // so retry attempts produce a continuous seq sequence under one runId.
+      const persistedSeq = workerSeq.next();
+      try {
+        await dbAppendAgentEvent({
+          id: nanoid(12),
+          run_id: runId,
+          seq: persistedSeq,
+          type: event.type,
+          payload: JSON.stringify({ ...event, seq: persistedSeq }),
+          created_at: event.timestamp,
+        });
+      } catch (err) {
+        // Persistence is best-effort — the agent stream is canonical.
+        console.warn(`[WORKER] Failed to persist event seq=${persistedSeq}:`, err);
+      }
+    }
+
+    if (event.type === 'assistant_message') {
+      output += event.text;
+    } else if (event.type === 'usage_update') {
+      usage = {
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        model: event.model,
+      };
+    } else if (event.type === 'error') {
+      errorEvent = { message: event.message, recoverable: event.recoverable };
+    }
+  }
+
+  return { output, errorEvent, usage };
+}
+
+/**
+ * Exported only for tests — internal helper that drives the retry-once
+ * behavior on top of the streaming AgentRunner contract.
+ */
+export async function runAgentWithRetry(
+  agent: AgentRunner,
+  question: string,
+  workingDirectory: string,
+  editRequest: boolean,
+  logTag: string,
+  runId?: string
 ): Promise<{ output: string; retried: boolean }> {
-  // collapseEventsToOutput drains the AgentRunner streaming events and
-  // returns the legacy { output: string } shape. A future sub-task migrates
-  // this site to consume events directly so each event lands in agent_events.
+  const workerSeq = (() => {
+    let s = 0;
+    return { next: () => s++ };
+  })();
+
+  let firstAttemptError: Error | null = null;
+  let firstAttempt: Awaited<ReturnType<typeof consumeAttempt>> | null = null;
+
   try {
-    const result = await collapseEventsToOutput(
-      agent.run({ question, workingDirectory, editRequest })
-    );
-    return { output: result.output, retried: false };
-  } catch (firstError) {
-    const errorMsg = firstError instanceof Error ? firstError.message : String(firstError);
-    console.warn(`${logTag} First attempt failed: ${errorMsg}. Retrying with error context...`);
-
-    const retryQuestion = [
+    firstAttempt = await consumeAttempt(
+      agent,
       question,
-      '',
-      '---',
-      'The previous attempt to complete this task failed with this error:',
-      errorMsg,
-      '',
-      'Please try again, addressing the error above.',
-    ].join('\n');
-
-    const result = await collapseEventsToOutput(
-      agent.run({
-        question: retryQuestion,
-        workingDirectory,
-        editRequest,
-      })
+      workingDirectory,
+      editRequest,
+      runId,
+      workerSeq
     );
-    console.log(`${logTag} Retry succeeded`);
-    return { output: result.output, retried: true };
+    if (firstAttempt.errorEvent) {
+      firstAttemptError = new Error(firstAttempt.errorEvent.message);
+    }
+  } catch (caughtError) {
+    firstAttemptError = caughtError instanceof Error ? caughtError : new Error(String(caughtError));
+  }
+
+  if (!firstAttemptError && firstAttempt) {
+    if (runId && firstAttempt.usage) {
+      await persistUsage(runId, firstAttempt.usage);
+    }
+    return { output: firstAttempt.output, retried: false };
+  }
+
+  const errorMsg = firstAttemptError?.message ?? 'unknown agent failure';
+  console.warn(`${logTag} First attempt failed: ${errorMsg}. Retrying with error context...`);
+
+  const retryQuestion = [
+    question,
+    '',
+    '---',
+    'The previous attempt to complete this task failed with this error:',
+    errorMsg,
+    '',
+    'Please try again, addressing the error above.',
+  ].join('\n');
+
+  const retryAttempt = await consumeAttempt(
+    agent,
+    retryQuestion,
+    workingDirectory,
+    editRequest,
+    runId,
+    workerSeq
+  );
+
+  if (retryAttempt.errorEvent) {
+    throw new Error(retryAttempt.errorEvent.message);
+  }
+  if (runId && retryAttempt.usage) {
+    await persistUsage(runId, retryAttempt.usage);
+  }
+  console.log(`${logTag} Retry succeeded`);
+  return { output: retryAttempt.output, retried: true };
+}
+
+async function persistUsage(
+  runId: string,
+  usage: { inputTokens: number; outputTokens: number; model: string }
+): Promise<void> {
+  try {
+    await dbUpdateAgentRunSummary(runId, {
+      model: usage.model,
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      total_tokens: usage.inputTokens + usage.outputTokens,
+    });
+  } catch (err) {
+    console.warn(`[WORKER] Failed to persist agent run summary for ${runId}:`, err);
   }
 }
 

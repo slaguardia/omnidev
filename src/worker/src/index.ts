@@ -55,7 +55,7 @@ async function dispatchJob(job: RalphJob, runId: string): Promise<{ logs: string
   }
 
   // V2 coding-agent jobs
-  const result = await executeV2Job(job, agent);
+  const result = await executeV2Job(job, agent, runId);
 
   await dbUpdateJob(job.id, {
     status: 'completed',
