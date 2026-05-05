@@ -2,7 +2,8 @@
  * Standalone worker process for Omnidev.
  *
  * Entry point: tsx src/worker/index.ts
- * Polls ralph.db for pending jobs, claims them atomically, and executes.
+ * Polls the database for pending jobs, claims them atomically, and executes
+ * up to WORKER_CONCURRENCY of them in parallel within a single Node process.
  * Handles both V2 (coding-agent) and Ralph stage jobs.
  * Recovers stale jobs (no heartbeat for 10+ minutes) on each poll cycle.
  */
@@ -25,13 +26,12 @@ import { ClaudeCodeAgent } from '@/lib/agent/claude-code-agent';
 import { executeV2Job } from './job-executor';
 import { executeRalphStageJob } from '@/lib/queue/job-handlers';
 import type { RalphStageJobPayload } from '@/lib/queue/types';
+import { createScheduler, resolveConcurrency } from './scheduler';
 
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-
-let shouldStop = false;
-let pollHandle: ReturnType<typeof setTimeout> | null = null;
+const DEFAULT_CONCURRENCY = 3;
 
 const agent = new ClaudeCodeAgent();
 
@@ -74,35 +74,12 @@ async function dispatchJob(job: RalphJob): Promise<{ logs: string }> {
 }
 
 /**
- * Main poll loop — recovers stale jobs, then claims and executes one job per iteration.
+ * Per-job lifecycle: agent run record + heartbeat + dispatch + cleanup.
+ * Errors are caught and recorded; this function never throws.
  */
-async function pollLoop(): Promise<void> {
-  if (shouldStop) return;
-
-  // Recover stale jobs before claiming new work
-  const cutoff = new Date(Date.now() - STALE_JOB_TIMEOUT_MS).toISOString();
-  const recovered = await dbRecoverStaleJobs(cutoff);
-  if (recovered > 0) {
-    console.log(`[WORKER] Recovered ${recovered} stale job(s) (no heartbeat for 10+ min)`);
-    // Revoke tokens for recovered stale jobs
-    // (dbRecoverStaleJobs doesn't return IDs, so use expired token cleanup as catch-all)
-  }
-
-  // Periodically revoke expired tokens (cheap — runs every poll cycle)
-  const expiredRevoked = await revokeExpiredTokens();
-  if (expiredRevoked > 0) {
-    console.log(`[WORKER] Revoked ${expiredRevoked} expired stage token(s)`);
-  }
-
-  const job = await dbClaimNextPendingJob();
-  if (!job) {
-    pollHandle = setTimeout(() => void pollLoop(), POLL_INTERVAL_MS);
-    return;
-  }
-
+async function runJob(job: RalphJob): Promise<void> {
   console.log(`[WORKER] Claimed job ${job.id} (task: ${job.task_id}, type: ${job.agent_type})`);
 
-  // Create agent run record
   const runId = nanoid(10);
   const runStart = new Date().toISOString();
   await dbCreateAgentRun({
@@ -114,7 +91,6 @@ async function pollLoop(): Promise<void> {
     completed_at: null,
   });
 
-  // Start heartbeat — keeps the job alive during long executions
   const heartbeatHandle = setInterval(() => {
     void dbHeartbeatJob(job.id);
   }, HEARTBEAT_INTERVAL_MS);
@@ -122,7 +98,6 @@ async function pollLoop(): Promise<void> {
   try {
     const { logs } = await dispatchJob(job);
 
-    // Update agent run
     await dbUpdateAgentRun(runId, {
       status: 'completed',
       logs,
@@ -134,13 +109,11 @@ async function pollLoop(): Promise<void> {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
 
-    // Mark job failed
     await dbUpdateJob(job.id, {
       status: 'failed',
       error: errorMessage,
     });
 
-    // Update agent run
     await dbUpdateAgentRun(runId, {
       status: 'failed',
       logs: `Error: ${errorMessage}`,
@@ -148,32 +121,31 @@ async function pollLoop(): Promise<void> {
     });
   } finally {
     clearInterval(heartbeatHandle);
-    // Revoke any scoped CLI tokens for this job
     const revoked = await revokeJobTokens(job.id);
     if (revoked > 0) {
       console.log(`[WORKER] Revoked ${revoked} stage token(s) for job ${job.id}`);
     }
   }
-
-  // Schedule next poll (immediate — there may be more jobs)
-  if (!shouldStop) {
-    pollHandle = setTimeout(() => void pollLoop(), 0);
-  }
 }
+
+const scheduler = createScheduler<RalphJob>({
+  maxConcurrency: resolveConcurrency(process.env.WORKER_CONCURRENCY, DEFAULT_CONCURRENCY),
+  pollIntervalMs: POLL_INTERVAL_MS,
+  claimNextJob: dbClaimNextPendingJob,
+  runJob,
+  recoverStaleJobs: () => {
+    const cutoff = new Date(Date.now() - STALE_JOB_TIMEOUT_MS).toISOString();
+    return dbRecoverStaleJobs(cutoff);
+  },
+  revokeExpiredTokens,
+});
 
 /**
  * Graceful shutdown handler.
  */
 function shutdown(): void {
-  if (shouldStop) return;
   console.log('[WORKER] Shutting down...');
-  shouldStop = true;
-
-  if (pollHandle) {
-    clearTimeout(pollHandle);
-    pollHandle = null;
-  }
-
+  scheduler.stop();
   void dbClose();
   console.log('[WORKER] Database closed. Goodbye.');
   process.exit(0);
@@ -197,8 +169,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  console.log(`[WORKER] Polling for jobs every ${POLL_INTERVAL_MS}ms`);
-  void pollLoop();
+  scheduler.start();
 }
 
 void main();
