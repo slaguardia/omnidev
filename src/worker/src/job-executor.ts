@@ -7,8 +7,6 @@
  * Includes one automatic retry on agent failure with error context.
  */
 
-import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
 import { rm, mkdir } from 'node:fs/promises';
 import { cloneRepository } from '@/lib/git/core';
 import { createSandboxedGit } from '@/lib/git/sandbox';
@@ -20,7 +18,14 @@ import { dbGetTask } from '@/lib/managers/ralph-task-db';
 import type { RalphJob } from '@/lib/managers/ralph-task-db';
 import type { FilePath, GitUrl } from '@/lib/common/types';
 import type { AgentRunner } from '@/lib/agent/claude-code-agent';
-import { getGitCredentials, buildBranchName, buildCommitMessage } from './git-helpers';
+import { collapseEventsToOutput } from '@/lib/agent/collapse';
+import {
+  getGitCredentials,
+  buildBranchName,
+  buildCommitMessage,
+  buildWorkspaceDir,
+  checkoutOrCreateBranch,
+} from './git-helpers';
 
 export interface JobResult {
   output: string;
@@ -51,7 +56,7 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
   const logTag = `[WORKER:${executionMode}]`;
 
   const branchName = isEdit ? buildBranchName(task.id) : null;
-  const tmpDir = makeTmpDir(task.id);
+  const tmpDir = buildWorkspaceDir(task.id, job.id);
 
   try {
     await mkdir(tmpDir, { recursive: true });
@@ -76,7 +81,7 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
     if (isEdit && branchName) {
       const git = createSandboxedGit(tmpDir);
       console.log(`${logTag} Checking out branch: ${branchName}`);
-      await git.checkoutLocalBranch(branchName);
+      await checkoutOrCreateBranch(git, branchName);
 
       try {
         await git.fetch(['--unshallow']);
@@ -163,8 +168,13 @@ async function runAgentWithRetry(
   editRequest: boolean,
   logTag: string
 ): Promise<{ output: string; retried: boolean }> {
+  // collapseEventsToOutput drains the AgentRunner streaming events and
+  // returns the legacy { output: string } shape. A future sub-task migrates
+  // this site to consume events directly so each event lands in agent_events.
   try {
-    const result = await agent.run({ question, workingDirectory, editRequest });
+    const result = await collapseEventsToOutput(
+      agent.run({ question, workingDirectory, editRequest })
+    );
     return { output: result.output, retried: false };
   } catch (firstError) {
     const errorMsg = firstError instanceof Error ? firstError.message : String(firstError);
@@ -180,11 +190,13 @@ async function runAgentWithRetry(
       'Please try again, addressing the error above.',
     ].join('\n');
 
-    const result = await agent.run({
-      question: retryQuestion,
-      workingDirectory,
-      editRequest,
-    });
+    const result = await collapseEventsToOutput(
+      agent.run({
+        question: retryQuestion,
+        workingDirectory,
+        editRequest,
+      })
+    );
     console.log(`${logTag} Retry succeeded`);
     return { output: result.output, retried: true };
   }
@@ -208,10 +220,6 @@ async function loadTask(taskId: string) {
     throw new Error(`Task ${taskId} not found`);
   }
   return task;
-}
-
-function makeTmpDir(taskId: string): string {
-  return resolve(tmpdir(), 'omnidev', `task-${taskId}`);
 }
 
 async function cleanupTmpDir(tmpDir: string): Promise<void> {
