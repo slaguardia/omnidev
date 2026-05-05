@@ -35,6 +35,13 @@ export interface JobResult {
   execution_mode: 'readonly' | 'edit';
   retried: boolean;
   execution_time_ms: number;
+  /** Per-stage breakdown for observability (all in ms, null when stage was skipped). */
+  timings: {
+    clone_ms: number | null;
+    agent_ms: number | null;
+    push_ms: number | null;
+    total_ms: number;
+  };
 }
 
 interface JobPayload {
@@ -59,6 +66,10 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
   const branchName = isEdit ? buildBranchName(task.id) : null;
   const tmpDir = buildWorkspaceDir(task.id, job.id);
 
+  let cloneMs: number | null = null;
+  let agentMs: number | null = null;
+  let pushMs: number | null = null;
+
   try {
     await mkdir(tmpDir, { recursive: true });
     console.log(`${logTag} Temp dir: ${tmpDir}`);
@@ -71,9 +82,11 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
     console.log(`${logTag} Cloning ${payload.repo_url}...`);
     const cloneOpts = credentials ? { credentials } : {};
     const useCache = process.env.OMNIDEV_REPO_CACHE !== '0';
+    const cloneStart = Date.now();
     const cloneResult = useCache
       ? await cloneFromCache(payload.repo_url as GitUrl, tmpDir as FilePath, cloneOpts)
       : await cloneRepository(payload.repo_url as GitUrl, tmpDir as FilePath, cloneOpts);
+    cloneMs = Date.now() - cloneStart;
     if (!cloneResult.success) {
       throw new Error(`Clone failed: ${cloneResult.error.message}`);
     }
@@ -95,6 +108,7 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
 
     // Run agent with one retry on failure
     console.log(`${logTag} Running agent (${executionMode} mode)...`);
+    const agentStart = Date.now();
     const { output, retried } = await runAgentWithRetry(
       agent,
       task.description ?? payload.description,
@@ -102,6 +116,7 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
       isEdit,
       logTag
     );
+    agentMs = Date.now() - agentStart;
 
     // Commit + push if edit mode and changes exist
     let commitHash: string | null = null;
@@ -135,7 +150,9 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
 
         // Push
         console.log(`${logTag} Pushing branch ${branchName}...`);
+        const pushStart = Date.now();
         const pushResult = await pushChanges(tmpDir as FilePath, branchName!);
+        pushMs = Date.now() - pushStart;
         if (!pushResult.success) {
           throw new Error(`Push failed: ${pushResult.error.message}`);
         }
@@ -147,13 +164,35 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
       console.log(`${logTag} Read-only mode — skipping git operations`);
     }
 
+    const totalMs = Date.now() - startTime;
+    console.log(
+      `[WORKER:duration] ${JSON.stringify({
+        job_id: job.id,
+        task_id: task.id,
+        agent_type: job.agent_type,
+        repo_url: payload.repo_url,
+        execution_mode: executionMode,
+        clone_ms: cloneMs,
+        agent_ms: agentMs,
+        push_ms: pushMs,
+        total_ms: totalMs,
+        retried,
+      })}`
+    );
+
     return {
       output,
       branch: branchName,
       commit_hash: commitHash,
       execution_mode: executionMode,
       retried,
-      execution_time_ms: Date.now() - startTime,
+      execution_time_ms: totalMs,
+      timings: {
+        clone_ms: cloneMs,
+        agent_ms: agentMs,
+        push_ms: pushMs,
+        total_ms: totalMs,
+      },
     };
   } finally {
     await cleanupTmpDir(tmpDir);

@@ -115,6 +115,16 @@ export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
 
     await tryClaimMore();
 
+    if (inFlight.size > 0) {
+      log.log(
+        `[WORKER:in-flight] ${JSON.stringify({
+          count: inFlight.size,
+          max: opts.maxConcurrency,
+          job_ids: Array.from(inFlight.keys()),
+        })}`
+      );
+    }
+
     if (!stopped) {
       pollHandle = setTimeout(() => void tick(), opts.pollIntervalMs);
     }
