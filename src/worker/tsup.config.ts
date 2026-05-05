@@ -28,8 +28,11 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  // Native addons and packages that must be resolved at runtime
-  external: ['better-sqlite3', '@prisma/client'],
+  // Native addons and packages that must be resolved at runtime.
+  // @cursor/sdk ships ESM/CJS dual builds and depends on dynamic imports the
+  // bundler can't statically follow; keep it external so worker.cjs requires
+  // it from node_modules at runtime.
+  external: ['better-sqlite3', '@prisma/client', '@cursor/sdk'],
   // Resolve @/ to shared library (same as worker tsconfig)
   esbuildOptions(options) {
     options.alias = {

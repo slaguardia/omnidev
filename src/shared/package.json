@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "dependencies": {
+    "@cursor/sdk": "^1.0.12",
     "@gitbeaker/rest": "^39.16.0",
     "@octokit/rest": "^22.0.1",
     "@prisma/client": "^5.22.0",
