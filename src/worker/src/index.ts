@@ -40,10 +40,10 @@ const agent = new ClaudeCodeAgent();
 /**
  * Execute a job based on its agent_type.
  */
-async function dispatchJob(job: RalphJob): Promise<{ logs: string }> {
+async function dispatchJob(job: RalphJob, runId: string): Promise<{ logs: string }> {
   if (job.agent_type === 'ralph-stage') {
     const payload = JSON.parse(job.payload) as RalphStageJobPayload;
-    const result = await executeRalphStageJob(payload, job.id);
+    const result = await executeRalphStageJob(payload, job.id, runId);
     await dbUpdateJob(job.id, {
       status: result.error ? 'failed' : 'completed',
       result: JSON.stringify(result),
@@ -98,7 +98,7 @@ async function runJob(job: RalphJob): Promise<void> {
   }, HEARTBEAT_INTERVAL_MS);
 
   try {
-    const { logs } = await dispatchJob(job);
+    const { logs } = await dispatchJob(job, runId);
 
     await dbUpdateAgentRun(runId, {
       status: 'completed',

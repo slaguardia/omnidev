@@ -522,7 +522,8 @@ export async function executeWorkspaceCleanupJob(
  */
 export async function executeRalphStageJob(
   payload: RalphStageJobPayload,
-  jobId?: string
+  jobId?: string,
+  runId?: string
 ): Promise<RalphStageJobResult> {
   const startTime = Date.now();
   console.log(
@@ -740,6 +741,7 @@ export async function executeRalphStageJob(
       },
       parseQuestions: payload.returnQuestions,
       extraEnv,
+      runId,
     };
 
     // ---- 4. Execute agent ----

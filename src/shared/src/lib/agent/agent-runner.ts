@@ -11,13 +11,15 @@
  * writes task state. That responsibility belongs to the orchestrator.
  */
 
+import { nanoid } from 'nanoid';
+
 import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/claudeCode';
+import { dbAppendAgentEvent, dbUpdateAgentRunSummary } from '@/lib/managers/ralph-task-db';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type { GitUrl, Result } from '@/lib/types/index';
 import { parseQuestionsFromOutput } from '@/lib/workflow/prompt-template';
 
-import { collapseEventsToOutput } from './collapse';
-import type { AgentRunRequest, AgentRunResult, AgentRunner } from './types';
+import type { AgentEvent, AgentRunRequest, AgentRunResult, AgentRunner } from './types';
 
 const LOG_PREFIX = '[AGENT]';
 
@@ -120,30 +122,18 @@ export async function executeAgentRun(
       _effectiveSourceBranch = initResult.data.sourceBranch;
     }
 
-    // ----- 3. AI execution via AgentRunner -----
-    // The AgentRunner is a streaming interface (AsyncIterable<AgentEvent>);
-    // collapseEventsToOutput drains the stream and returns the legacy
-    // { output: string } shape this orchestrator currently expects. A future
-    // sub-task migrates this site to consume events directly so each event
-    // can be persisted to agent_events.
+    // ----- 3. AI execution via AgentRunner (streaming) -----
+    // Iterate the AgentEvent stream, persist each event to agent_events
+    // (when request.runId is set), and assemble the legacy AgentRunResult
+    // fields from terminal events. This is the migration off the buffered
+    // collapseEventsToOutput drain — downstream consumers (Ralph Board live
+    // timeline) now have access to the structured event row stream.
     const runner = agent ?? (await getDefaultAgent());
-    let output: string;
-    try {
-      const runResult = await collapseEventsToOutput(
-        runner.run({
-          question: request.prompt,
-          workingDirectory: request.workspacePath,
-          editRequest: request.editMode,
-          extraEnv: request.extraEnv,
-        })
-      );
-      output = runResult.output;
-    } catch (runError) {
-      return {
-        success: false,
-        error: runError instanceof Error ? runError : new Error(String(runError)),
-      };
+    const consumed = await consumeAgentStream(runner, request, tag);
+    if (!consumed.success) {
+      return consumed;
     }
+    const output = consumed.data.output;
     const executionTimeMs = Date.now() - startTime;
     console.log(`${LOG_PREFIX} ${tag} output (${output.length} chars) in ${executionTimeMs}ms`);
 
@@ -251,5 +241,97 @@ export async function executeAgentRun(
       success: false,
       error: error instanceof Error ? error : new Error(String(error)),
     };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: drive the AgentRunner stream and persist events
+// ---------------------------------------------------------------------------
+
+/**
+ * Iterate the AgentRunner event stream once. Side effects:
+ *   - Persists every event to agent_events when request.runId is set.
+ *   - Aggregates usage_update events into a per-run summary that is written
+ *     back via dbUpdateAgentRunSummary on completion.
+ *   - Concatenates assistant_message text into the legacy output string.
+ *   - Surfaces error events as a failed Result.
+ *
+ * Persistence failures are logged but never abort execution — the agent
+ * stream is the source of truth for the run's success, not the timeline DB.
+ */
+async function consumeAgentStream(
+  runner: AgentRunner,
+  request: AgentRunRequest,
+  tag: string
+): Promise<Result<{ output: string }, Error>> {
+  let output = '';
+  let agentError: Error | null = null;
+  let lastUsage: { inputTokens: number; outputTokens: number; model: string } | null = null;
+
+  try {
+    const stream = runner.run({
+      question: request.prompt,
+      workingDirectory: request.workspacePath,
+      editRequest: request.editMode,
+      extraEnv: request.extraEnv,
+    });
+
+    for await (const event of stream) {
+      if (request.runId) {
+        await persistEvent(request.runId, event, tag);
+      }
+
+      if (event.type === 'assistant_message') {
+        output += event.text;
+      } else if (event.type === 'usage_update') {
+        lastUsage = {
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          model: event.model,
+        };
+      } else if (event.type === 'error') {
+        agentError = new Error(event.message);
+      }
+    }
+  } catch (runError) {
+    return {
+      success: false,
+      error: runError instanceof Error ? runError : new Error(String(runError)),
+    };
+  }
+
+  if (request.runId && lastUsage) {
+    try {
+      await dbUpdateAgentRunSummary(request.runId, {
+        model: lastUsage.model,
+        input_tokens: lastUsage.inputTokens,
+        output_tokens: lastUsage.outputTokens,
+        total_tokens: lastUsage.inputTokens + lastUsage.outputTokens,
+      });
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} ${tag} failed to persist run summary:`, err);
+    }
+  }
+
+  if (agentError) {
+    return { success: false, error: agentError };
+  }
+  return { success: true, data: { output } };
+}
+
+async function persistEvent(runId: string, event: AgentEvent, tag: string): Promise<void> {
+  try {
+    await dbAppendAgentEvent({
+      id: nanoid(12),
+      run_id: runId,
+      seq: event.seq,
+      type: event.type,
+      payload: JSON.stringify(event),
+      created_at: event.timestamp,
+    });
+  } catch (err) {
+    // Don't abort execution on a single persistence failure — the agent
+    // stream is canonical, the timeline is best-effort.
+    console.warn(`${LOG_PREFIX} ${tag} failed to persist event ${event.seq} (${event.type}):`, err);
   }
 }

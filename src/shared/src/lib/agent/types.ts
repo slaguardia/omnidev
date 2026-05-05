@@ -189,6 +189,18 @@ export interface AgentRunRequest {
   /** Current iteration number — used for logging only */
   iteration: number;
 
+  /**
+   * Agent run id (matches an agent_runs row already created by the caller).
+   * When provided, every AgentEvent emitted during this run is persisted to
+   * the agent_events table and any usage_update events update the run's
+   * summary fields. Must be unique per concurrent invocation; the orchestrator
+   * is responsible for generating it (see worker/src/index.ts:runJob).
+   *
+   * Optional so that pre-DB callers (tests, ad-hoc scripts) can still invoke
+   * the runner; events are then collected in-memory only.
+   */
+  runId?: string | undefined;
+
   /** Fully-resolved prompt (orchestrator handles continuation context) */
   prompt: string;
 
