@@ -67,6 +67,7 @@ describe('worker scheduler', () => {
         maxConcurrency: 3,
         pollIntervalMs: 1000,
         claimNextJob,
+        getJobId: (id: string) => id,
         runJob,
         recoverStaleJobs: vi.fn(async () => 0),
         revokeExpiredTokens: vi.fn(async () => 0),
@@ -112,6 +113,7 @@ describe('worker scheduler', () => {
         maxConcurrency: 1,
         pollIntervalMs: 1000,
         claimNextJob,
+        getJobId: (id: string) => id,
         runJob,
         recoverStaleJobs: vi.fn(async () => 0),
         revokeExpiredTokens: vi.fn(async () => 0),
@@ -156,6 +158,7 @@ describe('worker scheduler', () => {
         maxConcurrency: 2,
         pollIntervalMs: 1000,
         claimNextJob,
+        getJobId: (id: string) => id,
         runJob,
         recoverStaleJobs: vi.fn(async () => 0),
         revokeExpiredTokens: vi.fn(async () => 0),
@@ -191,6 +194,7 @@ describe('worker scheduler', () => {
         maxConcurrency: 1,
         pollIntervalMs: 100,
         claimNextJob,
+        getJobId: (id: string) => id,
         runJob,
         recoverStaleJobs,
         revokeExpiredTokens: vi.fn(async () => 0),
@@ -212,6 +216,149 @@ describe('worker scheduler', () => {
     });
   });
 
+  describe('drain (graceful shutdown)', () => {
+    it('returns drained job IDs when all in-flight jobs finish in time', async () => {
+      const queued = ['j1', 'j2'];
+      const claimNextJob = vi.fn(async () => queued.shift() ?? null);
+
+      const blockers = new Map<string, Deferred<void>>();
+      const runJob = vi.fn(async (id: string) => {
+        const block = deferred<void>();
+        blockers.set(id, block);
+        await block.promise;
+      });
+
+      const scheduler = createScheduler<string>({
+        maxConcurrency: 2,
+        pollIntervalMs: 1000,
+        claimNextJob,
+        getJobId: (id: string) => id,
+        runJob,
+        recoverStaleJobs: vi.fn(async () => 0),
+        revokeExpiredTokens: vi.fn(async () => 0),
+        logger: { log: () => {}, error: () => {} },
+      });
+
+      scheduler.start();
+      for (let i = 0; i < 10; i++) await nextTick();
+      expect(scheduler.inFlightCount()).toBe(2);
+
+      const drainPromise = scheduler.drain(1000);
+
+      await nextTick();
+      blockers.get('j1')!.resolve();
+      blockers.get('j2')!.resolve();
+
+      const result = await drainPromise;
+
+      expect(result.timedOut).toBe(false);
+      expect(result.drainedJobIds.sort()).toEqual(['j1', 'j2']);
+      expect(result.abandonedJobIds).toEqual([]);
+    });
+
+    it('reports unfinished jobs as abandoned when timeout fires', async () => {
+      const queued = ['slow-1', 'slow-2'];
+      const claimNextJob = vi.fn(async () => queued.shift() ?? null);
+
+      const runJob = vi.fn(async () => {
+        await new Promise<void>(() => {});
+      });
+
+      const scheduler = createScheduler<string>({
+        maxConcurrency: 2,
+        pollIntervalMs: 1000,
+        claimNextJob,
+        getJobId: (id: string) => id,
+        runJob,
+        recoverStaleJobs: vi.fn(async () => 0),
+        revokeExpiredTokens: vi.fn(async () => 0),
+        logger: { log: () => {}, error: () => {} },
+      });
+
+      scheduler.start();
+      for (let i = 0; i < 10; i++) await nextTick();
+      expect(scheduler.inFlightCount()).toBe(2);
+
+      const result = await scheduler.drain(20);
+
+      expect(result.timedOut).toBe(true);
+      expect(result.drainedJobIds).toEqual([]);
+      expect(result.abandonedJobIds.sort()).toEqual(['slow-1', 'slow-2']);
+    });
+
+    it('stops claiming new jobs once drain begins', async () => {
+      const queued = ['j1', 'j2', 'j3', 'j4'];
+      const claimNextJob = vi.fn(async () => queued.shift() ?? null);
+
+      const blockers = new Map<string, Deferred<void>>();
+      const runJob = vi.fn(async (id: string) => {
+        const block = deferred<void>();
+        blockers.set(id, block);
+        await block.promise;
+      });
+
+      const scheduler = createScheduler<string>({
+        maxConcurrency: 2,
+        pollIntervalMs: 1000,
+        claimNextJob,
+        getJobId: (id: string) => id,
+        runJob,
+        recoverStaleJobs: vi.fn(async () => 0),
+        revokeExpiredTokens: vi.fn(async () => 0),
+        logger: { log: () => {}, error: () => {} },
+      });
+
+      scheduler.start();
+      for (let i = 0; i < 10; i++) await nextTick();
+      expect(scheduler.inFlightCount()).toBe(2);
+
+      const drainPromise = scheduler.drain(1000);
+
+      await nextTick();
+      blockers.get('j1')!.resolve();
+      await nextTick();
+      blockers.get('j2')!.resolve();
+
+      await drainPromise;
+
+      expect(runJob).toHaveBeenCalledTimes(2);
+    });
+
+    it('inFlightJobIds returns the IDs of currently running jobs', async () => {
+      const queued = ['x1', 'x2', 'x3'];
+      const claimNextJob = vi.fn(async () => queued.shift() ?? null);
+
+      const blockers = new Map<string, Deferred<void>>();
+      const runJob = vi.fn(async (id: string) => {
+        const block = deferred<void>();
+        blockers.set(id, block);
+        await block.promise;
+      });
+
+      const scheduler = createScheduler<string>({
+        maxConcurrency: 3,
+        pollIntervalMs: 1000,
+        claimNextJob,
+        getJobId: (id: string) => id,
+        runJob,
+        recoverStaleJobs: vi.fn(async () => 0),
+        revokeExpiredTokens: vi.fn(async () => 0),
+        logger: { log: () => {}, error: () => {} },
+      });
+
+      scheduler.start();
+      for (let i = 0; i < 10; i++) await nextTick();
+
+      expect(scheduler.inFlightJobIds().sort()).toEqual(['x1', 'x2', 'x3']);
+
+      for (const b of blockers.values()) b.resolve();
+      for (let i = 0; i < 20; i++) await nextTick();
+
+      expect(scheduler.inFlightJobIds()).toEqual([]);
+      scheduler.stop();
+    });
+  });
+
   describe('stop', () => {
     it('halts further polling after stop()', async () => {
       const claimNextJob = vi.fn(async () => null);
@@ -221,6 +368,7 @@ describe('worker scheduler', () => {
         maxConcurrency: 2,
         pollIntervalMs: 10,
         claimNextJob,
+        getJobId: (id: string) => id,
         runJob: vi.fn(),
         recoverStaleJobs,
         revokeExpiredTokens: vi.fn(async () => 0),

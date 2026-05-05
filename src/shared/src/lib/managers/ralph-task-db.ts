@@ -227,6 +227,12 @@ export async function dbHeartbeatJob(jobId: string): Promise<boolean> {
     : Promise.resolve(sqlite.dbHeartbeatJob(jobId));
 }
 
+export async function dbRequeueJob(jobId: string): Promise<boolean> {
+  return isPrismaConfigured()
+    ? pg.dbRequeueJob(jobId)
+    : Promise.resolve(sqlite.dbRequeueJob(jobId));
+}
+
 export async function dbRecoverStaleJobs(cutoffIso: string): Promise<number> {
   return isPrismaConfigured()
     ? pg.dbRecoverStaleJobs(cutoffIso)

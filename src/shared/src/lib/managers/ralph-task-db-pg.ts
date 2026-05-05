@@ -683,6 +683,25 @@ export async function dbGetWorkerHealth(): Promise<import('./ralph-task-db-sqlit
   };
 }
 
+/**
+ * Reset a running job back to pending so another worker can claim it.
+ * Used during graceful shutdown to avoid waiting for the stale-recovery sweep.
+ * Returns true when a row was changed.
+ */
+export async function dbRequeueJob(id: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  const res = await prisma.job.updateMany({
+    where: { id, status: 'running' },
+    data: {
+      status: 'pending',
+      startedAt: null,
+      heartbeatAt: null,
+      updatedAt: now,
+    },
+  });
+  return res.count > 0;
+}
+
 export async function dbRecoverStaleJobs(cutoffIso: string): Promise<number> {
   const now = new Date().toISOString();
   const res = await prisma.job.updateMany({

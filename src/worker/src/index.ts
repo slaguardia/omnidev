@@ -19,6 +19,7 @@ import {
   dbUpdateAgentRun,
   dbHeartbeatJob,
   dbRecoverStaleJobs,
+  dbRequeueJob,
   type RalphJob,
 } from '@/lib/managers/ralph-task-db';
 import { revokeJobTokens, revokeExpiredTokens } from '@/lib/auth/stage-tokens';
@@ -26,12 +27,13 @@ import { ClaudeCodeAgent } from '@/lib/agent/claude-code-agent';
 import { executeV2Job } from './job-executor';
 import { executeRalphStageJob } from '@/lib/queue/job-handlers';
 import type { RalphStageJobPayload } from '@/lib/queue/types';
-import { createScheduler, resolveConcurrency } from './scheduler';
+import { createScheduler, resolveConcurrency, resolvePositiveInt } from './scheduler';
 
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 60_000;
 
 const agent = new ClaudeCodeAgent();
 
@@ -132,6 +134,7 @@ const scheduler = createScheduler<RalphJob>({
   maxConcurrency: resolveConcurrency(process.env.WORKER_CONCURRENCY, DEFAULT_CONCURRENCY),
   pollIntervalMs: POLL_INTERVAL_MS,
   claimNextJob: dbClaimNextPendingJob,
+  getJobId: (job) => job.id,
   runJob,
   recoverStaleJobs: () => {
     const cutoff = new Date(Date.now() - STALE_JOB_TIMEOUT_MS).toISOString();
@@ -140,14 +143,50 @@ const scheduler = createScheduler<RalphJob>({
   revokeExpiredTokens,
 });
 
+let shuttingDown = false;
+
 /**
- * Graceful shutdown handler.
+ * Graceful shutdown handler — drains in-flight jobs up to the configured
+ * timeout. Jobs that exceed the timeout are reset to 'pending' so another
+ * worker can claim them immediately (no 10-minute stale-recovery wait).
  */
-function shutdown(): void {
-  console.log('[WORKER] Shutting down...');
-  scheduler.stop();
-  void dbClose();
-  console.log('[WORKER] Database closed. Goodbye.');
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  const timeoutMs = resolvePositiveInt(
+    process.env.WORKER_SHUTDOWN_TIMEOUT_MS,
+    DEFAULT_SHUTDOWN_TIMEOUT_MS
+  );
+
+  console.log('[WORKER] Shutdown signal received');
+
+  try {
+    const result = await scheduler.drain(timeoutMs);
+    console.log(
+      `[WORKER] Drained ${result.drainedJobIds.length} job(s); ${result.abandonedJobIds.length} did not finish in ${timeoutMs}ms`
+    );
+
+    for (const jobId of result.abandonedJobIds) {
+      try {
+        const requeued = await dbRequeueJob(jobId);
+        console.log(
+          `[WORKER] Requeued job ${jobId}: ${requeued ? 'reset to pending' : 'no row changed'}`
+        );
+      } catch (err) {
+        console.error(`[WORKER] Failed to requeue job ${jobId}`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[WORKER] Error during drain', err);
+  }
+
+  try {
+    await dbClose();
+  } catch (err) {
+    console.error('[WORKER] Error closing DB', err);
+  }
+  console.log('[WORKER] Goodbye.');
   process.exit(0);
 }
 
@@ -166,8 +205,8 @@ async function main(): Promise<void> {
     console.log('[WORKER] Database initialized (ralph.db)');
   }
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown());
 
   scheduler.start();
 }

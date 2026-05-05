@@ -20,6 +20,8 @@ export interface SchedulerOptions<TJob> {
   pollIntervalMs: number;
   /** Atomically claim the next pending job, or return null if none are pending. */
   claimNextJob: () => Promise<TJob | null>;
+  /** Stable identifier for a job — used to report unfinished jobs from drain(). */
+  getJobId: (job: TJob) => string;
   /** Run the per-job lifecycle. Should never throw — handle errors internally. */
   runJob: (job: TJob) => Promise<void>;
   /** Periodic recovery of stuck jobs (no heartbeat past timeout). */
@@ -30,11 +32,26 @@ export interface SchedulerOptions<TJob> {
   logger?: { log: (msg: string) => void; error: (msg: string, err?: unknown) => void };
 }
 
+export interface DrainResult {
+  drainedJobIds: string[];
+  abandonedJobIds: string[];
+  timedOut: boolean;
+}
+
 export interface Scheduler {
   start(): void;
+  /** Hard stop — halts polling but does not wait for in-flight jobs. */
   stop(): void;
+  /**
+   * Stop accepting new jobs and wait for in-flight ones up to `timeoutMs`.
+   * Returns the IDs of jobs that finished cleanly versus the IDs of jobs
+   * that didn't finish in time (so the caller can requeue them).
+   */
+  drain(timeoutMs: number): Promise<DrainResult>;
   /** Number of in-flight jobs. Useful for tests and observability. */
   inFlightCount(): number;
+  /** Snapshot of currently in-flight job IDs. */
+  inFlightJobIds(): string[];
 }
 
 export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
@@ -43,13 +60,14 @@ export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
     error: (m, e) => console.error(m, e),
   };
 
-  const inFlight = new Set<Promise<void>>();
+  const inFlight = new Map<string, Promise<void>>();
   let stopped = false;
+  let draining = false;
   let pollHandle: ReturnType<typeof setTimeout> | null = null;
 
   /** Claim jobs until either no slots are free or the queue is empty. */
   async function tryClaimMore(): Promise<void> {
-    while (!stopped && inFlight.size < opts.maxConcurrency) {
+    while (!stopped && !draining && inFlight.size < opts.maxConcurrency) {
       let job: TJob | null;
       try {
         job = await opts.claimNextJob();
@@ -59,6 +77,7 @@ export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
       }
       if (!job) return;
 
+      const jobId = opts.getJobId(job);
       const p = (async () => {
         try {
           await opts.runJob(job);
@@ -66,10 +85,10 @@ export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
           log.error('[WORKER] Unhandled error in runJob (should be caught internally)', err);
         }
       })().finally(() => {
-        inFlight.delete(p);
-        if (!stopped) void tryClaimMore();
+        inFlight.delete(jobId);
+        if (!stopped && !draining) void tryClaimMore();
       });
-      inFlight.add(p);
+      inFlight.set(jobId, p);
     }
   }
 
@@ -116,13 +135,51 @@ export function createScheduler<TJob>(opts: SchedulerOptions<TJob>): Scheduler {
         pollHandle = null;
       }
     },
+    async drain(timeoutMs: number): Promise<DrainResult> {
+      draining = true;
+      if (pollHandle) {
+        clearTimeout(pollHandle);
+        pollHandle = null;
+      }
+
+      const startingIds = Array.from(inFlight.keys());
+      log.log(
+        `[WORKER] Draining: waiting up to ${timeoutMs}ms for ${startingIds.length} in-flight job(s) to finish`
+      );
+
+      const allDone = Promise.all(Array.from(inFlight.values()));
+      let timedOut = false;
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<void>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, timeoutMs);
+      });
+
+      await Promise.race([allDone, timeoutPromise]);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+
+      const abandoned = Array.from(inFlight.keys());
+      const drained = startingIds.filter((id) => !abandoned.includes(id));
+
+      stopped = true;
+      return { drainedJobIds: drained, abandonedJobIds: abandoned, timedOut };
+    },
     inFlightCount(): number {
       return inFlight.size;
+    },
+    inFlightJobIds(): string[] {
+      return Array.from(inFlight.keys());
     },
   };
 }
 
 export function resolveConcurrency(envValue: string | undefined, fallback: number): number {
+  return resolvePositiveInt(envValue, fallback);
+}
+
+export function resolvePositiveInt(envValue: string | undefined, fallback: number): number {
   if (!envValue) return fallback;
   const n = Number.parseInt(envValue, 10);
   if (!Number.isFinite(n) || n < 1) return fallback;

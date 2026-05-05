@@ -1279,6 +1279,24 @@ export function dbHeartbeatJob(jobId: string): boolean {
 }
 
 /**
+ * Reset a running job back to pending so another worker can claim it.
+ * Used during graceful shutdown to avoid waiting for the stale-recovery sweep.
+ * Returns true when a row was changed.
+ */
+export function dbRequeueJob(id: string): boolean {
+  const database = getDb();
+  const now = new Date().toISOString();
+  const result = database
+    .prepare(
+      `UPDATE jobs
+       SET status = 'pending', started_at = NULL, heartbeat_at = NULL, updated_at = ?
+       WHERE id = ? AND status = 'running'`
+    )
+    .run(now, id);
+  return result.changes > 0;
+}
+
+/**
  * Mark stale running jobs as failed.
  * Returns the number of recovered jobs.
  */
