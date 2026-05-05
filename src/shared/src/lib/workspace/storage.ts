@@ -1,51 +1,43 @@
 'use server';
 
-import { writeFile, readFile, access, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { getDataDir } from '@/lib/config/server-actions';
-import type { WorkspaceId, FilePath, AsyncResult } from '@/lib/common/types';
-import type { Workspace } from './types';
-
-interface WorkspaceIndex {
-  workspaces: Record<WorkspaceId, Workspace>;
-  lastUpdated: string;
-  version: string;
-}
-
-// Module-level workspace index and path
-let workspaceIndex: WorkspaceIndex = {
-  workspaces: {},
-  lastUpdated: new Date().toISOString(),
-  version: '1.0.0',
-};
-
-let workspaceIndexPath: FilePath | null = null;
-
 /**
- * Get the workspace index file path
+ * Workspace storage — thin facade over the DB-backed workspace manager
+ * (workspace-db routes to PostgreSQL when DATABASE_URL is set, else SQLite).
+ *
+ * Replaces the legacy module-level JSON cache. Concurrent saveWorkspace() calls
+ * from multiple in-flight jobs no longer race on a file or a shared mutable map.
+ *
+ * On first initialization a one-shot migration moves any rows from the legacy
+ * data/.workspace-index.json into the database and marks the file consumed.
  */
-async function getWorkspaceIndexPath(): Promise<FilePath> {
-  if (!workspaceIndexPath) {
-    const dataDir = await getDataDir();
-    workspaceIndexPath = join(dataDir, '.workspace-index.json') as FilePath;
-  }
-  return workspaceIndexPath;
-}
+
+import { rename, readFile, access } from 'node:fs/promises';
+import { join } from 'node:path';
+import { getDataDir } from '@/lib/config/server-actions';
+import {
+  dbInitWorkspaces,
+  dbSaveWorkspace,
+  dbGetWorkspace,
+  dbDeleteWorkspace,
+  dbWorkspaceExists,
+  dbGetAllWorkspaces,
+  dbTouchWorkspace,
+} from '@/lib/managers/workspace-db';
+import type { Workspace } from './types';
+import type { WorkspaceId, AsyncResult } from '@/lib/common/types';
+
+let initialized = false;
 
 /**
- * Initialize workspace storage and create necessary directories
+ * Initialize workspace storage. Idempotent.
  */
 export async function initializeWorkspaceStorage(): Promise<AsyncResult<void>> {
   try {
-    const indexPath = await getWorkspaceIndexPath();
-
-    // Ensure the directory exists
-    const indexDir = dirname(indexPath);
-    await mkdir(indexDir, { recursive: true });
-
-    // Load or create the workspace index
-    await loadWorkspaceIndex();
-
+    await dbInitWorkspaces();
+    if (!initialized) {
+      await migrateLegacyJsonIndexIfPresent();
+      initialized = true;
+    }
     return { success: true, data: undefined };
   } catch (error) {
     return {
@@ -55,183 +47,142 @@ export async function initializeWorkspaceStorage(): Promise<AsyncResult<void>> {
   }
 }
 
-/**
- * Save workspace to persistent storage
- */
 export async function saveWorkspace(workspace: Workspace): Promise<AsyncResult<void>> {
   try {
-    workspaceIndex.workspaces[workspace.id] = workspace;
-    workspaceIndex.lastUpdated = new Date().toISOString();
-
-    await saveWorkspaceIndex();
+    await dbSaveWorkspace(workspace);
     return { success: true, data: undefined };
   } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to save workspace: ${error}`),
-    };
+    return { success: false, error: new Error(`Failed to save workspace: ${error}`) };
   }
 }
 
-/**
- * Load workspace from persistent storage
- */
 export async function loadWorkspace(workspaceId: WorkspaceId): Promise<AsyncResult<Workspace>> {
   try {
-    await loadWorkspaceIndex();
-
-    const workspace = workspaceIndex.workspaces[workspaceId];
+    const workspace = await dbGetWorkspace(workspaceId);
     if (!workspace) {
-      return {
-        success: false,
-        error: new Error(`Workspace ${workspaceId} not found`),
-      };
+      return { success: false, error: new Error(`Workspace ${workspaceId} not found`) };
     }
-
-    // Update last accessed time
-    workspace.lastAccessed = new Date();
-    await saveWorkspace(workspace);
-
-    return { success: true, data: workspace };
+    const touched: Workspace = { ...workspace, lastAccessed: new Date() };
+    await dbTouchWorkspace(workspaceId, touched);
+    return { success: true, data: touched };
   } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to load workspace: ${error}`),
-    };
+    return { success: false, error: new Error(`Failed to load workspace: ${error}`) };
   }
 }
 
-/**
- * Get all workspaces from storage
- */
 export async function getAllWorkspaces(): Promise<AsyncResult<Workspace[]>> {
   try {
-    await loadWorkspaceIndex();
-
-    const workspaces = Object.values(workspaceIndex.workspaces).sort(
+    const workspaces = await dbGetAllWorkspaces();
+    workspaces.sort(
       (a, b) => new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime()
     );
-
     return { success: true, data: workspaces };
   } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to get all workspaces: ${error}`),
-    };
+    return { success: false, error: new Error(`Failed to get all workspaces: ${error}`) };
   }
 }
 
-/**
- * Delete workspace from persistent storage
- */
 export async function deleteWorkspace(workspaceId: WorkspaceId): Promise<AsyncResult<void>> {
   try {
-    delete workspaceIndex.workspaces[workspaceId];
-    workspaceIndex.lastUpdated = new Date().toISOString();
-
-    await saveWorkspaceIndex();
+    await dbDeleteWorkspace(workspaceId);
     return { success: true, data: undefined };
   } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to delete workspace: ${error}`),
-    };
+    return { success: false, error: new Error(`Failed to delete workspace: ${error}`) };
   }
 }
 
-/**
- * Update workspace in persistent storage
- */
 export async function updateWorkspace(workspace: Workspace): Promise<AsyncResult<void>> {
   try {
-    if (!workspaceIndex.workspaces[workspace.id]) {
-      return {
-        success: false,
-        error: new Error(`Workspace ${workspace.id} not found`),
-      };
+    const exists = await dbWorkspaceExists(workspace.id);
+    if (!exists) {
+      return { success: false, error: new Error(`Workspace ${workspace.id} not found`) };
     }
-
-    return await saveWorkspace(workspace);
+    await dbSaveWorkspace(workspace);
+    return { success: true, data: undefined };
   } catch (error) {
-    return {
-      success: false,
-      error: new Error(`Failed to update workspace: ${error}`),
-    };
+    return { success: false, error: new Error(`Failed to update workspace: ${error}`) };
   }
 }
 
-/**
- * Check if workspace exists in storage
- */
 export async function workspaceExists(workspaceId: WorkspaceId): Promise<boolean> {
   try {
-    await loadWorkspaceIndex();
-    return workspaceId in workspaceIndex.workspaces;
+    return await dbWorkspaceExists(workspaceId);
   } catch {
     return false;
   }
 }
 
 /**
- * Load workspace index from disk
+ * One-shot migration: if data/.workspace-index.json exists, import each row
+ * into the DB and rename the file so it isn't re-read on subsequent boots.
  */
-async function loadWorkspaceIndex(): Promise<void> {
+async function migrateLegacyJsonIndexIfPresent(): Promise<void> {
+  const dataDir = await getDataDir();
+  const legacyPath = join(dataDir, '.workspace-index.json');
+
   try {
-    const indexPath = await getWorkspaceIndexPath();
+    await access(legacyPath);
+  } catch {
+    return;
+  }
 
-    try {
-      await access(indexPath);
-      const indexContent = await readFile(indexPath, 'utf-8');
+  let raw: string;
+  try {
+    raw = await readFile(legacyPath, 'utf-8');
+  } catch {
+    return;
+  }
 
-      if (indexContent.trim()) {
-        const indexData = JSON.parse(indexContent);
+  if (!raw.trim()) {
+    return;
+  }
 
-        // Clear existing index
-        workspaceIndex.workspaces = {};
-
-        // Handle both old object format and new array format
-        if (Array.isArray(indexData)) {
-          // New array format
-          for (const workspace of indexData) {
-            workspaceIndex.workspaces[workspace.id] = {
-              ...workspace,
-              createdAt: new Date(workspace.createdAt),
-              lastAccessed: new Date(workspace.lastAccessed),
-            };
-          }
-        } else if (indexData.workspaces && typeof indexData.workspaces === 'object') {
-          // Old object format with workspaces property
-          for (const [workspaceId, workspace] of Object.entries(indexData.workspaces)) {
-            const workspaceData = workspace as Workspace;
-            workspaceIndex.workspaces[workspaceId as WorkspaceId] = {
-              ...workspaceData,
-              createdAt: new Date(workspaceData.createdAt),
-              lastAccessed: new Date(workspaceData.lastAccessed),
-            };
-          }
-        }
-      }
-    } catch {
-      // Index file doesn't exist, initialize empty index
-      workspaceIndex.workspaces = {};
-      await saveWorkspaceIndex();
-    }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`Failed to load workspace index: ${error}`);
+    console.warn(`[WORKSPACE STORAGE] Could not parse legacy index, leaving in place: ${error}`);
+    return;
+  }
+
+  const rows = extractWorkspaceRows(parsed);
+  for (const row of rows) {
+    try {
+      const exists = await dbWorkspaceExists(row.id);
+      if (!exists) {
+        await dbSaveWorkspace(row);
+      }
+    } catch (error) {
+      console.warn(`[WORKSPACE STORAGE] Skipping legacy row ${row.id}: ${error}`);
+    }
+  }
+
+  try {
+    await rename(legacyPath, `${legacyPath}.migrated`);
+    console.log(`[WORKSPACE STORAGE] Migrated ${rows.length} workspace(s) from legacy JSON to DB`);
+  } catch (error) {
+    console.warn(`[WORKSPACE STORAGE] Could not rename legacy index after migration: ${error}`);
   }
 }
 
-/**
- * Save workspace index to disk
- */
-async function saveWorkspaceIndex(): Promise<void> {
-  try {
-    const indexPath = await getWorkspaceIndexPath();
-    const workspaces = Object.values(workspaceIndex.workspaces);
-
-    const indexContent = JSON.stringify(workspaces, null, 2);
-    await writeFile(indexPath, indexContent, 'utf-8');
-  } catch (error) {
-    throw new Error(`Failed to save workspace index: ${error}`);
+function extractWorkspaceRows(data: unknown): Workspace[] {
+  if (Array.isArray(data)) {
+    return data.map(coerceWorkspace);
   }
+  if (data && typeof data === 'object' && 'workspaces' in data) {
+    const inner = (data as { workspaces: unknown }).workspaces;
+    if (inner && typeof inner === 'object') {
+      return Object.values(inner as Record<string, unknown>).map(coerceWorkspace);
+    }
+  }
+  return [];
+}
+
+function coerceWorkspace(raw: unknown): Workspace {
+  const w = raw as Workspace;
+  return {
+    ...w,
+    createdAt: new Date(w.createdAt),
+    lastAccessed: new Date(w.lastAccessed),
+  };
 }
