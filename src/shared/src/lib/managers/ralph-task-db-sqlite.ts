@@ -137,6 +137,11 @@ function runMigrations(database: Database.Database): void {
     migrateV6StageTokens(database);
     setSchemaVersion(database, 6);
   }
+
+  if (version < 7) {
+    migrateV7AgentEvents(database);
+    setSchemaVersion(database, 7);
+  }
 }
 
 function getSchemaVersion(database: Database.Database): number {
@@ -326,6 +331,52 @@ function migrateV5Jobs(database: Database.Database): void {
   `);
 }
 
+/**
+ * V7: Add agent_events table + per-run summary columns on agent_runs.
+ *
+ * agent_events is a row-per-event timeline emitted by the streaming
+ * AgentRunner during a single run. seq is monotonic per-run (not global) so
+ * concurrent runs do not contend on a global sequence; the unique index on
+ * (run_id, seq) catches any application-side bug that produces duplicates
+ * within one run.
+ */
+function migrateV7AgentEvents(database: Database.Database): void {
+  console.log('[RALPH TASK DB] Running migration v7: agent_events + agent_runs summary fields');
+
+  // New columns on agent_runs (idempotent — check before adding).
+  const cols = database.prepare('PRAGMA table_info(agent_runs)').all() as Array<{ name: string }>;
+  const colNames = new Set(cols.map((c) => c.name));
+  const additions: Array<[string, string]> = [
+    ['model', 'TEXT'],
+    ['input_tokens', 'INTEGER'],
+    ['output_tokens', 'INTEGER'],
+    ['total_tokens', 'INTEGER'],
+    ['cost_cents', 'INTEGER'],
+    ['cancellation_requested_at', 'TEXT'],
+  ];
+  for (const [name, type] of additions) {
+    if (!colNames.has(name)) {
+      database.exec(`ALTER TABLE agent_runs ADD COLUMN ${name} ${type}`);
+    }
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS agent_events (
+      id         TEXT PRIMARY KEY,
+      run_id     TEXT NOT NULL,
+      seq        INTEGER NOT NULL,
+      type       TEXT NOT NULL,
+      payload    TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES agent_runs (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_events_run_seq ON agent_events (run_id, seq);
+    CREATE INDEX IF NOT EXISTS idx_agent_events_run_type ON agent_events (run_id, type);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_events_run_seq_unique ON agent_events (run_id, seq);
+  `);
+}
+
 /** V6: Add stage_tokens table for scoped CLI tokens */
 function migrateV6StageTokens(database: Database.Database): void {
   console.log('[RALPH TASK DB] Running migration v6: stage_tokens');
@@ -501,6 +552,12 @@ interface StmtCache {
   insertAgentRun: Database.Statement;
   agentRunsByJob: Database.Statement;
 
+  // Agent event statements
+  insertAgentEvent: Database.Statement;
+  agentEventsByRun: Database.Statement;
+  agentEventsByRunFromSeq: Database.Statement;
+  agentEventsByRunAndType: Database.Statement;
+
   // Stage token statements
   insertStageToken: Database.Statement;
   getStageTokenByHash: Database.Statement;
@@ -619,6 +676,21 @@ function getStmts(): StmtCache {
     `),
     agentRunsByJob: database.prepare(
       'SELECT * FROM agent_runs WHERE job_id = ? ORDER BY started_at DESC'
+    ),
+
+    // Agent event statements
+    insertAgentEvent: database.prepare(`
+      INSERT INTO agent_events (id, run_id, seq, type, payload, created_at)
+      VALUES (@id, @run_id, @seq, @type, @payload, @created_at)
+    `),
+    agentEventsByRun: database.prepare(
+      'SELECT * FROM agent_events WHERE run_id = ? ORDER BY seq ASC'
+    ),
+    agentEventsByRunFromSeq: database.prepare(
+      'SELECT * FROM agent_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC'
+    ),
+    agentEventsByRunAndType: database.prepare(
+      'SELECT * FROM agent_events WHERE run_id = ? AND type = ? ORDER BY seq ASC'
     ),
 
     // Stage token statements
@@ -1078,6 +1150,43 @@ export interface RalphAgentRun {
   logs: string;
   started_at: string;
   completed_at: string | null;
+  // Per-run summary fields populated by the streaming AgentRunner. The
+  // detailed timeline lives in the agent_events table.
+  model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  cost_cents?: number | null;
+  cancellation_requested_at?: string | null;
+}
+
+/**
+ * Single event row emitted by an AgentRunner during a run. seq is monotonic
+ * per-run (not global) so concurrent runs cannot collide on (run_id, seq).
+ */
+export interface RalphAgentEvent {
+  id: string;
+  run_id: string;
+  seq: number;
+  type: string;
+  /** JSON-encoded variant payload. Decoded by callers using the AgentEvent
+   *  discriminated union from src/shared/src/lib/agent/types.ts. */
+  payload: string;
+  created_at: string;
+}
+
+/**
+ * Partial fields used to update the per-run summary on agent_runs (model,
+ * token counts, cost, cancellation marker). All fields are optional and
+ * unspecified fields are left unchanged.
+ */
+export interface RalphAgentRunSummaryUpdate {
+  model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  cost_cents?: number | null;
+  cancellation_requested_at?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1257,6 +1366,159 @@ export function dbUpdateAgentRun(
 
 export function dbGetAgentRunsByJob(jobId: string): RalphAgentRun[] {
   return getStmts().agentRunsByJob.all(jobId) as RalphAgentRun[];
+}
+
+/**
+ * Update the per-run summary fields populated by the streaming AgentRunner
+ * (model, token counts, cost, cancellation marker). Unspecified fields are
+ * left unchanged. Returns true if a row was updated.
+ */
+export function dbUpdateAgentRunSummary(id: string, updates: RalphAgentRunSummaryUpdate): boolean {
+  const database = getDb();
+  const sets: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.model !== undefined) {
+    sets.push('model = ?');
+    values.push(updates.model);
+  }
+  if (updates.input_tokens !== undefined) {
+    sets.push('input_tokens = ?');
+    values.push(updates.input_tokens);
+  }
+  if (updates.output_tokens !== undefined) {
+    sets.push('output_tokens = ?');
+    values.push(updates.output_tokens);
+  }
+  if (updates.total_tokens !== undefined) {
+    sets.push('total_tokens = ?');
+    values.push(updates.total_tokens);
+  }
+  if (updates.cost_cents !== undefined) {
+    sets.push('cost_cents = ?');
+    values.push(updates.cost_cents);
+  }
+  if (updates.cancellation_requested_at !== undefined) {
+    sets.push('cancellation_requested_at = ?');
+    values.push(updates.cancellation_requested_at);
+  }
+
+  if (sets.length === 0) return false;
+
+  values.push(id);
+  const result = database
+    .prepare(`UPDATE agent_runs SET ${sets.join(', ')} WHERE id = ?`)
+    .run(...values);
+  return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Agent Event CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a single event to a run's timeline. Caller-provided seq is trusted;
+ * the unique index on (run_id, seq) catches application-side bugs that
+ * produce duplicates within one run. Concurrent inserts across DIFFERENT
+ * runs do not contend because each has a different run_id.
+ */
+export function dbAppendAgentEvent(event: RalphAgentEvent): void {
+  getStmts().insertAgentEvent.run({
+    id: event.id,
+    run_id: event.run_id,
+    seq: event.seq,
+    type: event.type,
+    payload: event.payload,
+    created_at: event.created_at,
+  });
+}
+
+export interface ListAgentEventsOptions {
+  /** Only return events with seq strictly greater than this value. */
+  fromSeq?: number;
+  /** Only return events with this type. Mutually exclusive with fromSeq. */
+  type?: string;
+}
+
+/**
+ * List events for a run in seq order. Bounded read — backfills the SSE
+ * timeline endpoint on initial connect. The (run_id, seq) index makes this
+ * an index range scan; readers do not block writers under WAL mode.
+ */
+export function dbListAgentEvents(
+  runId: string,
+  options: ListAgentEventsOptions = {}
+): RalphAgentEvent[] {
+  const stmts = getStmts();
+  if (options.type !== undefined) {
+    return stmts.agentEventsByRunAndType.all(runId, options.type) as RalphAgentEvent[];
+  }
+  if (options.fromSeq !== undefined) {
+    return stmts.agentEventsByRunFromSeq.all(runId, options.fromSeq) as RalphAgentEvent[];
+  }
+  return stmts.agentEventsByRun.all(runId) as RalphAgentEvent[];
+}
+
+export interface StreamAgentEventsOptions {
+  /** Resume from this seq exclusively (only events with seq > fromSeq). */
+  fromSeq?: number;
+  /** Polling cadence in ms while the run is active. Default 250ms. */
+  pollIntervalMs?: number;
+  /** Optional abort signal to stop the stream early. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Stream events for a run as an async iterable. Yields all existing events
+ * in seq order (backfill), then polls for new events appended after the
+ * starting cursor until the run reaches a terminal status (completed,
+ * failed, or cancelled). Used by the SSE timeline endpoint in sub-task 8.
+ *
+ * Polling is the default cross-process strategy (works for both PostgreSQL
+ * and SQLite). Postgres LISTEN/NOTIFY is a future optimization layered on
+ * top of this same iterator shape.
+ */
+export async function* dbStreamAgentEvents(
+  runId: string,
+  options: StreamAgentEventsOptions = {}
+): AsyncGenerator<RalphAgentEvent, void, undefined> {
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
+  let cursor = options.fromSeq ?? -1;
+
+  while (!options.signal?.aborted) {
+    const batch = dbListAgentEvents(runId, { fromSeq: cursor });
+    for (const event of batch) {
+      yield event;
+      cursor = event.seq;
+    }
+
+    if (options.signal?.aborted) return;
+
+    // Stop streaming once the run reaches a terminal status. Re-poll once
+    // more after observing terminal status to capture any events that
+    // landed between the last batch and the status read.
+    const run = getDb().prepare('SELECT status FROM agent_runs WHERE id = ?').get(runId) as
+      | { status: string }
+      | undefined;
+    const terminal =
+      run !== undefined &&
+      (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled');
+
+    if (terminal) {
+      const tail = dbListAgentEvents(runId, { fromSeq: cursor });
+      for (const event of tail) {
+        yield event;
+        cursor = event.seq;
+      }
+      return;
+    }
+
+    await sleep(pollIntervalMs);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ---------------------------------------------------------------------------

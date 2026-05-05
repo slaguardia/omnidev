@@ -9,9 +9,13 @@ import type {
   DbPlaybook,
   DbProject,
   DbStageToken,
+  ListAgentEventsOptions,
+  RalphAgentEvent,
   RalphAgentRun,
+  RalphAgentRunSummaryUpdate,
   RalphJob,
   RalphJobStatus,
+  StreamAgentEventsOptions,
 } from './ralph-task-db-sqlite';
 import type { Prisma } from '@prisma/client';
 
@@ -54,6 +58,12 @@ function agentRunToRalph(r: {
   logs: string;
   startedAt: string;
   completedAt: string | null;
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  costCents?: number | null;
+  cancellationRequestedAt?: string | null;
 }): RalphAgentRun {
   return {
     id: r.id,
@@ -62,6 +72,30 @@ function agentRunToRalph(r: {
     logs: r.logs,
     started_at: r.startedAt,
     completed_at: r.completedAt,
+    model: r.model ?? null,
+    input_tokens: r.inputTokens ?? null,
+    output_tokens: r.outputTokens ?? null,
+    total_tokens: r.totalTokens ?? null,
+    cost_cents: r.costCents ?? null,
+    cancellation_requested_at: r.cancellationRequestedAt ?? null,
+  };
+}
+
+function agentEventToRalph(e: {
+  id: string;
+  runId: string;
+  seq: number;
+  type: string;
+  payload: string;
+  createdAt: string;
+}): RalphAgentEvent {
+  return {
+    id: e.id,
+    run_id: e.runId,
+    seq: e.seq,
+    type: e.type,
+    payload: e.payload,
+    created_at: e.createdAt,
   };
 }
 
@@ -701,6 +735,119 @@ export async function dbGetAgentRunsByJob(jobId: string): Promise<RalphAgentRun[
     orderBy: { startedAt: 'desc' },
   });
   return rows.map(agentRunToRalph);
+}
+
+/**
+ * Update the per-run summary fields populated by the streaming AgentRunner
+ * (model, token counts, cost, cancellation marker). Unspecified fields are
+ * left unchanged. Returns true if a row was updated.
+ */
+export async function dbUpdateAgentRunSummary(
+  id: string,
+  updates: RalphAgentRunSummaryUpdate
+): Promise<boolean> {
+  const data: Prisma.AgentRunUpdateInput = {};
+  if (updates.model !== undefined) data.model = updates.model;
+  if (updates.input_tokens !== undefined) data.inputTokens = updates.input_tokens;
+  if (updates.output_tokens !== undefined) data.outputTokens = updates.output_tokens;
+  if (updates.total_tokens !== undefined) data.totalTokens = updates.total_tokens;
+  if (updates.cost_cents !== undefined) data.costCents = updates.cost_cents;
+  if (updates.cancellation_requested_at !== undefined) {
+    data.cancellationRequestedAt = updates.cancellation_requested_at;
+  }
+  if (Object.keys(data).length === 0) return false;
+  try {
+    await prisma.agentRun.update({ where: { id }, data });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent Event CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a single event to a run's timeline. Caller-provided seq is trusted;
+ * the unique index on (run_id, seq) catches application-side bugs that
+ * produce duplicates within one run. Concurrent inserts across DIFFERENT
+ * runs do not contend because each has a different run_id.
+ */
+export async function dbAppendAgentEvent(event: RalphAgentEvent): Promise<void> {
+  await prisma.agentEvent.create({
+    data: {
+      id: event.id,
+      runId: event.run_id,
+      seq: event.seq,
+      type: event.type,
+      payload: event.payload,
+      createdAt: event.created_at,
+    },
+  });
+}
+
+export async function dbListAgentEvents(
+  runId: string,
+  options: ListAgentEventsOptions = {}
+): Promise<RalphAgentEvent[]> {
+  const where: Prisma.AgentEventWhereInput = { runId };
+  if (options.type !== undefined) {
+    where.type = options.type;
+  } else if (options.fromSeq !== undefined) {
+    where.seq = { gt: options.fromSeq };
+  }
+  const rows = await prisma.agentEvent.findMany({
+    where,
+    orderBy: { seq: 'asc' },
+  });
+  return rows.map(agentEventToRalph);
+}
+
+/**
+ * Stream events for a run as an async iterable. Yields all existing events
+ * in seq order (backfill), then polls for new events appended after the
+ * starting cursor until the run reaches a terminal status (completed,
+ * failed, or cancelled). Used by the SSE timeline endpoint in sub-task 8.
+ *
+ * Polling is the default cross-process strategy. Postgres LISTEN/NOTIFY is a
+ * future optimization layered on top of this same iterator shape.
+ */
+export async function* dbStreamAgentEvents(
+  runId: string,
+  options: StreamAgentEventsOptions = {}
+): AsyncGenerator<RalphAgentEvent, void, undefined> {
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
+  let cursor = options.fromSeq ?? -1;
+
+  while (!options.signal?.aborted) {
+    const batch = await dbListAgentEvents(runId, { fromSeq: cursor });
+    for (const event of batch) {
+      yield event;
+      cursor = event.seq;
+    }
+
+    if (options.signal?.aborted) return;
+
+    const run = await prisma.agentRun.findUnique({
+      where: { id: runId },
+      select: { status: true },
+    });
+    const terminal =
+      run !== null &&
+      (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled');
+
+    if (terminal) {
+      const tail = await dbListAgentEvents(runId, { fromSeq: cursor });
+      for (const event of tail) {
+        yield event;
+        cursor = event.seq;
+      }
+      return;
+    }
+
+    await new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
 }
 
 export async function dbInsertStageToken(

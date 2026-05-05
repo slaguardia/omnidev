@@ -13,9 +13,13 @@ export type {
   DbPlaybook,
   DbProject,
   DbStageToken,
+  ListAgentEventsOptions,
+  RalphAgentEvent,
   RalphAgentRun,
+  RalphAgentRunSummaryUpdate,
   RalphJob,
   RalphJobStatus,
+  StreamAgentEventsOptions,
   WorkerHealth,
 } from './ralph-task-db-sqlite';
 
@@ -260,6 +264,45 @@ export async function dbGetAgentRunsByJob(
   return isPrismaConfigured()
     ? pg.dbGetAgentRunsByJob(jobId)
     : Promise.resolve(sqlite.dbGetAgentRunsByJob(jobId));
+}
+
+export async function dbUpdateAgentRunSummary(
+  id: string,
+  updates: import('./ralph-task-db-sqlite').RalphAgentRunSummaryUpdate
+): Promise<boolean> {
+  return isPrismaConfigured()
+    ? pg.dbUpdateAgentRunSummary(id, updates)
+    : Promise.resolve(sqlite.dbUpdateAgentRunSummary(id, updates));
+}
+
+export async function dbAppendAgentEvent(
+  event: import('./ralph-task-db-sqlite').RalphAgentEvent
+): Promise<void> {
+  return isPrismaConfigured()
+    ? pg.dbAppendAgentEvent(event)
+    : Promise.resolve(sqlite.dbAppendAgentEvent(event));
+}
+
+export async function dbListAgentEvents(
+  runId: string,
+  options?: import('./ralph-task-db-sqlite').ListAgentEventsOptions
+): Promise<import('./ralph-task-db-sqlite').RalphAgentEvent[]> {
+  return isPrismaConfigured()
+    ? pg.dbListAgentEvents(runId, options)
+    : Promise.resolve(sqlite.dbListAgentEvents(runId, options));
+}
+
+/**
+ * Stream events for a run (backfill + live tail). Routes to the configured
+ * backend's polling generator. The sub-task 8 SSE endpoint consumes this.
+ */
+export function dbStreamAgentEvents(
+  runId: string,
+  options?: import('./ralph-task-db-sqlite').StreamAgentEventsOptions
+): AsyncGenerator<import('./ralph-task-db-sqlite').RalphAgentEvent, void, undefined> {
+  return isPrismaConfigured()
+    ? pg.dbStreamAgentEvents(runId, options)
+    : sqlite.dbStreamAgentEvents(runId, options);
 }
 
 export async function dbInsertStageToken(

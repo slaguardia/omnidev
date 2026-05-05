@@ -94,10 +94,39 @@ model AgentRun {
   startedAt   String  @map("started_at")
   completedAt String? @map("completed_at")
 
-  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // Per-run summary fields populated by the streaming AgentRunner. The
+  // detailed timeline lives in the agent_events table (one row per event).
+  model                    String? @map("model")
+  inputTokens              Int?    @map("input_tokens")
+  outputTokens             Int?    @map("output_tokens")
+  totalTokens              Int?    @map("total_tokens")
+  costCents                Int?    @map("cost_cents")
+  cancellationRequestedAt  String? @map("cancellation_requested_at")
+
+  job    Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  events AgentEvent[]
 
   @@index([jobId])
   @@map("agent_runs")
+}
+
+/// Row-per-event timeline emitted by an AgentRunner during a single run.
+/// `seq` is monotonic per-run (not global) — events are written in the order
+/// emitted by the agent and read back via (run_id, seq).
+model AgentEvent {
+  id        String @id
+  runId     String @map("run_id")
+  seq       Int
+  type      String
+  payload   String
+  createdAt String @map("created_at")
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, seq], map: "agent_events_run_id_seq_unique")
+  @@index([runId, seq])
+  @@index([runId, type])
+  @@map("agent_events")
 }
 
 model StageToken {
