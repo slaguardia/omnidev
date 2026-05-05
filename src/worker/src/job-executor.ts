@@ -9,6 +9,7 @@
 
 import { rm, mkdir } from 'node:fs/promises';
 import { cloneRepository } from '@/lib/git/core';
+import { cloneFromCache } from '@/lib/git/repo-cache';
 import { createSandboxedGit } from '@/lib/git/sandbox';
 import { hasUncommittedChanges, addAllFiles, commitChanges } from '@/lib/git/commits';
 import { pushChanges } from '@/lib/git/remotes';
@@ -65,19 +66,21 @@ export async function executeV2Job(job: RalphJob, agent: AgentRunner): Promise<J
     const config = await getConfig();
     const credentials = getGitCredentials(config, payload.repo_url);
 
-    // Clone
+    // Clone (via shared bare-clone cache when enabled — reduces wall-clock and
+    // disk per job for repeated runs against the same repo)
     console.log(`${logTag} Cloning ${payload.repo_url}...`);
     const cloneOpts = credentials ? { credentials } : {};
-    const cloneResult = await cloneRepository(
-      payload.repo_url as GitUrl,
-      tmpDir as FilePath,
-      cloneOpts
-    );
+    const useCache = process.env.OMNIDEV_REPO_CACHE !== '0';
+    const cloneResult = useCache
+      ? await cloneFromCache(payload.repo_url as GitUrl, tmpDir as FilePath, cloneOpts)
+      : await cloneRepository(payload.repo_url as GitUrl, tmpDir as FilePath, cloneOpts);
     if (!cloneResult.success) {
       throw new Error(`Clone failed: ${cloneResult.error.message}`);
     }
 
-    // Branch + unshallow (edit mode only)
+    // Branch + unshallow (edit mode only). The cached path produces a full clone
+    // via --reference so unshallow is a no-op there; the legacy path is shallow
+    // and needs unshallow before push.
     if (isEdit && branchName) {
       const git = createSandboxedGit(tmpDir);
       console.log(`${logTag} Checking out branch: ${branchName}`);
