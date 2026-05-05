@@ -15,13 +15,22 @@ import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/clau
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type { GitUrl, Result } from '@/lib/types/index';
 import { parseQuestionsFromOutput } from '@/lib/workflow/prompt-template';
-import type { AgentRunner } from '@/lib/agent/claude-code-agent';
 
-import type { AgentRunRequest, AgentRunResult } from './types';
+import { collapseEventsToOutput } from './collapse';
+import type { AgentRunRequest, AgentRunResult, AgentRunner } from './types';
 
 const LOG_PREFIX = '[AGENT]';
 
-/** Module-level agent instance, lazily initialized */
+/**
+ * Module-level agent instance, lazily initialized and shared across concurrent
+ * executeAgentRun() calls.
+ *
+ * Sharing is SAFE because AgentRunner implementations are stateless — all
+ * per-run state lives on the async iterable returned by run(). This is part
+ * of the AgentRunner reentrancy contract documented on the interface in
+ * ./types.ts. If a future implementation violates that contract, this
+ * singleton must be replaced with a per-call factory.
+ */
 let defaultAgent: AgentRunner | null = null;
 
 async function getDefaultAgent(): Promise<AgentRunner> {
@@ -112,15 +121,22 @@ export async function executeAgentRun(
     }
 
     // ----- 3. AI execution via AgentRunner -----
+    // The AgentRunner is a streaming interface (AsyncIterable<AgentEvent>);
+    // collapseEventsToOutput drains the stream and returns the legacy
+    // { output: string } shape this orchestrator currently expects. A future
+    // sub-task migrates this site to consume events directly so each event
+    // can be persisted to agent_events.
     const runner = agent ?? (await getDefaultAgent());
     let output: string;
     try {
-      const runResult = await runner.run({
-        question: request.prompt,
-        workingDirectory: request.workspacePath,
-        editRequest: request.editMode,
-        extraEnv: request.extraEnv,
-      });
+      const runResult = await collapseEventsToOutput(
+        runner.run({
+          question: request.prompt,
+          workingDirectory: request.workspacePath,
+          editRequest: request.editMode,
+          extraEnv: request.extraEnv,
+        })
+      );
       output = runResult.output;
     } catch (runError) {
       return {
