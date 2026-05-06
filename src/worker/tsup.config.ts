@@ -29,10 +29,18 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   // Native addons and packages that must be resolved at runtime.
-  // @cursor/sdk ships ESM/CJS dual builds and depends on dynamic imports the
-  // bundler can't statically follow; keep it external so worker.cjs requires
-  // it from node_modules at runtime.
-  external: ['better-sqlite3', '@prisma/client', '@cursor/sdk'],
+  // @cursor/sdk ships dual ESM/CJS builds and uses dynamic imports the
+  // bundler can't statically follow. @modelcontextprotocol/sdk + express
+  // power the in-process MCP signals server (mcp-signals-server.ts) and
+  // are heavy enough that bundling roughly doubles worker.cjs size; keep
+  // them external so they resolve from node_modules at runtime.
+  external: [
+    'better-sqlite3',
+    '@prisma/client',
+    '@cursor/sdk',
+    '@modelcontextprotocol/sdk',
+    'express',
+  ],
   // Resolve @/ to shared library (same as worker tsconfig)
   esbuildOptions(options) {
     options.alias = {

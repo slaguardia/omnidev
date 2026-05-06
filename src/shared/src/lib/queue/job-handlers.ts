@@ -602,27 +602,21 @@ export async function executeRalphStageJob(
         }
       }
 
-      // Inject previous artifact content directly into the prompt.
-      // Strip QUESTION: lines from the artifact — the answered questions above
-      // are the canonical record; leaving them in the artifact causes the agent
-      // to re-emit the same questions every iteration.
+      // Inject previous artifact content directly into the prompt. Questions
+      // are now communicated via the request_clarification MCP tool, not via
+      // QUESTION: text lines, so the artifact never contains them and no
+      // stripping is needed.
       if (priorArtifact) {
-        const cleanedArtifact = priorArtifact
-          .split('\n')
-          .filter((line) => !line.match(/^\s*QUESTION:\s/i))
-          .join('\n')
-          .trim();
-
         parts.push('## Your Previous Analysis');
         parts.push('');
         parts.push(
-          'Below is your output from the previous iteration (with questions removed — see answers above). ' +
+          'Below is your output from the previous iteration. ' +
             'Use it as a starting point — incorporate what is still valid, improve what needs updating, ' +
             'and produce a complete updated analysis.'
         );
         parts.push('');
         parts.push('---');
-        parts.push(cleanedArtifact);
+        parts.push(priorArtifact.trim());
         parts.push('---');
         parts.push('');
       }
@@ -907,15 +901,10 @@ export async function executeRalphStageJob(
       autoLoopActive,
       completionReason: completionReasonValue,
       // Store the canonical artifact from .ralph/{stageName}.md — this is what
-      // subsequent stages consume via {previousStageOutput}, not raw iteration output.
-      // Strip QUESTION: lines so downstream stages get clean analysis, not question markers.
-      fileOutput: fileOutput
-        ? fileOutput
-            .split('\n')
-            .filter((line) => !line.match(/^\s*QUESTION:\s/i))
-            .join('\n')
-            .trim()
-        : existingOutput?.fileOutput,
+      // subsequent stages consume via {previousStageOutput}, not raw iteration
+      // output. Questions flow through the request_clarification MCP tool now
+      // (see mcp-signals-server.ts) so the artifact carries no QUESTION: lines.
+      fileOutput: fileOutput ? fileOutput.trim() : existingOutput?.fileOutput,
       lastUpdated: new Date().toISOString(),
     };
 

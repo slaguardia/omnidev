@@ -69,6 +69,51 @@ docs); pass the result through `modelId`. Model selection feeds directly into
   `local: { cwd }` on `Agent.create`. The agent operates on the cloned
   workspace the worker has already prepared.
 
+## Structured Signals via MCP
+
+The Ralph stage runner needs two signals from the agent that are unsuitable
+for free-form text parsing: "this stage is complete" and "I need user input".
+These flow through an in-process HTTP MCP server at
+[`mcp-signals-server.ts`](../src/shared/src/lib/agent/mcp-signals-server.ts)
+that `CursorSdkAgent` wires to every `Agent.create()` call via:
+
+```ts
+mcpServers: {
+  'omnidev-signals': { type: 'http', url: '<lazy-init localhost URL>' },
+}
+```
+
+### Tools the agent calls
+
+| Tool                    | Args                      | Effect                                                |
+| ----------------------- | ------------------------- | ----------------------------------------------------- |
+| `mark_stage_complete`   | none                      | Ralph auto-loop terminates on this iteration          |
+| `request_clarification` | `{ questions: string[] }` | Stage pauses; questions surface to the human reviewer |
+
+### Why an MCP server, not inline tool definitions
+
+The Cursor SDK has no inline-tool option on `Agent.create` — the only path
+for custom tools is `mcpServers` (LocalAgentOptions). HTTP transport is
+chosen over stdio because parallel agent runs in one worker would otherwise
+spawn one MCP subprocess per run.
+
+### Why HTTP, not stdio
+
+The signals server is stateless — its tool handlers return trivial success
+responses. The actual signal capture happens via the
+[`AgentEvent.tool_call`](../src/shared/src/lib/agent/types.ts) stream that
+`CursorSdkAgent` already produces. So one HTTP server, lazy-started on
+worker boot, is enough for N concurrent agent runs.
+
+### Why detection lives in `agent-runner.ts`, not the MCP handler
+
+The MCP handler can't reach back into the worker's run-tracking state
+(it's a separate request/response surface). The agent emitting the
+`tool_call` SDKMessage is what `CursorSdkAgent` translates into our
+`AgentEvent.tool_call`, and `consumeAgentStream` in
+[`agent-runner.ts`](../src/shared/src/lib/agent/agent-runner.ts) reads
+those events alongside the per-run state it already tracks.
+
 ## Failure Modes
 
 | Symptom                                                                            | Likely cause                                           | Fix                                              |
@@ -81,7 +126,8 @@ docs); pass the result through `modelId`. Model selection feeds directly into
 ## Switching Agents
 
 The `AgentRunner` interface lets you swap implementations without touching
-the pipeline. To roll back to the Claude Code CLI for a specific deployment,
-use `ClaudeCodeAgent` from `@/lib/agent/claude-code-agent` instead. Both
-implement the same streaming `AgentRunner` contract; downstream consumers
-(stage runner, V2 worker, chat) see no difference.
+the pipeline. `CursorSdkAgent` is the only implementation today; future
+backends (custom loops, other vendor SDKs) implement
+[`AgentRunner`](../src/shared/src/lib/agent/types.ts) and the rest of the
+system continues unchanged. The Claude Code CLI implementation was removed
+during the migration (see commit `50dca80`); no fallback exists.

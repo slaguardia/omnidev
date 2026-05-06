@@ -218,7 +218,12 @@ export interface AgentRunRequest {
   /** Artifact file configuration. When set, the agent reads/writes this file. */
   artifact?: AgentArtifactConfig | undefined;
 
-  /** Whether to parse QUESTION: lines from the output */
+  /**
+   * @deprecated The agent communicates questions via the
+   * request_clarification MCP tool (see mcp-signals-server.ts); questions
+   * populate from the tool_call args regardless of this flag. Kept on the
+   * request shape for forward compat with existing callers.
+   */
   parseQuestions: boolean;
 
   /** Extra environment variables to pass to the agent subprocess (e.g. CLI tokens) */
@@ -256,15 +261,15 @@ export interface AgentRunResult {
 
   /** Artifact file content (read from disk or from output) */
   fileOutput?: string | undefined;
-  /** Parsed QUESTION: lines from output */
+  /** Questions from the agent's request_clarification tool calls. */
   questions?: string[] | undefined;
 
   /** Git operation results (only present if git config was provided) */
   git?: AgentGitResult | undefined;
 
-  /** Signals detected in the output */
+  /** Structured signals captured from the agent's tool_call event stream. */
   signals: {
-    /** Whether <promise>COMPLETE</promise> was found */
+    /** True when the agent invoked the mark_stage_complete MCP tool. */
     completionSignal: boolean;
   };
 

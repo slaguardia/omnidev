@@ -28,6 +28,7 @@ import type {
   SDKToolUseMessage,
 } from '@cursor/sdk';
 
+import { getMcpSignalsUrl } from './mcp-signals-server';
 import type { AgentEvent, AgentRunner, AgentRunnerOptions } from './types';
 
 const DEFAULT_MODEL_ID = 'composer-2';
@@ -78,11 +79,31 @@ export class CursorSdkAgent implements AgentRunner {
     let agent: SDKAgent | null = null;
     let cancelled = false;
 
+    // Resolve the in-process MCP signals server URL. This advertises the
+    // mark_stage_complete and request_clarification tools used by the
+    // Ralph stage runner. Lazy-started; cached after first use.
+    let signalsMcpUrl: string;
+    try {
+      signalsMcpUrl = await getMcpSignalsUrl();
+    } catch (err) {
+      yield {
+        type: 'error',
+        message: `Failed to start MCP signals server: ${err instanceof Error ? err.message : String(err)}`,
+        recoverable: false,
+        seq: seq++,
+        timestamp: ts(),
+      };
+      return;
+    }
+
     try {
       agent = await Agent.create({
         apiKey,
         model: { id: this.config.modelId ?? DEFAULT_MODEL_ID },
         local: { cwd: options.workingDirectory },
+        mcpServers: {
+          'omnidev-signals': { type: 'http', url: signalsMcpUrl },
+        },
       });
 
       const run = await agent.send(options.question, {

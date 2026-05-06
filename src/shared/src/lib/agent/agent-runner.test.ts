@@ -28,14 +28,11 @@ vi.mock('@/lib/managers/ralph-task-db', () => ({
   }),
 }));
 
-// Stub out the claudeCode + workflow + git modules — we don't exercise them
-// from these tests (editMode=false and no artifact disable those branches).
+// Stub out the claudeCode + git modules — we don't exercise them from these
+// tests (editMode=false and no artifact disable those branches).
 vi.mock('@/lib/claudeCode', () => ({
   handlePostClaudeCodeExecution: vi.fn(),
   initializeGitWorkflow: vi.fn(),
-}));
-vi.mock('@/lib/workflow/prompt-template', () => ({
-  parseQuestionsFromOutput: vi.fn().mockReturnValue([]),
 }));
 
 beforeEach(() => {
@@ -154,6 +151,114 @@ describe('executeAgentRun streaming consumption', () => {
     expect(result.success).toBe(true);
     expect(appended).toHaveLength(0);
     expect(summaryUpdates).toHaveLength(0);
+  });
+
+  describe('structured signals from MCP tool calls', () => {
+    it('sets completionSignal when the agent calls mark_stage_complete', async () => {
+      const { executeAgentRun } = await import('./agent-runner');
+      const events: AgentEvent[] = [
+        { type: 'assistant_message', text: 'Done.', seq: 0, timestamp: 't0' },
+        {
+          type: 'tool_call',
+          toolUseId: 'toolu_complete',
+          name: 'mark_stage_complete',
+          input: {},
+          seq: 1,
+          timestamp: 't1',
+        },
+        { type: 'done', stopReason: 'end_turn', seq: 2, timestamp: 't2' },
+      ];
+
+      const result = await executeAgentRun(makeRequest(), makeRunner(events));
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.signals.completionSignal).toBe(true);
+    });
+
+    it('strips the namespaced tool name (mcp__omnidev-signals__mark_stage_complete)', async () => {
+      const { executeAgentRun } = await import('./agent-runner');
+      const events: AgentEvent[] = [
+        {
+          type: 'tool_call',
+          toolUseId: 'toolu_complete',
+          name: 'mcp__omnidev-signals__mark_stage_complete',
+          input: {},
+          seq: 0,
+          timestamp: 't0',
+        },
+        { type: 'done', stopReason: 'end_turn', seq: 1, timestamp: 't1' },
+      ];
+
+      const result = await executeAgentRun(makeRequest(), makeRunner(events));
+      expect(result.success && result.data.signals.completionSignal).toBe(true);
+    });
+
+    it('populates questions from request_clarification tool input', async () => {
+      const { executeAgentRun } = await import('./agent-runner');
+      const events: AgentEvent[] = [
+        {
+          type: 'tool_call',
+          toolUseId: 'toolu_q',
+          name: 'request_clarification',
+          input: { questions: ['Use commander or yargs?', 'Backwards compat required?'] },
+          seq: 0,
+          timestamp: 't0',
+        },
+        { type: 'done', stopReason: 'end_turn', seq: 1, timestamp: 't1' },
+      ];
+
+      const result = await executeAgentRun(makeRequest(), makeRunner(events));
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.questions).toEqual([
+        'Use commander or yargs?',
+        'Backwards compat required?',
+      ]);
+      expect(result.data.signals.completionSignal).toBe(false);
+    });
+
+    it('does NOT trigger signals from literal text containing the magic strings', async () => {
+      // Regression guard: pre-migration the runner used output.includes() on
+      // <promise>COMPLETE</promise> and a regex on QUESTION: lines. That made
+      // an agent quoting these strings in a code block accidentally trip the
+      // signals. Tool-call detection must ignore raw assistant text.
+      const { executeAgentRun } = await import('./agent-runner');
+      const events: AgentEvent[] = [
+        {
+          type: 'assistant_message',
+          text:
+            'For reference, the old protocol used `<promise>COMPLETE</promise>` ' +
+            'and lines like `QUESTION: foo?`. Neither should fire a signal.',
+          seq: 0,
+          timestamp: 't0',
+        },
+        { type: 'done', stopReason: 'end_turn', seq: 1, timestamp: 't1' },
+      ];
+
+      const result = await executeAgentRun(makeRequest(), makeRunner(events));
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.signals.completionSignal).toBe(false);
+      expect(result.data.questions).toBeUndefined();
+    });
+
+    it('ignores empty / non-string entries in request_clarification questions array', async () => {
+      const { executeAgentRun } = await import('./agent-runner');
+      const events: AgentEvent[] = [
+        {
+          type: 'tool_call',
+          toolUseId: 'toolu_q',
+          name: 'request_clarification',
+          input: { questions: ['Real question?', '   ', null, 42, ''] },
+          seq: 0,
+          timestamp: 't0',
+        },
+        { type: 'done', stopReason: 'end_turn', seq: 1, timestamp: 't1' },
+      ];
+
+      const result = await executeAgentRun(makeRequest(), makeRunner(events));
+      expect(result.success && result.data.questions).toEqual(['Real question?']);
+    });
   });
 
   it('is reentrant: two concurrent invocations persist to their own run_ids without seq cross-talk', async () => {

@@ -420,10 +420,11 @@ This keeps the branch clean for code review. The progress file is only for cross
 ### 8. Signal Completion
 
 If ALL work for this task is complete (nothing remaining):
-- Output \`<promise>COMPLETE</promise>\` at the end of your response
-- This signals the system to stop iterating
+- Call the **mark_stage_complete** tool. The tool takes no arguments. The system stops iterating immediately.
 
-If work remains, do NOT output the completion signal. The system will automatically start another iteration.
+If work remains, do NOT call mark_stage_complete. The system will automatically start another iteration.
+
+If you need user input before you can proceed, call the **request_clarification** tool with a \`questions\` array (one string per question). The stage pauses and surfaces the questions to the human reviewer.
 
 ---
 
@@ -435,7 +436,7 @@ If work remains, do NOT output the completion signal. The system will automatica
 - **Do not modify files unrelated to the task**
 - **Update .ralph/progress.md** — this is how you communicate state across iterations
 - **Clean up on completion** — delete .ralph/progress.md and any temp files before the final commit
-- **Signal completion** — output \`<promise>COMPLETE</promise>\` only when ALL work is done`;
+- **Signal completion** — call mark_stage_complete only when ALL work is done`;
 
 /**
  * Default workflow definition — matches the original 5 user-defined stages

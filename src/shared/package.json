@@ -7,6 +7,7 @@
   "dependencies": {
     "@cursor/sdk": "^1.0.12",
     "@gitbeaker/rest": "^39.16.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.1",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.2",

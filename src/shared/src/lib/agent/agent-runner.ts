@@ -17,9 +17,17 @@ import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/clau
 import { dbAppendAgentEvent, dbUpdateAgentRunSummary } from '@/lib/managers/ralph-task-db';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type { GitUrl, Result } from '@/lib/types/index';
-import { parseQuestionsFromOutput } from '@/lib/workflow/prompt-template';
 
 import type { AgentEvent, AgentRunRequest, AgentRunResult, AgentRunner } from './types';
+
+/**
+ * Tool names registered on the in-process MCP signals server
+ * (mcp-signals-server.ts). The Ralph stage runner reads tool_call events
+ * with these names instead of parsing free-form text. The strings here MUST
+ * match the registerTool() calls on the MCP server side.
+ */
+const TOOL_MARK_STAGE_COMPLETE = 'mark_stage_complete';
+const TOOL_REQUEST_CLARIFICATION = 'request_clarification';
 
 const LOG_PREFIX = '[AGENT]';
 
@@ -125,15 +133,15 @@ export async function executeAgentRun(
     // ----- 3. AI execution via AgentRunner (streaming) -----
     // Iterate the AgentEvent stream, persist each event to agent_events
     // (when request.runId is set), and assemble the legacy AgentRunResult
-    // fields from terminal events. This is the migration off the buffered
-    // collapseEventsToOutput drain — downstream consumers (Ralph Board live
-    // timeline) now have access to the structured event row stream.
+    // fields from terminal events. Structured signals (completion +
+    // questions) come from tool_call events on the in-process MCP signals
+    // server, NOT from text parsing.
     const runner = agent ?? (await getDefaultAgent());
     const consumed = await consumeAgentStream(runner, request, tag);
     if (!consumed.success) {
       return consumed;
     }
-    const output = consumed.data.output;
+    const { output, signals: streamSignals } = consumed.data;
     const executionTimeMs = Date.now() - startTime;
     console.log(`${LOG_PREFIX} ${tag} output (${output.length} chars) in ${executionTimeMs}ms`);
 
@@ -213,17 +221,15 @@ export async function executeAgentRun(
       }
     }
 
-    // ----- 6. Question parsing -----
-    let questions: string[] | undefined;
-    if (request.parseQuestions) {
-      const parsed = parseQuestionsFromOutput(output);
-      if (parsed.length > 0) {
-        questions = parsed;
-      }
-    }
-
-    // ----- 7. Completion signal detection -----
-    const completionSignal = output.includes('<promise>COMPLETE</promise>');
+    // ----- 6. Structured signals from MCP tool calls -----
+    // Both signals are now driven by tool_call events on the agent's stream
+    // (see consumeAgentStream below). request.parseQuestions stays in the
+    // request shape for forward compat with non-Ralph callers but the field
+    // no longer drives parsing — questions populate from request_clarification
+    // tool calls regardless. Empty arrays collapse to undefined so the result
+    // shape matches the pre-migration contract.
+    const questions = streamSignals.questions.length > 0 ? streamSignals.questions : undefined;
+    const completionSignal = streamSignals.completionSignal;
 
     // ----- Build result -----
     const result: AgentRunResult = {
@@ -259,14 +265,22 @@ export async function executeAgentRun(
  * Persistence failures are logged but never abort execution — the agent
  * stream is the source of truth for the run's success, not the timeline DB.
  */
+interface StreamSignals {
+  /** True when a tool_call event with name='mark_stage_complete' was seen. */
+  completionSignal: boolean;
+  /** Accumulated questions from request_clarification tool_call events. */
+  questions: string[];
+}
+
 async function consumeAgentStream(
   runner: AgentRunner,
   request: AgentRunRequest,
   tag: string
-): Promise<Result<{ output: string }, Error>> {
+): Promise<Result<{ output: string; signals: StreamSignals }, Error>> {
   let output = '';
   let agentError: Error | null = null;
   let lastUsage: { inputTokens: number; outputTokens: number; model: string } | null = null;
+  const signals: StreamSignals = { completionSignal: false, questions: [] };
 
   try {
     const stream = runner.run({
@@ -292,6 +306,8 @@ async function consumeAgentStream(
         };
       } else if (event.type === 'error') {
         agentError = new Error(event.message);
+      } else if (event.type === 'tool_call') {
+        recordSignalFromToolCall(event.name, event.input, signals);
       }
     }
   } catch (runError) {
@@ -317,7 +333,46 @@ async function consumeAgentStream(
   if (agentError) {
     return { success: false, error: agentError };
   }
-  return { success: true, data: { output } };
+  return { success: true, data: { output, signals } };
+}
+
+/**
+ * Translate a tool_call event into a signal mutation. MCP tool names are
+ * sometimes prefixed by the SDK's server alias (e.g. "omnidev-signals.mark_stage_complete"
+ * or "mcp__omnidev-signals__mark_stage_complete") — accept both raw and
+ * prefixed forms so detection is resilient to the SDK's namespacing choice.
+ */
+function recordSignalFromToolCall(
+  rawName: string,
+  rawInput: unknown,
+  signals: StreamSignals
+): void {
+  const name = stripToolNamespace(rawName);
+  if (name === TOOL_MARK_STAGE_COMPLETE) {
+    signals.completionSignal = true;
+    return;
+  }
+  if (name === TOOL_REQUEST_CLARIFICATION) {
+    const input = (rawInput ?? {}) as { questions?: unknown };
+    if (Array.isArray(input.questions)) {
+      for (const q of input.questions) {
+        if (typeof q === 'string' && q.trim().length > 0) {
+          signals.questions.push(q.trim());
+        }
+      }
+    }
+  }
+}
+
+function stripToolNamespace(name: string): string {
+  // Common MCP server prefixes: "<serverName>.<tool>" or "mcp__<serverName>__<tool>".
+  if (name.startsWith('mcp__')) {
+    const idx = name.indexOf('__', 5);
+    if (idx >= 0) return name.slice(idx + 2);
+  }
+  const dot = name.lastIndexOf('.');
+  if (dot >= 0) return name.slice(dot + 1);
+  return name;
 }
 
 async function persistEvent(runId: string, event: AgentEvent, tag: string): Promise<void> {

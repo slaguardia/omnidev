@@ -78,18 +78,22 @@ export function resolvePromptTemplate(
   if (returnQuestions) {
     result +=
       '\n\n---\n\n## Questions\n\n' +
-      'If you have questions or need clarification before proceeding, list each one on its own line starting with `QUESTION:` so the system can parse them. Example:\n\n' +
-      'QUESTION: Should the CLI use commander or yargs?\n' +
-      'QUESTION: Is backwards compatibility required?\n\n' +
-      'This format is required — questions embedded in prose will not be detected.';
+      'If you need clarification from the user before you can proceed, call the ' +
+      '**request_clarification** tool. Pass each question as a separate string in ' +
+      'the `questions` array. The stage pauses immediately and the questions are ' +
+      'surfaced to the human reviewer.';
   }
 
   return result;
 }
 
 /**
- * Parse QUESTION: lines from Claude Code output.
- * Returns an array of question strings.
+ * @deprecated Question detection now flows through the request_clarification
+ * MCP tool exposed by mcp-signals-server.ts. The agent calls the tool with a
+ * structured `questions` array; agent-runner.ts reads the args directly off
+ * the tool_call event in the AgentEvent stream. This function is retained
+ * only for backward-compat with any external test fixtures that still
+ * import it; it has no production callers.
  */
 export function parseQuestionsFromOutput(output: string): string[] {
   const questions: string[] = [];
