@@ -121,7 +121,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm install -g pnpm @anthropic-ai/claude-code@~2.1.0 prisma@~5.22.0
+RUN npm install -g pnpm prisma@~5.22.0
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -146,9 +146,6 @@ RUN mkdir -p /secrets && chown nextjs:nodejs /secrets
 COPY src/shared/docker/docker-entrypoint-common.sh /opt/omnidev/entrypoint-common.sh
 COPY src/web/docker-entrypoint.sh /entrypoint.sh
 RUN chmod 755 /opt/omnidev/entrypoint-common.sh /entrypoint.sh && chown nextjs:nodejs /opt/omnidev/entrypoint-common.sh /entrypoint.sh
-
-COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
-RUN chmod 755 /usr/local/bin/claude-code-wrapper && chown nextjs:nodejs /usr/local/bin/claude-code-wrapper
 
 COPY --chown=nextjs:nodejs scripts/ ./scripts/
 COPY --chown=nextjs:nodejs src/web/scripts/ ./src/web/scripts/

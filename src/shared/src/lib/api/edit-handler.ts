@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import { validateAndLoadWorkspace } from './workspace-validation';
 import { EditRouteParams } from './types';
@@ -56,37 +55,10 @@ export async function handleEditClaudeCodeRequest(
     const resolvedRoot = workspaceValidation.resolvedRoot;
     const effectiveSourceBranch = sourceBranch || workspace?.targetBranch;
 
-    // ============================================================================
-    // STEP 4: CLAUDE CODE AVAILABILITY CHECK
-    // ============================================================================
-
-    // Check Claude Code availability
-    console.log(`[${logPrefix}] Checking Claude Code availability...`);
-    const availabilityStart = Date.now();
-    const availabilityCheck = await checkClaudeCodeAvailability();
-    const availabilityTime = Date.now() - availabilityStart;
-    console.log(
-      `[${logPrefix}] Claude Code availability check completed in ${availabilityTime}ms:`,
-      {
-        success: availabilityCheck.success,
-        available: availabilityCheck.success ? availabilityCheck.data : false,
-        error: availabilityCheck.success ? undefined : availabilityCheck.error?.message,
-      }
-    );
-
-    if (!availabilityCheck.success || !availabilityCheck.data) {
-      const errorMessage = !availabilityCheck.success
-        ? availabilityCheck.error?.message
-        : 'Not installed or not accessible';
-      console.error(`[${logPrefix}] Claude Code not available:`, errorMessage);
-      return NextResponse.json(
-        {
-          error:
-            'Claude Code is not available. Please ensure Claude Code is installed and accessible.',
-        },
-        { status: 503 }
-      );
-    }
+    // STEP 4 (removed): Claude Code availability check.
+    // The streaming AgentRunner reports missing credentials / SDK issues as
+    // an unrecoverable error event from the run; the worker records that as
+    // a failed job. Pre-flight check is no longer needed.
 
     // ============================================================================
     // STEP 5: QUEUE CLAUDE CODE JOB

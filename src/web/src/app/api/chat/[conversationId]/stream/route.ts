@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildReadOnlyRepoContextForChat } from '@/lib/chat/read-only-repo-context';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
-import { ClaudeCodeAgent } from '@/lib/agent';
+import { CursorSdkAgent } from '@/lib/agent';
 import type { AgentEvent, AgentRunner } from '@/lib/agent';
 import type { WorkspaceId } from '@/lib/types/index';
 
@@ -87,7 +87,7 @@ const activeStreams = new Set<string>();
 // chat streams per the AgentRunner reentrancy contract.
 let defaultAgent: AgentRunner | null = null;
 function getChatAgent(): AgentRunner {
-  if (!defaultAgent) defaultAgent = new ClaudeCodeAgent();
+  if (!defaultAgent) defaultAgent = new CursorSdkAgent();
   return defaultAgent;
 }
 

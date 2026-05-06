@@ -1,28 +1,12 @@
 /**
- * Types and interfaces for Claude Code integration
+ * Types retained for git workflow helpers in this directory. The Claude
+ * Code CLI orchestrator was deleted; the only ClaudeCodeResult /
+ * ClaudeCodeOptions consumers now are post-execution git ops, which
+ * could be inlined when this directory is renamed.
  */
 
-import type { FilePath, WorkspaceId } from '@/lib/types/index';
+import type { WorkspaceId } from '@/lib/types/index';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
-
-export interface ClaudeCodeOptions {
-  question: string;
-  context?: string;
-  workingDirectory: FilePath;
-  workspaceId?: WorkspaceId;
-  sourceBranch?: string;
-  editRequest?: boolean;
-  enableAutoMR?: boolean;
-  mrOptions?: {
-    targetBranch?: string;
-    assigneeId?: number;
-    labels?: string[];
-    removeSourceBranch?: boolean;
-    squash?: boolean;
-  };
-  /** Extra environment variables to merge into the child process env */
-  extraEnv?: Record<string, string> | undefined;
-}
 
 export interface GitWorkflowOptions {
   workspaceId: WorkspaceId;
@@ -33,25 +17,14 @@ export interface GitWorkflowOptions {
 }
 
 /**
- * Individual JSON log entry from Claude Code stream
+ * Result type retained on the legacy ClaudeCodeJobResult shape so existing
+ * UI consumers (ExternalTaskingHistoryTab) keep typechecking. Always
+ * populated with output + gitInitResult; the streaming AgentEvent timeline
+ * is the source of truth for everything else.
  */
-export interface ClaudeCodeJsonLog {
-  type: string;
-  subtype?: string;
-  timestamp?: string;
-  message?: unknown;
-  result?: string;
-  duration_ms?: number;
-  [key: string]: unknown;
-}
-
 export interface ClaudeCodeResult {
   output: string;
   gitInitResult?: GitInitResult;
-  /** Raw JSON stream logs from Claude Code execution */
-  jsonLogs?: ClaudeCodeJsonLog[];
-  /** Raw stdout output (includes all output before parsing) */
-  rawOutput?: string;
 }
 
 export interface PostExecutionResult {

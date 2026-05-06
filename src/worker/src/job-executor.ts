@@ -23,7 +23,7 @@ import {
 } from '@/lib/managers/ralph-task-db';
 import type { RalphJob } from '@/lib/managers/ralph-task-db';
 import type { FilePath, GitUrl } from '@/lib/common/types';
-import type { AgentRunner } from '@/lib/agent/claude-code-agent';
+import type { AgentRunner } from '@/lib/agent';
 import {
   getGitCredentials,
   buildBranchName,

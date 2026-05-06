@@ -19,5 +19,4 @@ export type {
 } from './types';
 export { executeAgentRun } from './agent-runner';
 export { collapseEventsToOutput } from './collapse';
-export { ClaudeCodeAgent } from './claude-code-agent';
 export { CursorSdkAgent } from './cursor-sdk-agent';

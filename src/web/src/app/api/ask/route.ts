@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeWorkspaceManager, loadWorkspace } from '@/lib/managers/workspace-manager';
 import { resolveWorkspaceGitRoot } from '@/lib/workspace/resolve-workspace-root';
-import { checkClaudeCodeAvailability } from '@/lib/claudeCode';
 import { withAuth } from '@/lib/auth/middleware';
 import type { WorkspaceId } from '@/lib/types/index';
 import {
@@ -91,28 +90,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check Claude Code availability
-    console.log(`[ASK API] Checking Claude Code availability...`);
-    const availabilityStart = Date.now();
-    const availabilityCheck = await checkClaudeCodeAvailability();
-    const availabilityTime = Date.now() - availabilityStart;
-    console.log(`[ASK API] Claude Code availability check completed in ${availabilityTime}ms:`, {
-      success: availabilityCheck.success,
-      available: availabilityCheck.success ? availabilityCheck.data : false,
-      error: availabilityCheck.success ? undefined : availabilityCheck.error?.message,
-    });
-
-    if (!availabilityCheck.success || !availabilityCheck.data) {
-      const errorMessage = !availabilityCheck.success
-        ? availabilityCheck.error?.message
-        : 'Not installed or not accessible';
-      console.error(`[ASK API] Claude Code not available:`, errorMessage);
-      return serviceUnavailable(
-        'Claude Code is not available. Please ensure Claude Code is installed and accessible.'
-      );
-    }
-
     // Queue the job for background processing (always returns immediately)
+    // Agent availability is no longer pre-checked; CursorSdkAgent surfaces
+    // missing API key as an unrecoverable error event from the streaming
+    // run, which the worker records as a failed job.
     console.log(`[ASK API] 🚀 Queueing Claude Code job for repository analysis`);
     console.log(`[ASK API] Job parameters:`, {
       questionLength: question.length,

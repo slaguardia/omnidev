@@ -6,7 +6,7 @@
  */
 
 import type { AgentRunRequest, AgentRunner } from '@/lib/agent';
-import { ClaudeCodeAgent } from '@/lib/agent';
+import { CursorSdkAgent } from '@/lib/agent';
 import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/claudeCode';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
@@ -92,13 +92,12 @@ Operations outside your granted permissions will be rejected with a 403 error. D
 /**
  * Module-level default agent for legacy /api/ask + /api/edit jobs. Stateless;
  * safe to share across concurrent invocations per the AgentRunner reentrancy
- * contract. Picking ClaudeCodeAgent here preserves existing behavior; once
- * sub-task 10 (decommission) lands, this defaults to CursorSdkAgent.
+ * contract.
  */
 let queueDefaultAgent: AgentRunner | null = null;
 function getQueueDefaultAgent(): AgentRunner {
   if (!queueDefaultAgent) {
-    queueDefaultAgent = new ClaudeCodeAgent();
+    queueDefaultAgent = new CursorSdkAgent();
   }
   return queueDefaultAgent;
 }

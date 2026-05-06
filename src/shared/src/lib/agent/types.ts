@@ -145,8 +145,8 @@ export interface AgentRunnerResult {
  * Streaming agent runner — executes one agent invocation and yields a
  * sequence of typed AgentEvents as they arrive.
  *
- * Implementations: see `ClaudeCodeAgent` (legacy CLI adapter) and the
- * forthcoming `CursorSdkAgent`.
+ * Implementations: see `CursorSdkAgent` (the default after the Claude Code
+ * CLI decommission).
  *
  * REENTRANCY GUARANTEE (load-bearing for in-process job parallelism):
  *   Multiple concurrent invocations of run() on the same AgentRunner instance

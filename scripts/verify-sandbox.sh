@@ -111,21 +111,9 @@ echo ""
 # Test Wrapper Script
 # =============================================================================
 
-echo "5. Testing Claude Code Wrapper"
-echo "-------------------------------"
-
-if [ -x "/usr/local/bin/claude-code-wrapper" ]; then
-  echo -e "${GREEN}PASS${NC} - Wrapper script exists and is executable"
-  TESTS_PASSED=$((TESTS_PASSED + 1))
-
-  # Show wrapper script content (first few lines)
-  echo "Wrapper script preview:"
-  head -n 20 /usr/local/bin/claude-code-wrapper | sed 's/^/  /'
-else
-  echo -e "${RED}FAIL${NC} - Wrapper script not found or not executable"
-  TESTS_FAILED=$((TESTS_FAILED + 1))
-fi
-
+echo "5. Wrapper script check (skipped — Claude Code CLI removed)"
+echo "------------------------------------------------------------"
+echo "Agent execution now uses the in-process Cursor SDK; no wrapper script."
 echo ""
 
 # =============================================================================

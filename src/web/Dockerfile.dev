@@ -34,17 +34,13 @@ RUN mkdir -p /opt/internal/bin \
     && echo 'exit 1' >> /usr/bin/git \
     && chmod 755 /usr/bin/git
 
-# Package manager + Claude Code CLI
-RUN npm install -g pnpm @anthropic-ai/claude-code
+# Package manager
+RUN npm install -g pnpm
 
 # Create the same non-root user as prod so `docker exec --user nextjs ...` works in dev too.
 # We do NOT switch the default user here because dev bind mounts may require root for write access.
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid 1001 --create-home --home-dir /home/nextjs nextjs
-
-# Claude Code wrapper (used by the app server)
-COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
-RUN chmod 755 /usr/local/bin/claude-code-wrapper
 
 # Dev entrypoint script
 COPY src/web/docker-entrypoint-dev.sh /entrypoint-dev.sh

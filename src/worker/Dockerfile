@@ -121,7 +121,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm install -g pnpm @anthropic-ai/claude-code@~2.1.0
+RUN npm install -g pnpm
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -146,17 +146,13 @@ COPY src/shared/docker/docker-entrypoint-common.sh /opt/omnidev/entrypoint-commo
 COPY src/worker/docker-entrypoint.sh /entrypoint.sh
 RUN chmod 755 /opt/omnidev/entrypoint-common.sh /entrypoint.sh && chown nextjs:nodejs /opt/omnidev/entrypoint-common.sh /entrypoint.sh
 
-COPY claude-code-wrapper.sh /usr/local/bin/claude-code-wrapper
-RUN chmod 755 /usr/local/bin/claude-code-wrapper && chown nextjs:nodejs /usr/local/bin/claude-code-wrapper
-
 COPY --chown=nextjs:nodejs scripts/ ./scripts/
 COPY --chown=nextjs:nodejs src/worker/scripts/ ./src/worker/scripts/
 RUN chmod 755 ./scripts/*.sh ./src/worker/scripts/*.sh 2>/dev/null; \
     chmod 755 ./src/worker/scripts/*.mjs 2>/dev/null; true
 
 COPY src/worker/scripts/create-task.sh /usr/local/bin/create-task
-COPY src/worker/scripts/claude-login.sh /usr/local/bin/claude-login
-RUN chmod 755 /usr/local/bin/create-task /usr/local/bin/claude-login
+RUN chmod 755 /usr/local/bin/create-task
 
 COPY --from=builder --chown=nextjs:nodejs /app/dist/cli/index.cjs /opt/internal/bin/ralph.cjs
 RUN echo '#!/usr/bin/env node' > /usr/local/bin/ralph && \

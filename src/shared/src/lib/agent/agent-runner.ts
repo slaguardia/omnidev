@@ -25,21 +25,21 @@ const LOG_PREFIX = '[AGENT]';
 
 /**
  * Module-level agent instance, lazily initialized and shared across concurrent
- * executeAgentRun() calls.
+ * executeAgentRun() calls. CursorSdkAgent is the default after the Claude
+ * Code CLI decommission.
  *
  * Sharing is SAFE because AgentRunner implementations are stateless — all
  * per-run state lives on the async iterable returned by run(). This is part
  * of the AgentRunner reentrancy contract documented on the interface in
- * ./types.ts. If a future implementation violates that contract, this
- * singleton must be replaced with a per-call factory.
+ * ./types.ts.
  */
 let defaultAgent: AgentRunner | null = null;
 
 async function getDefaultAgent(): Promise<AgentRunner> {
   if (!defaultAgent) {
-    // Lazy import to avoid circular deps at module load time
-    const { ClaudeCodeAgent } = await import('@/lib/agent/claude-code-agent');
-    defaultAgent = new ClaudeCodeAgent();
+    // Lazy import to avoid circular deps at module load time.
+    const { CursorSdkAgent } = await import('@/lib/agent/cursor-sdk-agent');
+    defaultAgent = new CursorSdkAgent();
   }
   return defaultAgent;
 }
@@ -50,7 +50,7 @@ async function getDefaultAgent(): Promise<AgentRunner> {
  * Returns a Result so callers can distinguish between a clean failure (success: false)
  * and a successful run that may carry a non-fatal error in `result.error`.
  *
- * @param agent — optional AgentRunner override. Defaults to ClaudeCodeAgent.
+ * @param agent — optional AgentRunner override. Defaults to CursorSdkAgent.
  */
 export async function executeAgentRun(
   request: AgentRunRequest,

@@ -24,7 +24,7 @@ import {
   type RalphJob,
 } from '@/lib/managers/ralph-task-db';
 import { revokeJobTokens, revokeExpiredTokens } from '@/lib/auth/stage-tokens';
-import { ClaudeCodeAgent } from '@/lib/agent/claude-code-agent';
+import { CursorSdkAgent } from '@/lib/agent/cursor-sdk-agent';
 import { executeV2Job } from './job-executor';
 import { executeRalphStageJob } from '@/lib/queue/job-handlers';
 import type { RalphStageJobPayload } from '@/lib/queue/types';
@@ -37,7 +37,9 @@ const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 60_000;
 
-const agent = new ClaudeCodeAgent();
+// Stateless — safe to share across concurrent runJob invocations per the
+// AgentRunner reentrancy contract.
+const agent = new CursorSdkAgent();
 
 /**
  * Execute a job based on its agent_type.
