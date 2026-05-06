@@ -5,12 +5,9 @@
  * to be called by the queue worker.
  */
 
-import type { AgentRunRequest } from '@/lib/agent';
-import {
-  askClaudeCode,
-  handlePostClaudeCodeExecution,
-  initializeGitWorkflow,
-} from '@/lib/claudeCode';
+import type { AgentRunRequest, AgentRunner } from '@/lib/agent';
+import { ClaudeCodeAgent } from '@/lib/agent';
+import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/claudeCode';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
 import type { FilePath, GitUrl, CommitHash, WorkspaceId } from '@/lib/types/index';
@@ -18,7 +15,6 @@ import type {
   ClaudeCodeJobPayload,
   ClaudeCodeJobResult,
   ClaudeCodeUsage,
-  ClaudeCodeJsonLog,
   GitPushJobPayload,
   GitMRJobPayload,
   WorkspaceCleanupJobPayload,
@@ -94,44 +90,17 @@ Operations outside your granted permissions will be rejected with a 403 error. D
 }
 
 /**
- * Extract usage information from the final 'result' type JSON log.
- * The result log contains:
- * - total_cost_usd: total cost in USD
- * - usage: { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens }
+ * Module-level default agent for legacy /api/ask + /api/edit jobs. Stateless;
+ * safe to share across concurrent invocations per the AgentRunner reentrancy
+ * contract. Picking ClaudeCodeAgent here preserves existing behavior; once
+ * sub-task 10 (decommission) lands, this defaults to CursorSdkAgent.
  */
-function extractUsageFromJsonLogs(jsonLogs: ClaudeCodeJsonLog[]): ClaudeCodeUsage | undefined {
-  // Find the final result log which contains aggregated usage
-  const resultLog = jsonLogs.find((log) => log.type === 'result');
-  if (!resultLog) {
-    return undefined;
+let queueDefaultAgent: AgentRunner | null = null;
+function getQueueDefaultAgent(): AgentRunner {
+  if (!queueDefaultAgent) {
+    queueDefaultAgent = new ClaudeCodeAgent();
   }
-
-  const usage = resultLog.usage as Record<string, unknown> | undefined;
-  if (!usage) {
-    return undefined;
-  }
-
-  const result: ClaudeCodeUsage = {
-    inputTokens: (usage.input_tokens as number) || 0,
-    outputTokens: (usage.output_tokens as number) || 0,
-  };
-
-  if (
-    typeof usage.cache_creation_input_tokens === 'number' &&
-    usage.cache_creation_input_tokens > 0
-  ) {
-    result.cacheCreationInputTokens = usage.cache_creation_input_tokens;
-  }
-  if (typeof usage.cache_read_input_tokens === 'number' && usage.cache_read_input_tokens > 0) {
-    result.cacheReadInputTokens = usage.cache_read_input_tokens;
-  }
-
-  // Get total cost from the result log
-  if (typeof resultLog.total_cost_usd === 'number') {
-    result.costUsd = resultLog.total_cost_usd;
-  }
-
-  return result;
+  return queueDefaultAgent;
 }
 
 /**
@@ -155,7 +124,10 @@ export async function executeClaudeCodeJob(
   // whether the API executed immediately or queued. This also ensures we can commit/push
   // changes to the selected branch even when no merge request is requested.
   let gitInitResult: GitInitResult | undefined;
-  let effectiveSourceBranch = payload.sourceBranch;
+  // effectiveSourceBranch was used to feed sourceBranch into askClaudeCode;
+  // the streaming AgentRunner contract has no equivalent (the workspace
+  // branch is set out-of-band by the git workflow init below).
+  let _effectiveSourceBranch = payload.sourceBranch;
 
   const isEditJob = payload.editRequest ?? false;
 
@@ -280,7 +252,7 @@ export async function executeClaudeCodeJob(
         ...initResult.data,
         mergeRequestRequired: Boolean(payload.createMR) && initResult.data.mergeRequestRequired,
       };
-      effectiveSourceBranch = initResult.data.sourceBranch;
+      _effectiveSourceBranch = initResult.data.sourceBranch;
       console.log(`[JOB] ✅ Git workflow initialized in ${gitInitTime}ms`, {
         mergeRequestRequired: gitInitResult.mergeRequestRequired,
         sourceBranch: initResult.data.sourceBranch,
@@ -289,29 +261,44 @@ export async function executeClaudeCodeJob(
     }
   }
 
-  // Build options, only including defined properties
-  const options: Parameters<typeof askClaudeCode>[0] = {
-    question: payload.question,
-    workingDirectory: workspaceRoot,
-    workspaceId: payload.workspaceId,
-    editRequest: isEditJob,
-  };
+  // Build the question, optionally prefixed with caller-provided context.
+  // The legacy askClaudeCode handled this concatenation internally; the
+  // streaming AgentRunner contract takes a single `question` string so
+  // we inline it here.
+  const question = payload.context
+    ? `${payload.question}\n\nContext: ${payload.context}`
+    : payload.question;
 
-  if (payload.context) {
-    options.context = payload.context;
+  // Drive the streaming AgentRunner directly. /api/ask + /api/edit do not
+  // create an agent_runs row (file-based queue, separate from Ralph + V2),
+  // so events are not persisted — the legacy file-based ClaudeCodeJobResult
+  // is the only durable artifact.
+  const agent = getQueueDefaultAgent();
+  let output = '';
+  let usage: ClaudeCodeUsage | undefined;
+
+  try {
+    for await (const event of agent.run({
+      question,
+      workingDirectory: workspaceRoot,
+      editRequest: isEditJob,
+    })) {
+      if (event.type === 'assistant_message') {
+        output += event.text;
+      } else if (event.type === 'usage_update') {
+        usage = {
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+        };
+      } else if (event.type === 'error') {
+        throw new Error(event.message);
+      }
+    }
+  } catch (err) {
+    throw err instanceof Error ? err : new Error(String(err));
   }
-
-  if (effectiveSourceBranch) {
-    options.sourceBranch = effectiveSourceBranch;
-  }
-
-  const result = await askClaudeCode(options);
 
   const executionTimeMs = Date.now() - startTime;
-
-  if (!result.success) {
-    throw new Error(result.error?.message || 'Claude Code execution failed');
-  }
 
   console.log(`[JOB] Claude Code job completed in ${executionTimeMs}ms`);
 
@@ -414,7 +401,7 @@ export async function executeClaudeCodeJob(
   }
 
   const jobResult: ClaudeCodeJobResult = {
-    output: result.data?.output || '',
+    output,
     executionTimeMs,
   };
 
@@ -424,24 +411,18 @@ export async function executeClaudeCodeJob(
   if (postExecution) {
     jobResult.postExecution = postExecution;
   }
-  if (result.data?.jsonLogs) {
-    jobResult.jsonLogs = result.data.jsonLogs;
-    // Extract usage from JSON logs
-    const usage = extractUsageFromJsonLogs(result.data.jsonLogs);
-    if (usage) {
-      jobResult.usage = usage;
-      console.log(`[JOB] ✅ Extracted usage:`, {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        cacheCreation: usage.cacheCreationInputTokens,
-        cacheRead: usage.cacheReadInputTokens,
-        costUsd: usage.costUsd,
-      });
-    }
+  if (usage) {
+    jobResult.usage = usage;
+    console.log(`[JOB] ✅ Captured usage:`, {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
   }
-  if (result.data?.rawOutput) {
-    jobResult.rawOutput = result.data.rawOutput;
-  }
+  // jsonLogs / rawOutput are no longer populated — they were Claude Code
+  // CLI-specific artifacts. The streaming AgentEvent timeline replaces
+  // them; for /api/ask + /api/edit the file-queue payload is the durable
+  // record. Existing UI consumers (ExternalTaskingHistoryTab) gracefully
+  // hide these fields when undefined.
 
   return jobResult;
 }
