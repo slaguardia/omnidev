@@ -67,7 +67,8 @@ interface JobPayload {
 export async function executeV2Job(
   job: RalphJob,
   agent: AgentRunner,
-  runId?: string
+  runId?: string,
+  signal?: AbortSignal
 ): Promise<JobResult> {
   const startTime = Date.now();
   const payload = parsePayload(job);
@@ -128,7 +129,8 @@ export async function executeV2Job(
       tmpDir,
       isEdit,
       logTag,
-      runId
+      runId,
+      signal
     );
     agentMs = Date.now() - agentStart;
 
@@ -233,7 +235,8 @@ async function consumeAttempt(
   workingDirectory: string,
   editRequest: boolean,
   runId: string | undefined,
-  workerSeq: { next: () => number }
+  workerSeq: { next: () => number },
+  signal?: AbortSignal
 ): Promise<{
   output: string;
   errorEvent: { message: string; recoverable: boolean } | null;
@@ -243,7 +246,13 @@ async function consumeAttempt(
   let errorEvent: { message: string; recoverable: boolean } | null = null;
   let usage: { inputTokens: number; outputTokens: number; model: string } | null = null;
 
-  for await (const event of agent.run({ question, workingDirectory, editRequest })) {
+  const runOpts: Parameters<typeof agent.run>[0] = {
+    question,
+    workingDirectory,
+    editRequest,
+  };
+  if (signal) runOpts.signal = signal;
+  for await (const event of agent.run(runOpts)) {
     if (runId) {
       // Replace the agent's per-stream seq with the worker's per-run counter
       // so retry attempts produce a continuous seq sequence under one runId.
@@ -289,7 +298,8 @@ export async function runAgentWithRetry(
   workingDirectory: string,
   editRequest: boolean,
   logTag: string,
-  runId?: string
+  runId?: string,
+  signal?: AbortSignal
 ): Promise<{ output: string; retried: boolean }> {
   const workerSeq = (() => {
     let s = 0;
@@ -306,7 +316,8 @@ export async function runAgentWithRetry(
       workingDirectory,
       editRequest,
       runId,
-      workerSeq
+      workerSeq,
+      signal
     );
     if (firstAttempt.errorEvent) {
       firstAttemptError = new Error(firstAttempt.errorEvent.message);
@@ -341,7 +352,8 @@ export async function runAgentWithRetry(
     workingDirectory,
     editRequest,
     runId,
-    workerSeq
+    workerSeq,
+    signal
   );
 
   if (retryAttempt.errorEvent) {

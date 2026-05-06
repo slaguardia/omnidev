@@ -272,6 +272,17 @@ export async function dbGetAgentRunsByJob(
     : Promise.resolve(sqlite.dbGetAgentRunsByJob(jobId));
 }
 
+/**
+ * Read the cancellation_requested_at marker on a single agent_run. Used by
+ * the worker's per-job poll loop to react to user-initiated cancellation
+ * (POST /api/ralph/jobs/:jobId/cancel).
+ */
+export async function dbIsAgentRunCancellationRequested(runId: string): Promise<boolean> {
+  return isPrismaConfigured()
+    ? pg.dbIsAgentRunCancellationRequested(runId)
+    : Promise.resolve(sqlite.dbIsAgentRunCancellationRequested(runId));
+}
+
 export async function dbUpdateAgentRunSummary(
   id: string,
   updates: import('./ralph-task-db-sqlite').RalphAgentRunSummaryUpdate

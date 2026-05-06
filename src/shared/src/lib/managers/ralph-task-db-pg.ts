@@ -756,6 +756,14 @@ export async function dbGetAgentRunsByJob(jobId: string): Promise<RalphAgentRun[
   return rows.map(agentRunToRalph);
 }
 
+export async function dbIsAgentRunCancellationRequested(runId: string): Promise<boolean> {
+  const row = await prisma.agentRun.findUnique({
+    where: { id: runId },
+    select: { cancellationRequestedAt: true },
+  });
+  return row?.cancellationRequestedAt != null;
+}
+
 /**
  * Update the per-run summary fields populated by the streaming AgentRunner
  * (model, token counts, cost, cancellation marker). Unspecified fields are

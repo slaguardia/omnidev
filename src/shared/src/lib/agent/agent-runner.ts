@@ -274,6 +274,7 @@ async function consumeAgentStream(
       workingDirectory: request.workspacePath,
       editRequest: request.editMode,
       extraEnv: request.extraEnv,
+      signal: request.signal,
     });
 
     for await (const event of stream) {

@@ -18,6 +18,7 @@ import {
   dbCreateAgentRun,
   dbUpdateAgentRun,
   dbHeartbeatJob,
+  dbIsAgentRunCancellationRequested,
   dbRecoverStaleJobs,
   dbRequeueJob,
   type RalphJob,
@@ -31,6 +32,7 @@ import { createScheduler, resolveConcurrency, resolvePositiveInt } from './sched
 
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
+const CANCELLATION_POLL_INTERVAL_MS = 2000; // user-cancellation responsiveness
 const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 60_000;
@@ -40,10 +42,14 @@ const agent = new ClaudeCodeAgent();
 /**
  * Execute a job based on its agent_type.
  */
-async function dispatchJob(job: RalphJob, runId: string): Promise<{ logs: string }> {
+async function dispatchJob(
+  job: RalphJob,
+  runId: string,
+  signal: AbortSignal
+): Promise<{ logs: string }> {
   if (job.agent_type === 'ralph-stage') {
     const payload = JSON.parse(job.payload) as RalphStageJobPayload;
-    const result = await executeRalphStageJob(payload, job.id, runId);
+    const result = await executeRalphStageJob(payload, job.id, runId, signal);
     await dbUpdateJob(job.id, {
       status: result.error ? 'failed' : 'completed',
       result: JSON.stringify(result),
@@ -55,7 +61,7 @@ async function dispatchJob(job: RalphJob, runId: string): Promise<{ logs: string
   }
 
   // V2 coding-agent jobs
-  const result = await executeV2Job(job, agent, runId);
+  const result = await executeV2Job(job, agent, runId, signal);
 
   await dbUpdateJob(job.id, {
     status: 'completed',
@@ -97,32 +103,74 @@ async function runJob(job: RalphJob): Promise<void> {
     void dbHeartbeatJob(job.id);
   }, HEARTBEAT_INTERVAL_MS);
 
+  // Per-job AbortController scoped strictly to this run. The cancellation
+  // poll observes cancellation_requested_at on the agent_run row and aborts
+  // the controller; the AgentRunner.run() honors it via its native
+  // cancellation path (CursorSdkAgent → run.cancel()).
+  const abortController = new AbortController();
+  const cancelPollHandle = setInterval(() => {
+    void (async () => {
+      if (abortController.signal.aborted) return;
+      try {
+        const requested = await dbIsAgentRunCancellationRequested(runId);
+        if (requested) {
+          console.log(
+            `[WORKER] Cancellation requested for run ${runId} (job ${job.id}); aborting agent`
+          );
+          abortController.abort();
+        }
+      } catch (err) {
+        console.warn(`[WORKER] Cancellation poll for run ${runId} failed:`, err);
+      }
+    })();
+  }, CANCELLATION_POLL_INTERVAL_MS);
+
   try {
-    const { logs } = await dispatchJob(job, runId);
+    const { logs } = await dispatchJob(job, runId, abortController.signal);
 
-    await dbUpdateAgentRun(runId, {
-      status: 'completed',
-      logs,
-      completed_at: new Date().toISOString(),
-    });
-
-    console.log(`[WORKER] Job ${job.id} completed (${job.agent_type}): ${logs}`);
+    if (abortController.signal.aborted) {
+      await dbUpdateJob(job.id, { status: 'cancelled' });
+      await dbUpdateAgentRun(runId, {
+        status: 'cancelled',
+        logs: 'Cancelled by user request',
+        completed_at: new Date().toISOString(),
+      });
+      console.log(`[WORKER] Job ${job.id} cancelled (${job.agent_type})`);
+    } else {
+      await dbUpdateAgentRun(runId, {
+        status: 'completed',
+        logs,
+        completed_at: new Date().toISOString(),
+      });
+      console.log(`[WORKER] Job ${job.id} completed (${job.agent_type}): ${logs}`);
+    }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+    const wasCancelled = abortController.signal.aborted;
 
-    await dbUpdateJob(job.id, {
-      status: 'failed',
-      error: errorMessage,
-    });
-
-    await dbUpdateAgentRun(runId, {
-      status: 'failed',
-      logs: `Error: ${errorMessage}`,
-      completed_at: new Date().toISOString(),
-    });
+    if (wasCancelled) {
+      console.log(`[WORKER] Job ${job.id} cancelled mid-run: ${errorMessage}`);
+      await dbUpdateJob(job.id, { status: 'cancelled' });
+      await dbUpdateAgentRun(runId, {
+        status: 'cancelled',
+        logs: `Cancelled: ${errorMessage}`,
+        completed_at: new Date().toISOString(),
+      });
+    } else {
+      console.error(`[WORKER] Job ${job.id} failed:`, errorMessage);
+      await dbUpdateJob(job.id, {
+        status: 'failed',
+        error: errorMessage,
+      });
+      await dbUpdateAgentRun(runId, {
+        status: 'failed',
+        logs: `Error: ${errorMessage}`,
+        completed_at: new Date().toISOString(),
+      });
+    }
   } finally {
     clearInterval(heartbeatHandle);
+    clearInterval(cancelPollHandle);
     const revoked = await revokeJobTokens(job.id);
     if (revoked > 0) {
       console.log(`[WORKER] Revoked ${revoked} stage token(s) for job ${job.id}`);

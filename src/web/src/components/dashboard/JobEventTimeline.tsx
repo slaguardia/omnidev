@@ -7,9 +7,11 @@
  * placeholder. Supports both live (streaming) and terminal-state runs.
  */
 
+import { useState } from 'react';
 import { Card, CardBody } from '@heroui/card';
 import { Spinner } from '@heroui/spinner';
 import { Chip } from '@heroui/chip';
+import { Button } from '@heroui/button';
 import { useJobEvents, type JobEventRow } from '@/hooks/queries/useJobEvents';
 
 export interface JobEventTimelineProps {
@@ -18,6 +20,27 @@ export interface JobEventTimelineProps {
 
 export function JobEventTimeline({ jobId }: JobEventTimelineProps): JSX.Element {
   const { events, isStreaming, finalStatus, error } = useJobEvents(jobId);
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function requestCancel(): Promise<void> {
+    if (!jobId || cancelPending) return;
+    setCancelPending(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`/api/ralph/jobs/${encodeURIComponent(jobId)}/cancel`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setCancelError(body?.error ?? `Cancel failed (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : 'Cancel failed');
+    } finally {
+      setCancelPending(false);
+    }
+  }
 
   if (!jobId) {
     return (
@@ -36,6 +59,16 @@ export function JobEventTimeline({ jobId }: JobEventTimelineProps): JSX.Element 
           <>
             <Spinner size="sm" />
             <span className="text-default-600">Streaming live events…</span>
+            <Button
+              size="sm"
+              color="warning"
+              variant="flat"
+              isLoading={cancelPending}
+              onPress={() => void requestCancel()}
+              className="ml-auto"
+            >
+              Cancel
+            </Button>
           </>
         ) : finalStatus ? (
           <Chip
@@ -52,6 +85,7 @@ export function JobEventTimeline({ jobId }: JobEventTimelineProps): JSX.Element 
           </Chip>
         ) : null}
         {error && <span className="text-danger text-xs">{error}</span>}
+        {cancelError && <span className="text-danger text-xs">{cancelError}</span>}
       </div>
 
       {events.length === 0 && !isStreaming ? (

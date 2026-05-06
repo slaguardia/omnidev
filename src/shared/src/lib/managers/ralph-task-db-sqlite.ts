@@ -1387,6 +1387,17 @@ export function dbGetAgentRunsByJob(jobId: string): RalphAgentRun[] {
 }
 
 /**
+ * Read the cancellation_requested_at marker for a single agent_run.
+ * Returns true when the marker is set (any non-null value).
+ */
+export function dbIsAgentRunCancellationRequested(runId: string): boolean {
+  const row = getDb()
+    .prepare('SELECT cancellation_requested_at FROM agent_runs WHERE id = ?')
+    .get(runId) as { cancellation_requested_at: string | null } | undefined;
+  return row?.cancellation_requested_at != null;
+}
+
+/**
  * Update the per-run summary fields populated by the streaming AgentRunner
  * (model, token counts, cost, cancellation marker). Unspecified fields are
  * left unchanged. Returns true if a row was updated.

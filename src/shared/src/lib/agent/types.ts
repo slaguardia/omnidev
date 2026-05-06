@@ -223,6 +223,14 @@ export interface AgentRunRequest {
 
   /** Extra environment variables to pass to the agent subprocess (e.g. CLI tokens) */
   extraEnv?: Record<string, string> | undefined;
+
+  /**
+   * Optional abort signal forwarded to AgentRunner.run(). When the worker
+   * observes a cancellation_requested_at marker on the run's row, it aborts
+   * this signal; the agent then ends its event stream cleanly. Wired by
+   * sub-task 9 (mid-run cancellation end-to-end).
+   */
+  signal?: AbortSignal | undefined;
 }
 
 // ---------------------------------------------------------------------------
