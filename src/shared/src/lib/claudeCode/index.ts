@@ -8,8 +8,6 @@ export type {
   ClaudeCodeResult,
   PostExecutionResult,
   GitWorkflowOptions,
-  ClaudeCodeStreamOptions,
-  ClaudeCodeStreamEvent,
 } from '@/lib/claudeCode/types';
 
 // Re-export GitBranchWorkflowResult for compatibility
@@ -27,9 +25,6 @@ export { askClaudeCode } from '@/lib/claudeCode/orchestrator';
 // Post-execution handling
 export { handlePostClaudeCodeExecution } from '@/lib/claudeCode/post-execution';
 export type { TaskContext } from '@/lib/claudeCode/post-execution';
-
-// Streaming execution
-export { streamClaudeCode } from '@/lib/claudeCode/stream';
 
 // Version utilities
 export { getClaudeCodeVersion } from '@/lib/claudeCode/version';

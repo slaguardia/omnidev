@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import {
   dbGetConversation,
+  dbGetMessages,
   dbInsertMessage,
-  dbUpdateConversationSessionId,
   dbUpdateConversationTitle,
   dbUpdateConversationTimestamp,
 } from '@/lib/managers/chat-db';
@@ -14,12 +14,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildReadOnlyRepoContextForChat } from '@/lib/chat/read-only-repo-context';
 import { loadWorkspace } from '@/lib/managers/workspace-manager';
-import { streamClaudeCode } from '@/lib/claudeCode/stream';
-import type { ClaudeCodeJsonLog } from '@/lib/claudeCode/types';
-import type { FilePath, WorkspaceId } from '@/lib/types/index';
+import { ClaudeCodeAgent } from '@/lib/agent';
+import type { AgentEvent, AgentRunner } from '@/lib/agent';
+import type { WorkspaceId } from '@/lib/types/index';
 
 /**
- * Build context instructions telling Claude about the create-task script.
+ * Build context instructions telling the agent about the create-task script.
  */
 function buildTaskCreationContext(workspaceId: string): string {
   return `You have a task creation tool available. When the user asks you to create a task, run this command:
@@ -32,54 +32,47 @@ Only run this command when the user explicitly asks to create a task.`;
 }
 
 /**
- * Detect task creation from Claude Code's tool_use log events.
- * Looks for bash tool calls that invoke the create-task script and
- * extracts the task info from the tool_result stdout.
+ * Replay prior conversation turns into the prompt so the stateless
+ * AgentRunner sees full context. Each message is rendered as
+ * `[user] ...` / `[assistant] ...` blocks. The latest user message is
+ * appended last as the actual question.
  */
-function parseTaskCreatedFromLogs(
-  logs: ClaudeCodeJsonLog[]
+function buildPromptWithHistory(
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
+  latestMessage: string
+): string {
+  if (history.length === 0) return latestMessage;
+  const turns = history.map((m) => `[${m.role}]\n${m.content.trim()}`).join('\n\n');
+  return `Conversation so far:\n\n${turns}\n\n[user]\n${latestMessage}`;
+}
+
+/**
+ * Detect task creation from AgentEvent tool_result events. Looks for
+ * structured JSON output of the create-task script in the tool_result
+ * content payload.
+ */
+function parseTaskCreatedFromEvents(
+  events: AgentEvent[]
 ): Array<{ id: string; title: string; taskNumber: number }> {
   const created: Array<{ id: string; title: string; taskNumber: number }> = [];
-
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i]!;
-
-    // Look for tool_result events that follow a create-task bash call
-    if (log.subtype === 'tool_result') {
-      const content = log.message;
-      if (typeof content === 'string' && content.includes('"task_created":true')) {
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed.task_created && parsed.id && parsed.title) {
-            created.push({ id: parsed.id, title: parsed.title, taskNumber: parsed.taskNumber });
-          }
-        } catch {
-          // Not JSON or wrong shape
-        }
+  for (const event of events) {
+    if (event.type !== 'tool_result') continue;
+    const content = event.content;
+    if (typeof content !== 'string' || !content.includes('"task_created":true')) continue;
+    try {
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      if (
+        parsed.task_created === true &&
+        typeof parsed.id === 'string' &&
+        typeof parsed.title === 'string' &&
+        typeof parsed.taskNumber === 'number'
+      ) {
+        created.push({ id: parsed.id, title: parsed.title, taskNumber: parsed.taskNumber });
       }
-      // Also handle content blocks array format
-      if (Array.isArray(content)) {
-        for (const block of content) {
-          const b = block as Record<string, unknown>;
-          if (
-            b.type === 'text' &&
-            typeof b.text === 'string' &&
-            b.text.includes('"task_created":true')
-          ) {
-            try {
-              const parsed = JSON.parse(b.text);
-              if (parsed.task_created && parsed.id && parsed.title) {
-                created.push({ id: parsed.id, title: parsed.title, taskNumber: parsed.taskNumber });
-              }
-            } catch {
-              // Not JSON or wrong shape
-            }
-          }
-        }
-      }
+    } catch {
+      // Not JSON or wrong shape — ignore.
     }
   }
-
   return created;
 }
 
@@ -89,6 +82,14 @@ const StreamBodySchema = z.object({
 
 // Concurrency guard — one active stream per conversation
 const activeStreams = new Set<string>();
+
+// Module-level default agent. Stateless — safe to share across concurrent
+// chat streams per the AgentRunner reentrancy contract.
+let defaultAgent: AgentRunner | null = null;
+function getChatAgent(): AgentRunner {
+  if (!defaultAgent) defaultAgent = new ClaudeCodeAgent();
+  return defaultAgent;
+}
 
 export async function POST(
   request: NextRequest,
@@ -137,22 +138,16 @@ export async function POST(
     );
   }
 
+  // Read prior history BEFORE inserting the latest user message so we don't
+  // double-count it in the prompt context.
+  const priorMessages = await dbGetMessages(conversationId);
+
   await dbInsertMessage({
     id: randomUUID(),
     conversationId,
     role: 'user',
     content: message,
   });
-
-  // Session management
-  let sessionId = conversation.sessionId;
-  let isResume = false;
-  if (!sessionId) {
-    sessionId = randomUUID();
-    await dbUpdateConversationSessionId(conversationId, sessionId);
-  } else {
-    isResume = true;
-  }
 
   // Auto-title: set title to truncated first message if it's the default
   if (conversation.title === 'New conversation') {
@@ -180,41 +175,72 @@ export async function POST(
 
       let scratchDir: string | undefined;
       try {
-        const collectedLogs: ClaudeCodeJsonLog[] = [];
+        const collectedEvents: AgentEvent[] = [];
 
         scratchDir = await mkdtemp(join(tmpdir(), 'omnidev-chat-'));
         const repoContext = await buildReadOnlyRepoContextForChat(workspace);
         const taskContext = buildTaskCreationContext(conversation.workspaceId);
-        const context = [repoContext, taskContext].filter(Boolean).join('\n\n');
+        const sessionContext = [repoContext, taskContext].filter(Boolean).join('\n\n');
 
-        const generator = streamClaudeCode({
-          message,
-          workingDirectory: scratchDir as FilePath,
-          sessionId: sessionId!,
-          isResume,
-          context,
-        });
+        const promptWithHistory = buildPromptWithHistory(
+          priorMessages.map((m) => ({ role: m.role, content: m.content })),
+          message
+        );
+        const fullQuestion = sessionContext
+          ? `${sessionContext}\n\n${promptWithHistory}`
+          : promptWithHistory;
 
-        for await (const event of generator) {
+        const agent = getChatAgent();
+        for await (const event of agent.run({
+          question: fullQuestion,
+          workingDirectory: scratchDir,
+          editRequest: false,
+        })) {
+          collectedEvents.push(event);
+
           switch (event.type) {
-            case 'text':
-              accumulatedText += event.content;
-              writeSSE('assistant_delta', { content: event.content });
+            case 'assistant_message':
+              accumulatedText += event.text;
+              writeSSE('assistant_delta', { content: event.text });
               break;
 
-            case 'log':
-              collectedLogs.push(event.data);
-              writeSSE('log', { logType: event.logType, data: event.data });
+            case 'tool_call':
+              writeSSE('log', {
+                logType: 'tool_call',
+                data: { name: event.name, input: event.input, toolUseId: event.toolUseId },
+              });
               break;
 
-            case 'result':
-              // If we got a result with content but no accumulated text, use result content
-              if (event.content && !accumulatedText) {
-                accumulatedText = event.content;
-              }
+            case 'tool_result':
+              writeSSE('log', {
+                logType: 'tool_result',
+                data: {
+                  toolUseId: event.toolUseId,
+                  content: event.content,
+                  isError: event.isError,
+                },
+              });
+              break;
+
+            case 'thinking':
+              writeSSE('log', { logType: 'thinking', data: { text: event.text } });
+              break;
+
+            case 'usage_update':
+              writeSSE('log', {
+                logType: 'usage_update',
+                data: {
+                  inputTokens: event.inputTokens,
+                  outputTokens: event.outputTokens,
+                  model: event.model,
+                },
+              });
+              break;
+
+            case 'done':
               writeSSE('result', {
-                content: event.content,
-                durationMs: event.durationMs,
+                content: accumulatedText,
+                durationMs: Date.now() - startTime,
               });
               break;
 
@@ -224,8 +250,8 @@ export async function POST(
           }
         }
 
-        // Detect tasks created via the create-task script from tool_use logs
-        const createdTasks = parseTaskCreatedFromLogs(collectedLogs);
+        // Detect tasks created via the create-task script from tool_result events.
+        const createdTasks = parseTaskCreatedFromEvents(collectedEvents);
         for (const task of createdTasks) {
           console.log(`[CHAT STREAM] Detected task creation: ${task.title} (#${task.taskNumber})`);
           writeSSE('task_created', task);
