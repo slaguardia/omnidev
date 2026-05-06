@@ -95,14 +95,6 @@ export async function dbUpdateConversationTitle(id: string, title: string): Prom
   });
 }
 
-export async function dbUpdateConversationSessionId(id: string, sessionId: string): Promise<void> {
-  const now = new Date().toISOString();
-  await prisma.chatConversation.update({
-    where: { id },
-    data: { sessionId, updatedAt: now },
-  });
-}
-
 export async function dbUpdateConversationTimestamp(id: string): Promise<void> {
   const now = new Date().toISOString();
   await prisma.chatConversation.update({

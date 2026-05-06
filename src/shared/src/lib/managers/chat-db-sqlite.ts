@@ -120,7 +120,6 @@ interface StmtCache {
   getConversation: Database.Statement;
   listConversations: Database.Statement;
   updateTitle: Database.Statement;
-  updateSessionId: Database.Statement;
   updateUpdatedAt: Database.Statement;
   deleteConversation: Database.Statement;
   insertMessage: Database.Statement;
@@ -152,10 +151,6 @@ function getStmts(): StmtCache {
 
     updateTitle: database.prepare(
       'UPDATE chat_conversations SET title = ?, updated_at = ? WHERE id = ?'
-    ),
-
-    updateSessionId: database.prepare(
-      'UPDATE chat_conversations SET session_id = ?, updated_at = ? WHERE id = ?'
     ),
 
     updateUpdatedAt: database.prepare('UPDATE chat_conversations SET updated_at = ? WHERE id = ?'),
@@ -290,11 +285,6 @@ export function dbListConversations(workspaceId: string): ChatConversation[] {
 export function dbUpdateConversationTitle(id: string, title: string): void {
   const now = new Date().toISOString();
   getStmts().updateTitle.run(title, now, id);
-}
-
-export function dbUpdateConversationSessionId(id: string, sessionId: string): void {
-  const now = new Date().toISOString();
-  getStmts().updateSessionId.run(sessionId, now, id);
 }
 
 export function dbUpdateConversationTimestamp(id: string): void {

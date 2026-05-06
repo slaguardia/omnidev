@@ -41,12 +41,6 @@ export async function dbUpdateConversationTitle(id: string, title: string): Prom
     : Promise.resolve(sqlite.dbUpdateConversationTitle(id, title));
 }
 
-export async function dbUpdateConversationSessionId(id: string, sessionId: string): Promise<void> {
-  return isPrismaConfigured()
-    ? pg.dbUpdateConversationSessionId(id, sessionId)
-    : Promise.resolve(sqlite.dbUpdateConversationSessionId(id, sessionId));
-}
-
 export async function dbUpdateConversationTimestamp(id: string): Promise<void> {
   return isPrismaConfigured()
     ? pg.dbUpdateConversationTimestamp(id)
