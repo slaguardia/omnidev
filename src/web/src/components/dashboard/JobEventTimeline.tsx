@@ -9,9 +9,9 @@
 
 import { useState } from 'react';
 import { Card, CardBody } from '@heroui/card';
-import { Spinner } from '@heroui/spinner';
 import { Chip } from '@heroui/chip';
 import { Button } from '@heroui/button';
+import { Loader2 } from 'lucide-react';
 import { useJobEvents, type JobEventRow } from '@/hooks/queries/useJobEvents';
 
 export interface JobEventTimelineProps {
@@ -57,7 +57,7 @@ export function JobEventTimeline({ jobId }: JobEventTimelineProps): JSX.Element 
       <div className="flex items-center gap-2 text-xs">
         {isStreaming ? (
           <>
-            <Spinner size="sm" />
+            <Loader2 className="text-default-600 h-3.5 w-3.5 animate-spin" />
             <span className="text-default-600">Streaming live events…</span>
             <Button
               size="sm"

@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { ChatMarkdown } from '@/components/dashboard/tabs/chat/ChatMarkdown';
+import { JobEventTimeline } from '@/components/dashboard/JobEventTimeline';
 import type { StageOutput, StageQuestion } from '@/lib/managers/ralph-task-manager';
 import type { WorkflowStageDefinition } from '@/lib/types/index';
 
@@ -171,6 +172,14 @@ export default function StageOutputSection({
   const displayError = executionError || lastIterationError;
   const fileOutput = stageOutput?.fileOutput;
   const hasOutput = !!fileOutput || iterations.length > 0;
+
+  // Job id for the live agent_events timeline:
+  //   - If a job is currently running for this stage, stream its events live.
+  //   - Otherwise fall back to the most recent iteration's job so the
+  //     historical event timeline (backfill) stays visible after the run
+  //     terminates. JobEventTimeline gracefully renders an empty state when
+  //     this is null (no run has happened yet for this stage).
+  const timelineJobId = stageOutput?.activeJobId ?? iterations.at(-1)?.jobId ?? null;
   const iconColorClass = STAGE_COLOR_CLASSES[stageDef.color] || 'text-default-500';
   const questions = stageOutput?.pendingQuestions ?? [];
   const unansweredCount = questions.filter((q) => !q.answer).length;
@@ -331,6 +340,17 @@ export default function StageOutputSection({
               <p className="text-sm text-danger-700 dark:text-danger-400 whitespace-pre-wrap">
                 {displayError}
               </p>
+            </div>
+          )}
+
+          {/* Live agent activity (events stream from /api/ralph/jobs/:jobId/events).
+              Mounted above the artifact so users see real-time tool-use during
+              an active run; for terminal runs the timeline backfills the
+              historical event list and the artifact below stays primary. */}
+          {timelineJobId && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-default-500">Agent activity</p>
+              <JobEventTimeline jobId={timelineJobId} />
             </div>
           )}
 
