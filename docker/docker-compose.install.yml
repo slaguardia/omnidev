@@ -1,0 +1,129 @@
+# ============================================================================
+# Omnidev — Single-host install Compose stack
+# ============================================================================
+# Self-contained Compose file consumed by the install.sh curl-installer for
+# fresh-VPS deployments. Distinct from docker-compose.prod.yml in three ways:
+#
+#   1. Uses image: refs against published GHCR images instead of building
+#      from source. The VPS does not need the Omnidev source tree.
+#   2. Includes a Postgres service. The Railway production path uses managed
+#      Postgres; a single-host VPS needs the database in-stack.
+#   3. Plumbs CURSOR_API_KEY (the Cursor SDK is the only agent backend after
+#      the CLI decommission); omits the dead workflow_claude_config volume.
+#
+# Tag selection is driven by OMNIDEV_VERSION (defaults to `latest`). Pin to a
+# specific version in production by setting OMNIDEV_VERSION=1.2.3.
+#
+# Usage (the install script handles this; included here for reference):
+#   docker compose -f docker-compose.install.yml --env-file .env up -d
+# ============================================================================
+
+name: omnidev
+
+services:
+  # One-time permissions fix for persisted volumes. Named volumes are
+  # root-owned by default; this makes them writable by the `nextjs` user
+  # (uid/gid 1001) before the app starts. Runs to completion before web.
+  init-perms:
+    image: alpine:3.20
+    container_name: omnidev-init-perms
+    user: '0:0'
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        mkdir -p /app/workspaces /app/data /secrets
+        chown -R 1001:1001 /app/workspaces /app/data /secrets
+    volumes:
+      - omnidev_workspaces:/app/workspaces
+      - omnidev_data:/app/data
+      - omnidev_secrets:/secrets
+    restart: 'no'
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: omnidev-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-omnidev}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-omnidev}
+    volumes:
+      - omnidev_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-omnidev} -d ${POSTGRES_DB:-omnidev}']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  web:
+    image: ghcr.io/slaguardia/omnidev-web:${OMNIDEV_VERSION:-latest}
+    container_name: omnidev-app
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    # Bind to localhost by default. The install script flips this to
+    # 0.0.0.0 only when the user opts in to public exposure (recommended
+    # path is a reverse proxy in front; default keeps the dashboard private
+    # until intentionally exposed).
+    ports:
+      - '${OMNIDEV_BIND_ADDR:-127.0.0.1}:${OMNIDEV_PORT:-3000}:3000'
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - CURSOR_API_KEY=${CURSOR_API_KEY:?CURSOR_API_KEY is required}
+      - INITIAL_SIGNUP_TOKEN=${INITIAL_SIGNUP_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_TOKEN=${GITLAB_TOKEN:-}
+      - API_RATE_LIMIT=${API_RATE_LIMIT:-100}
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+    volumes:
+      - omnidev_workspaces:/app/workspaces
+      - omnidev_data:/app/data
+      - omnidev_secrets:/secrets
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    image: ghcr.io/slaguardia/omnidev-worker:${OMNIDEV_VERSION:-latest}
+    container_name: omnidev-worker
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - CURSOR_API_KEY=${CURSOR_API_KEY:?CURSOR_API_KEY is required}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITLAB_URL=${GITLAB_URL:-}
+      - GITLAB_TOKEN=${GITLAB_TOKEN:-}
+      # Default to 3 concurrent jobs (issue #2's in-process scheduler).
+      # Tune via env var; small VPS instances may want 1-2.
+      - OMNIDEV_WORKER_CONCURRENCY=${OMNIDEV_WORKER_CONCURRENCY:-3}
+    volumes:
+      - omnidev_workspaces:/app/workspaces
+      - omnidev_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  omnidev_workspaces:
+    name: omnidev_workspaces
+  omnidev_data:
+    name: omnidev_data
+  omnidev_secrets:
+    name: omnidev_secrets
+  omnidev_postgres_data:
+    name: omnidev_postgres_data
