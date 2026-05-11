@@ -58,8 +58,8 @@ See [Docker Setup](/docs/docker) for detailed Docker configuration.
 
 The application supports both GitLab and GitHub repositories:
 
-- **GitLab**: Creates Merge Requests after Claude Code edits
-- **GitHub**: Creates Pull Requests after Claude Code edits
+- **GitLab**: Creates Merge Requests after agent edits
+- **GitHub**: Creates Pull Requests after agent edits
 
 The provider is auto-detected from the repository URL. See [Credentials Management](/docs/credentials) for token setup.
 

@@ -4,9 +4,9 @@
 
 This guide describes how to deploy Omnidev on the public internet with a **defense-in-depth** posture: TLS, trusted network paths, strong authentication, secret handling, and operational habits. It complements [Environment Setup](./ENVIRONMENT.md), [Docker Setup](./DOCKER.md), [API Authentication](./API_AUTHENTICATION.md), and [Credentials Management](./CREDENTIALS.md).
 
-## Claude Code Dependency
+## Cursor SDK Dependency
 
-Omnidev installs and orchestrates the publicly available Claude Code package. Users must have their own Claude account and active subscription. Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+Omnidev depends on the [`@cursor/sdk`](https://www.npmjs.com/package/@cursor/sdk) package and a valid Cursor API key. Users bring their own Cursor plan; the SDK is a product of Anysphere Inc. and is not affiliated with this project. See [docs/CURSOR.md](./CURSOR.md) for auth + operational details.
 
 ## Threat Model (Plain Language)
 

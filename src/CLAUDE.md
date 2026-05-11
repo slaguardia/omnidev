@@ -150,7 +150,7 @@ import type { WorkspaceId, GitUrl, Result } from '@/lib/types/index';
 
 // Module-specific types via barrel
 import type { GitCloneOptions, GitBranchInfo } from '@/lib/git';
-import type { ClaudeCodeResult } from '@/lib/claudeCode';
+import type { AgentEvent, AgentRunner } from '@/lib/agent';
 
 // Component prop types (defined inline or co-located)
 interface MyComponentProps {

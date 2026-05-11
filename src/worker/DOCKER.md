@@ -3,7 +3,7 @@
 Production image definition: **`Dockerfile`** in this directory (build from repository root).
 
 - **`src/web/Dockerfile`** — Next.js standalone (`node server.js`).
-- **`src/worker/Dockerfile`** (this package) — job worker (`node worker.cjs`), Claude Code CLI, `create-task`, Ralph CLI, sandbox scripts.
+- **`src/worker/Dockerfile`** (this package) — job worker (`node worker.cjs`), Cursor SDK, `create-task`, Ralph CLI, sandbox scripts.
 - **`docker-entrypoint.sh`** here — production entrypoint; shared behavior in **`src/shared/docker/docker-entrypoint-common.sh`** (same as web).
 
 Docker Compose production maps **`app`** → web Dockerfile and **`worker`** → worker Dockerfile (`docker/docker-compose.prod.yml`).

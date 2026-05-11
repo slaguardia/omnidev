@@ -6,29 +6,29 @@ Core business logic organized by domain. Each module has an `index.ts` barrel ex
 
 ## Module Overview
 
-| Module        | Purpose                                       | Server-Only |
-| ------------- | --------------------------------------------- | ----------- |
-| `types/`      | Core type definitions                         | No          |
-| `db/`         | Prisma client singleton + DB helpers          | Yes         |
-| `agent/`      | Stage executor (uses AgentRunner interface)   | Yes         |
-| `claudeCode/` | Claude Code CLI integration                   | Yes         |
-| `chat/`       | Chat conversations and messages               | Yes         |
-| `git/`        | Git operations via simple-git                 | Yes         |
-| `gitlab/`     | GitLab API via @gitbeaker/rest                | Yes         |
-| `github/`     | GitHub API via @octokit/rest                  | Yes         |
-| `managers/`   | Resource managers (ralph-task-db, workspace)  | Yes         |
-| `ralph/`      | Ralph workflow engine (stage runner)          | Yes         |
-| `queue/`      | Legacy file-based queue (/api/ask, /api/edit) | Yes         |
-| `workspace/`  | Workspace management actions                  | Yes         |
-| `auth/`       | Authentication middleware                     | Yes         |
-| `config/`     | App configuration                             | Mixed       |
-| `api/`        | API utilities and Zod validation              | Yes         |
-| `dashboard/`  | Dashboard helpers                             | Yes         |
-| `docs/`       | Documentation utilities                       | Yes         |
-| `workflow/`   | Workflow module                               | Yes         |
-| `debug/`      | Debug utilities                               | Yes         |
-| `utils/`      | General utilities                             | No          |
-| `common/`     | Shared utilities and types                    | No          |
+| Module       | Purpose                                                                          | Server-Only |
+| ------------ | -------------------------------------------------------------------------------- | ----------- |
+| `types/`     | Core type definitions                                                            | No          |
+| `db/`        | Prisma client singleton + DB helpers                                             | Yes         |
+| `agent/`     | AgentRunner streaming interface + CursorSdkAgent + git-workflow + post-execution | Yes         |
+| `claudemd/`  | Workspace `CLAUDE.md` file I/O                                                   | Yes         |
+| `chat/`      | Chat conversations and messages                                                  | Yes         |
+| `git/`       | Git operations via simple-git                                                    | Yes         |
+| `gitlab/`    | GitLab API via @gitbeaker/rest                                                   | Yes         |
+| `github/`    | GitHub API via @octokit/rest                                                     | Yes         |
+| `managers/`  | Resource managers (ralph-task-db, workspace)                                     | Yes         |
+| `ralph/`     | Ralph workflow engine (stage runner)                                             | Yes         |
+| `queue/`     | Legacy file-based queue (/api/ask, /api/edit)                                    | Yes         |
+| `workspace/` | Workspace management actions                                                     | Yes         |
+| `auth/`      | Authentication middleware                                                        | Yes         |
+| `config/`    | App configuration                                                                | Mixed       |
+| `api/`       | API utilities and Zod validation                                                 | Yes         |
+| `dashboard/` | Dashboard helpers                                                                | Yes         |
+| `docs/`      | Documentation utilities                                                          | Yes         |
+| `workflow/`  | Workflow module                                                                  | Yes         |
+| `debug/`     | Debug utilities                                                                  | Yes         |
+| `utils/`     | General utilities                                                                | No          |
+| `common/`    | Shared utilities and types                                                       | No          |
 
 ## Core Patterns
 
@@ -133,42 +133,54 @@ class WorkspaceError extends Error {
 }
 ```
 
-### `claudeCode/` - Claude Code Integration
+### `agent/` - Agent Runtime
 
-Orchestrates Claude Code CLI execution in a sandboxed environment.
+Streaming `AgentRunner` interface + the default `CursorSdkAgent` (wraps
+`@cursor/sdk`) + the git operations that bracket an agent run.
 
 **Key Files:**
-| File | Purpose |
-|------|---------|
-| `orchestrator.ts` | Main `askClaudeCode()` function |
-| `git-workflow.ts` | Branch creation for edit operations |
-| `post-execution.ts` | Handle commits/MRs after execution |
-| `availability.ts` | Check if CLI is installed |
-| `version.ts` | Get CLI version |
-| `types.ts` | Options and result types |
+
+| File                    | Purpose                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `types.ts`              | `AgentEvent` discriminated union + `AgentRunner` interface                      |
+| `cursor-sdk-agent.ts`   | Default `AgentRunner` implementation (`CursorSdkAgent`)                         |
+| `agent-runner.ts`       | `executeAgentRun` orchestrator (Ralph stage entry point)                        |
+| `collapse.ts`           | `collapseEventsToOutput` adapter to legacy `{ output: string }`                 |
+| `git-workflow.ts`       | Pre-edit `initializeGitWorkflow` (branch setup)                                 |
+| `post-execution.ts`     | Post-edit `handlePostExecution` (stage, commit, push, MR/PR)                    |
+| `mcp-signals-server.ts` | In-process MCP server for `mark_stage_complete` / `request_clarification` tools |
 
 **Usage:**
 
 ```typescript
-import { askClaudeCode, checkClaudeCodeAvailability } from '@/lib/claudeCode';
+import { CursorSdkAgent, collapseEventsToOutput } from '@/lib/agent';
 
-// Check availability
-const available = await checkClaudeCodeAvailability();
-if (!available.success || !available.data) {
-  throw new Error('Claude Code not available');
+const agent = new CursorSdkAgent();
+
+// Drain stream → final assistant text (legacy callers):
+const { output } = await collapseEventsToOutput(
+  agent.run({
+    question: 'Explain this function',
+    workingDirectory: '/app/workspaces/my-repo',
+    editRequest: false,
+  })
+);
+
+// Or iterate events directly (preferred — see executeAgentRun):
+for await (const event of agent.run({ ... })) {
+  if (event.type === 'tool_call') console.log(event.name, event.input);
+  if (event.type === 'assistant_message') console.log(event.text);
 }
+```
 
-// Execute
-const result = await askClaudeCode({
-  question: 'Explain this function',
-  workingDirectory: '/app/workspaces/my-repo',
-  workspaceId: 'ws_123' as WorkspaceId,
-});
+### `claudemd/` - Workspace CLAUDE.md File I/O
 
-if (result.success) {
-  console.log(result.data.output);
-  console.log(`JSON logs: ${result.data.jsonLogs?.length}`);
-}
+Read / write / delete the per-workspace `CLAUDE.md` agent-context document.
+The file is workspace-scoped agent input read by the agent at run time;
+despite its name, it works with any `AgentRunner`.
+
+```typescript
+import { getClaudeMDContent, saveClaudeMdContent, deleteClaudeMdContent } from '@/lib/claudemd';
 ```
 
 ### `git/` - Git Operations
@@ -321,7 +333,7 @@ File-based job queue used only by `/api/ask` and `/api/edit` routes. Ralph stage
 
 ```typescript
 type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
-type JobType = 'claude-code' | 'git-push' | 'git-mr' | 'workspace-cleanup';
+type JobType = 'claude-code' | 'git-push' | 'git-mr' | 'workspace-cleanup'; // 'claude-code' is the legacy discriminator string; retained for on-disk compat with existing data/jobs/ files
 
 interface Job<T, R> {
   id: JobId;

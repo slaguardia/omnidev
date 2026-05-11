@@ -23,14 +23,14 @@ The sections below document **`POST /api/ask`**, **`POST /api/edit`**, and **`GE
 
 ### POST `/api/ask`
 
-Query Claude Code about a workspace/repository (read-only, no file modifications).
+Query the agent about a workspace/repository (read-only, no file modifications).
 
 **Request Payload:**
 
 | Field          | Type   | Required | Description                                                         |
 | -------------- | ------ | -------- | ------------------------------------------------------------------- |
 | `workspaceId`  | string | Yes      | The workspace ID to query                                           |
-| `question`     | string | Yes      | The question to ask Claude Code                                     |
+| `question`     | string | Yes      | The question to ask the agent                                       |
 | `context`      | string | No       | Additional context for the query                                    |
 | `sourceBranch` | string | No       | Optional override branch. Defaults to the workspace `targetBranch`. |
 | `callback`     | object | No       | Optional completion webhook config: `{ url, secret? }`              |
@@ -83,14 +83,14 @@ All requests are queued for background processing and return immediately with a 
 
 ### POST `/api/edit`
 
-Execute Claude Code edits with optional merge request creation.
+Execute agent edits with optional merge request creation.
 
 **Request Payload:**
 
 | Field          | Type    | Required | Description                                                                                         |
 | -------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
 | `workspaceId`  | string  | Yes      | The workspace ID to edit                                                                            |
-| `question`     | string  | Yes      | The edit instructions for Claude Code                                                               |
+| `question`     | string  | Yes      | The edit instructions for the agent                                                                 |
 | `context`      | string  | No       | Additional context for the edit                                                                     |
 | `sourceBranch` | string  | No       | Optional branch to commit to. If omitted (or equals target), a new branch is created automatically. |
 | `createMR`     | boolean | No       | Defaults to `false`. If `true`, a merge request may be created after pushing changes.               |
@@ -200,16 +200,16 @@ curl http://localhost:3000/api/jobs/2025-11-30T03-12-22Z-a1b2c3d4 \
 
 **Response Schema:**
 
-| Field         | Type   | Description                                                           |
-| ------------- | ------ | --------------------------------------------------------------------- |
-| `id`          | string | The job ID                                                            |
-| `type`        | string | Job type: `claude-code`, `git-push`, `git-mr`, or `workspace-cleanup` |
-| `status`      | string | Current status: `pending`, `processing`, `completed`, or `failed`     |
-| `createdAt`   | string | ISO-8601 timestamp when job was created                               |
-| `startedAt`   | string | ISO-8601 timestamp when processing started (if applicable)            |
-| `completedAt` | string | ISO-8601 timestamp when job completed (if applicable)                 |
-| `result`      | object | The job result (only present when status is `completed`)              |
-| `error`       | string | Error message (only present when status is `failed`)                  |
+| Field         | Type   | Description                                                                                                                                                                                                                                                       |
+| ------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | string | The job ID                                                                                                                                                                                                                                                        |
+| `type`        | string | Job type: `claude-code`, `git-push`, `git-mr`, or `workspace-cleanup`. **Note:** the literal string `claude-code` is preserved for on-disk compatibility with existing `data/jobs/` files; the Cursor SDK is the actual agent backend after the CLI decommission. |
+| `status`      | string | Current status: `pending`, `processing`, `completed`, or `failed`                                                                                                                                                                                                 |
+| `createdAt`   | string | ISO-8601 timestamp when job was created                                                                                                                                                                                                                           |
+| `startedAt`   | string | ISO-8601 timestamp when processing started (if applicable)                                                                                                                                                                                                        |
+| `completedAt` | string | ISO-8601 timestamp when job completed (if applicable)                                                                                                                                                                                                             |
+| `result`      | object | The job result (only present when status is `completed`)                                                                                                                                                                                                          |
+| `error`       | string | Error message (only present when status is `failed`)                                                                                                                                                                                                              |
 
 **Example Response (Processing):**
 
@@ -250,7 +250,7 @@ curl http://localhost:3000/api/jobs/2025-11-30T03-12-22Z-a1b2c3d4 \
   "createdAt": "2025-11-30T03:12:22.000Z",
   "startedAt": "2025-11-30T03:12:24.000Z",
   "completedAt": "2025-11-30T03:12:30.000Z",
-  "error": "Claude Code execution failed: timeout exceeded"
+  "error": "agent execution failed: timeout exceeded"
 }
 ```
 
@@ -264,7 +264,7 @@ All `/api/ask` and `/api/edit` requests are queued for background processing. Th
 
 This design:
 
-- Prevents HTTP request timeouts (Claude Code can run for minutes)
+- Prevents HTTP request timeouts (agent runs can take minutes)
 - Provides consistent API behavior (always async)
 - Prevents git conflicts by ensuring sequential processing
 - Allows the queue UI to show all operations
@@ -306,7 +306,7 @@ For **edit** jobs (`POST /api/edit`), the worker runs git actions **inside the j
 
 | Step | Action                 | Condition                              |
 | ---- | ---------------------- | -------------------------------------- |
-| 1    | Claude Code execution  | Always                                 |
+| 1    | agent execution        | Always                                 |
 | 2    | Check for file changes | Always                                 |
 | 3    | Commit changes         | If changes detected                    |
 | 4    | Push to remote branch  | If changes committed                   |
@@ -475,13 +475,13 @@ async function executeEdit(workspaceId, question, createMR = true) {
 
 ## Error Responses
 
-| Status | Error                        | Description                                |
-| ------ | ---------------------------- | ------------------------------------------ |
-| 400    | Missing required fields      | `workspaceId` or `question` not provided   |
-| 404    | Workspace not found          | The specified workspace does not exist     |
-| 404    | Job not found                | The specified job ID does not exist        |
-| 500    | Claude Code execution failed | Error during Claude Code execution         |
-| 503    | Claude Code not available    | Claude Code is not installed or accessible |
+| Status | Error                   | Description                                            |
+| ------ | ----------------------- | ------------------------------------------------------ |
+| 400    | Missing required fields | `workspaceId` or `question` not provided               |
+| 404    | Workspace not found     | The specified workspace does not exist                 |
+| 404    | Job not found           | The specified job ID does not exist                    |
+| 500    | agent execution failed  | Error during agent execution                           |
+| 503    | Agent not available     | Agent runtime is not configured (check CURSOR_API_KEY) |
 
 All error responses follow this format:
 

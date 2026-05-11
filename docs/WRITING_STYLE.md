@@ -1,5 +1,7 @@
 # Documentation Writing Style Guide
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 This guide provides detailed examples and patterns for writing project documentation. All documentation must follow these standards.
 
 ## Voice and Pronouns

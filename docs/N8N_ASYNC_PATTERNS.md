@@ -1,5 +1,7 @@
 # n8n Async Patterns (Option A vs Option B)
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 This document describes two production-ready patterns for integrating n8n with Omnidev’s legacy queued API (`/api/ask`, `/api/edit`).
 
 For API details (payloads, `jobId`, `/api/jobs/:jobId`), see `docs/API_OPERATIONS.md`.

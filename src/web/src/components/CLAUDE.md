@@ -42,16 +42,16 @@ React components built on HeroUI (formerly NextUI) with Tailwind CSS.
 
 ### Dashboard Tab Components
 
-| Component                 | Purpose                          |
-| ------------------------- | -------------------------------- |
-| `WorkspacesTab.tsx`       | Workspace listing and management |
-| `OperationsTab.tsx`       | Claude Code operations interface |
-| `SettingsTab.tsx`         | App settings configuration       |
-| `SnippetsTab.tsx`         | Code snippets management         |
-| `GitSourceConfigTab.tsx`  | Git source configuration         |
-| `AccountSecurityTab.tsx`  | 2FA and password settings        |
-| `ExecutionHistoryTab.tsx` | Claude execution log viewer      |
-| `QueueTab.tsx`            | Job queue status and management  |
+| Component                 | Purpose                                 |
+| ------------------------- | --------------------------------------- |
+| `WorkspacesTab.tsx`       | Workspace listing and management        |
+| `OperationsTab.tsx`       | Agent operations interface (ask / edit) |
+| `SettingsTab.tsx`         | App settings configuration              |
+| `SnippetsTab.tsx`         | Code snippets management                |
+| `GitSourceConfigTab.tsx`  | Git source configuration                |
+| `AccountSecurityTab.tsx`  | 2FA and password settings               |
+| `ExecutionHistoryTab.tsx` | Claude execution log viewer             |
+| `QueueTab.tsx`            | Job queue status and management         |
 
 ### Documentation Components
 

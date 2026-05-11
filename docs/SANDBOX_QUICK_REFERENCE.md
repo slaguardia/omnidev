@@ -1,5 +1,7 @@
 # Sandbox Quick Reference
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 Commands below use the **production** Compose container name `omnidev-app` (`container_name` in `docker/docker-compose.prod.yml`). In development the container is often `omnidev-dev`. Run `docker compose -f docker/docker-compose.yml ps` to see the actual name on your machine.
 
 ## TL;DR

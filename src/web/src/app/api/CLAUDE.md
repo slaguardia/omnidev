@@ -8,12 +8,12 @@ Next.js App Router API routes using route handlers.
 
 ### Core Operations
 
-| Endpoint         | Method   | Purpose                                | Auth Required |
-| ---------------- | -------- | -------------------------------------- | ------------- |
-| `/api/ask`       | POST     | Ask Claude Code a question (read-only) | Yes           |
-| `/api/edit`      | POST     | Ask Claude Code to make changes        | Yes           |
-| `/api/search`    | GET      | Search workspaces                      | Yes           |
-| `/api/claude-md` | GET/POST | Manage CLAUDE.md files in workspaces   | Yes           |
+| Endpoint         | Method   | Purpose                              | Auth Required |
+| ---------------- | -------- | ------------------------------------ | ------------- |
+| `/api/ask`       | POST     | Ask the agent a question (read-only) | Yes           |
+| `/api/edit`      | POST     | Ask the agent to make changes        | Yes           |
+| `/api/search`    | GET      | Search workspaces                    | Yes           |
+| `/api/claude-md` | GET/POST | Manage CLAUDE.md files in workspaces | Yes           |
 
 ### Job queue (legacy file-based)
 

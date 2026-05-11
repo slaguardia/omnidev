@@ -3,18 +3,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub](https://img.shields.io/github/stars/slaguardia/omnidev?style=social)](https://github.com/slaguardia/omnidev)
 
-A single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+A single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the [Cursor SDK](https://cursor.com/docs/sdk/typescript) for agent intelligence.
 
 ## What is Omnidev?
 
-Omnidev is a **developer automation platform** and **workflow orchestration runtime**. It provides a web UI for managing Git workspaces and integrating with Claude Code CLI for AI-powered code analysis and editing.
+Omnidev is a **developer automation platform** and **workflow orchestration runtime**. It provides a web UI for managing Git workspaces and runs a streaming agent (via the Cursor SDK) for AI-powered code analysis and editing — all execution stays on your hardware; only model inference round-trips to Cursor's cloud.
 
 | Attribute       | Description                                                    |
 | --------------- | -------------------------------------------------------------- |
 | Category        | Developer automation platform / workflow orchestration runtime |
 | Bot Model       | One bot identity spanning many workspaces                      |
 | Execution Scope | Workspace-scoped behavior, not bot-scoped                      |
-| AI Integration  | Bring your own Claude Code subscription                        |
+| AI Integration  | Bring your own Cursor plan via the Cursor SDK                  |
 | Deployment      | Cloud, VPS, or local — runs anywhere                           |
 
 ### What Omnidev is NOT
@@ -22,30 +22,33 @@ Omnidev is a **developer automation platform** and **workflow orchestration runt
 - Not a SaaS AI product
 - Not a multi-bot system
 - Not an AI model provider
-- Not a Claude Code replacement
+- Not a Cursor replacement
 
-## Claude Code Dependency
+## Cursor SDK Dependency
 
-Omnidev installs and orchestrates the publicly available Claude Code package. Users must have their own Claude account and active subscription. Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+Omnidev depends on the [`@cursor/sdk`](https://www.npmjs.com/package/@cursor/sdk) package and a valid Cursor API key. Users bring their own Cursor plan; Cursor models (`composer-2` and others) run remotely while tool execution (file edits, git ops, shell) happens locally in the worker. See [docs/CURSOR.md](docs/CURSOR.md) for auth + operational details.
 
 ### Responsibility Boundaries
 
-| Omnidev Handles                | Claude Code Handles    |
-| ------------------------------ | ---------------------- |
-| Workflow orchestration         | Code understanding     |
-| Event handling (GitHub/GitLab) | Command execution      |
-| Workspace scoping              | Research and reasoning |
-| Permission boundaries          | Repo-level operations  |
-| Integration lifecycle          |                        |
+| Omnidev Handles                | Cursor SDK Handles                 |
+| ------------------------------ | ---------------------------------- |
+| Workflow orchestration         | Model inference + tool dispatch    |
+| Event handling (GitHub/GitLab) | Decision making within a run       |
+| Workspace scoping              | Conversation + tool-call streaming |
+| Permission boundaries          |                                    |
+| Git lifecycle (clone/push/PR)  |                                    |
+| Integration lifecycle          |                                    |
+
+Local execution of git ops, push, and file edits means your credentials and source filesystem never leave your worker.
 
 ## Features
 
 - **Repository Management** — Clone and manage GitHub/GitLab repositories in isolated workspaces
-- **AI-Powered Analysis** — Integrate with Claude Code for intelligent code review and suggestions
+- **Streaming Agent** — Cursor SDK runs the agent loop with real-time tool-call events surfaced in the dashboard
 - **Natural Language Queries** — Ask questions about codebases in plain English
-- **Workspace Isolation** — Secure temporary workspace management
+- **Workspace Isolation** — Secure per-job temp workspaces with concurrency-safe scheduling
 - **Branch Automation** — Automatic branch creation for edits with PR/MR support
-- **Deploy Anywhere** — Cloud, VPS, or local Docker deployment
+- **Deploy Anywhere** — One-line VPS install (see [docs/INSTALL.md](docs/INSTALL.md)), Railway, Docker, or local
 
 ## Quick Start
 
@@ -54,8 +57,10 @@ Omnidev installs and orchestrates the publicly available Claude Code package. Us
 - Node.js 18.0.0 or higher
 - pnpm
 - Git
-- Claude Code CLI (users must have their own Claude subscription)
+- A Cursor API key (generate at <https://cursor.com/dashboard> — see [docs/CURSOR.md](docs/CURSOR.md))
 - Docker (optional, for containerized deployment)
+
+For a fully managed VPS install, skip the local setup and use the [one-line installer](docs/INSTALL.md).
 
 ### Installation
 
@@ -89,7 +94,7 @@ All configuration is managed through the web interface in the Settings tab:
 **Required:**
 
 - GitLab token and/or GitHub token for repository access (as needed for your remotes)
-- Claude Code CLI installed and authenticated on the host (bring-your-own subscription; see project documentation)
+- `CURSOR_API_KEY` set in the environment (see [docs/CURSOR.md](docs/CURSOR.md))
 
 **Optional:**
 
@@ -109,6 +114,7 @@ Required variables:
 ```env
 NEXTAUTH_SECRET=your-nextauth-secret-here
 NEXTAUTH_URL=http://localhost:3000
+CURSOR_API_KEY=cursor_sk_...
 ```
 
 Optional variables (also configurable via UI):
@@ -174,7 +180,7 @@ Read-only demo mode with no auth and no dashboard. For publishing a public-facin
 
 ### Docker Features
 
-- Ubuntu-based for full Claude Code compatibility
+- Ubuntu-based images with native build deps for `@cursor/sdk` + `better-sqlite3`
 - Multi-stage build for optimized production image
 - Runs as non-root user for security
 - Workspace data persistence via volumes
@@ -186,13 +192,14 @@ See [docs/DOCKER.md](docs/DOCKER.md) for detailed Docker documentation. For **Ra
 
 ### Core Components
 
-| Component                | Purpose                               |
-| ------------------------ | ------------------------------------- |
-| Workspace Manager        | CRUD for git workspaces               |
-| Repository Manager       | Git clone/branch operations           |
-| Claude Code Orchestrator | Execute Claude Code CLI               |
-| Job Queue                | Async job execution                   |
-| GitHub/GitLab API        | PR/MR creation, repository operations |
+| Component          | Purpose                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| Workspace Manager  | CRUD for git workspaces                                     |
+| Repository Manager | Git clone/branch operations                                 |
+| AgentRunner        | Streaming agent execution (`CursorSdkAgent` is the default) |
+| Worker             | In-process N-slot scheduler that runs concurrent agent jobs |
+| Job Queue          | Database-backed job claim (Postgres or SQLite) + heartbeat  |
+| GitHub/GitLab API  | PR/MR creation, repository operations                       |
 
 ### Type System
 
@@ -231,7 +238,8 @@ pnpm test:coverage  # With coverage report
 
 ## Security
 
-- Sandbox isolation for Claude Code execution
+- Per-job workspace isolation (clones live in scoped temp dirs, cleaned in `finally`)
+- Local-only execution of git ops + tool calls (credentials never leave the worker)
 - URL validation for repository cloning
 - Configurable workspace size limits
 - Token-based access control
@@ -249,7 +257,7 @@ When contributions open, they must:
 
 - Preserve single-bot assumptions
 - Avoid adding opinionated workflow coupling
-- Keep Claude Code as a dependency, not a fork
+- Keep the agent (`@cursor/sdk` today) a swappable `AgentRunner` dependency — never fork it
 - Maintain deploy-anywhere compatibility
 
 Any contribution that introduces bot multiplicity, hardcodes workflows, or assumes hosted execution will be treated as architecturally invalid unless explicitly approved.
@@ -279,7 +287,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## Acknowledgments
 
-- [Claude Code](https://claude.ai/code) — AI execution backend (bring your own subscription)
+- [Cursor SDK](https://cursor.com/docs/sdk/typescript) — agent backend (bring your own Cursor plan)
 - [GitLab](https://gitlab.com) / [GitHub](https://github.com) — Repository hosting
 - [Next.js](https://nextjs.org) — Application framework
 - [HeroUI](https://heroui.com) — UI components
@@ -287,4 +295,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ---
 
-Omnidev is an orchestration layer. Claude Code provides the intelligence. Users bring their own AI subscription.
+Omnidev is an orchestration layer. The Cursor SDK provides the intelligence. Users bring their own Cursor plan.

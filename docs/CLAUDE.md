@@ -6,7 +6,7 @@ This file establishes design principles and writing standards for Omnidev docume
 
 ### Project Identity
 
-**Omnidev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the user's own Claude Code subscription for intelligence and execution.
+**Omnidev** is a single developer bot orchestration runtime that spans many workspaces, adapts to user-defined workflows, runs anywhere, and uses the [Cursor SDK](https://cursor.com/docs/sdk/typescript) (the user's own Cursor plan) for agent intelligence.
 
 Omnidev is:
 
@@ -19,7 +19,7 @@ Omnidev is NOT:
 - A SaaS AI product
 - A multi-bot system
 - An AI model provider
-- A Claude Code replacement
+- A Cursor SDK replacement
 
 ### Project Philosophy
 
@@ -28,7 +28,7 @@ Omnidev adapts to developer workflows, not the other way around. The architectur
 Documentation should:
 
 - Acknowledge the single-bot model clearly
-- Explain the relationship to Claude Code (dependency, not partnership)
+- Explain the relationship to the Cursor SDK (dependency, not partnership)
 - Be clear about what the project does and does not support
 - Help users determine if this tool fits their workflow
 
@@ -89,29 +89,30 @@ Each technical doc should include:
 3. **Steps or reference** - Actionable content
 4. **Next steps** - Links to related documentation
 
-## Claude Code Dependency Disclosure
+## Cursor SDK Dependency Disclosure
 
 All public-facing documentation must include this disclosure:
 
 ```markdown
-## Claude Code Dependency
+## Cursor SDK Dependency
 
-Omnidev installs and orchestrates the publicly available Claude Code package.
-Users must have their own Claude account and active subscription.
-Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+Omnidev depends on the [`@cursor/sdk`](https://www.npmjs.com/package/@cursor/sdk)
+package and a valid Cursor API key. Users bring their own Cursor plan;
+the SDK is a product of Anysphere Inc. and is not affiliated with this project.
 ```
 
-### Relationship to Claude Code
+### Relationship to the Cursor SDK
 
-Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not replace, reimplement, or resell Claude Code.
+Omnidev uses the Cursor SDK as an agent runtime. Omnidev does not replace, reimplement, or resell Cursor. Cursor models run remotely (inference); tool execution and git operations stay local to the worker.
 
-| Omnidev Responsibilities | Claude Code Responsibilities |
-| ------------------------ | ---------------------------- |
-| Workflow orchestration   | Code understanding           |
-| Event handling           | Command execution            |
-| Workspace scoping        | Research and reasoning       |
-| Permission boundaries    | Repo-level operations        |
-| Integration lifecycle    |                              |
+| Omnidev Responsibilities      | Cursor SDK Responsibilities        |
+| ----------------------------- | ---------------------------------- |
+| Workflow orchestration        | Model inference + decision-making  |
+| Event handling                | Tool dispatch                      |
+| Workspace scoping             | Conversation + tool-call streaming |
+| Permission boundaries         |                                    |
+| Git lifecycle (clone/push/PR) |                                    |
+| Integration lifecycle         |                                    |
 
 ### Branding Guidelines
 
@@ -122,8 +123,8 @@ Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not 
 - "Workspace-scoped behavior"
 - "Orchestration layer / automation runtime"
 - "Bring your own AI"
-- "Orchestrates Claude Code for automated code analysis"
-- "Integrates with Claude Code CLI"
+- "Runs an agent via the Cursor SDK for code analysis and editing"
+- "Integrates with the Cursor SDK"
 
 **Avoid these patterns:**
 
@@ -131,7 +132,7 @@ Omnidev uses Claude Code as an execution and reasoning engine. Omnidev does not 
 - "Agent framework"
 - "AI platform"
 - "Hosted AI service"
-- "Claude replacement"
+- "Cursor replacement"
 - "Powered by Claude" (implies partnership)
 - "Built on Claude" (implies foundation/endorsement)
 - "Claude-native" (implies official status)
@@ -221,7 +222,7 @@ Documentation is NOT measured by:
 Before merging documentation changes:
 
 - [ ] No first-person pronouns ("I", "we", "our")
-- [ ] Claude Code dependency disclosure present (if public-facing)
+- [ ] Cursor SDK dependency disclosure present (if public-facing)
 - [ ] Branding guidelines followed
 - [ ] Code blocks contain only executable content
 - [ ] Links to related docs included

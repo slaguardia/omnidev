@@ -1,5 +1,7 @@
 # Current State — System Inventory
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 > Last updated: 2026-03-11
 
 This document captures a comprehensive inventory of the tasking and workflow engine as it exists today.

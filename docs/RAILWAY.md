@@ -7,9 +7,9 @@ Deploy Omnidev on [Railway](https://railway.app) using **two Docker images** and
 - **Web service:** `railway.json` → `dockerfilePath`: `src/web/Dockerfile`, `startCommand`: `sh src/web/scripts/railway-web.sh`.
 - **Worker service:** `railway.worker.json` → `dockerfilePath`: `src/worker/Dockerfile`, `startCommand`: `sh src/worker/scripts/railway-worker.sh`. In Railway → **worker service** → **Settings** → **Config as code**, set the file to **`railway.worker.json`** (Railway only auto-loads `railway.json` at the repo root for services that do not override it).
 
-## Claude Code Dependency
+## Cursor SDK Dependency
 
-Omnidev installs and orchestrates the publicly available Claude Code package. Users must have their own Claude account and active subscription. Claude Code is a product of Anthropic PBC and is not affiliated with this project.
+Omnidev depends on the [`@cursor/sdk`](https://www.npmjs.com/package/@cursor/sdk) package and a valid Cursor API key. Set **`CURSOR_API_KEY`** on **both** the web and worker services. See [docs/CURSOR.md](./CURSOR.md) for auth + operational details.
 
 ## Prerequisites
 
@@ -101,11 +101,12 @@ Without volumes, the container filesystem is **ephemeral**. **`railway.json` can
 
 **Railway allows one volume per service.** Two services means **two independent volumes** — the same mount path on web and worker is **not** shared data.
 
-| Path                       | Service                                | Purpose                                                                                                                                                                                                                                                                                         |
-| -------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`/app/data`**            | **Web**                                | Optional when **`DATABASE_URL`** is set: workflow metadata and discovery registry live in Postgres (`ralph_meta`); the legacy **`/api/ask`** / **`/api/edit`** file queue is off unless **`OMNIDEV_LEGACY_FILE_QUEUE=1`**. Omit this volume if the app can use ephemeral disk only (see below). |
-| **`/home/nextjs/.claude`** | **Web** (if chat uses Claude Code CLI) | Claude Code auth — **separate** volume from the worker; duplicate login or copy/bootstrap.                                                                                                                                                                                                      |
-| **`/home/nextjs/.claude`** | **Worker**                             | Claude Code auth for job runs (Ralph / coding-agent).                                                                                                                                                                                                                                           |
+| Path                  | Service    | Purpose                                                                                                                                                                                                                                                                                         |
+| --------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`/app/data`**       | **Web**    | Optional when **`DATABASE_URL`** is set: workflow metadata and discovery registry live in Postgres (`ralph_meta`); the legacy **`/api/ask`** / **`/api/edit`** file queue is off unless **`OMNIDEV_LEGACY_FILE_QUEUE=1`**. Omit this volume if the app can use ephemeral disk only (see below). |
+| **`/app/workspaces`** | **Worker** | Optional per-task workspace clones. The in-process scheduler keys clones by `(taskId, jobId)` under `/tmp/omnidev/`, but a persistent volume here is useful if you want post-mortem access to a failed job's working tree before cleanup runs.                                                  |
+
+The Cursor SDK uses **`CURSOR_API_KEY`** (an env var) instead of a volume-mounted credential file — no `~/.claude`-style volume is needed on either service.
 
 See `src/shared/docker/docker-entrypoint-common.sh` (sourced from `src/web/docker-entrypoint.sh` / `src/worker/docker-entrypoint.sh`; `HOME=/home/nextjs`) for layout parity with Docker Compose.
 
@@ -122,16 +123,10 @@ Entrypoint tuning (set on the **web** service if needed):
 
 **Dashboard:** Railway → **Service** → **Volumes** → **Add volume** → mount path as above.
 
-**CLI (worker volume example):** from a directory [linked](https://docs.railway.com/cli#linking) to the **worker** service:
+**CLI (data volume example):** from a directory [linked](https://docs.railway.com/cli#linking) to the **web** service:
 
 ```bash
-sh src/worker/scripts/railway-volume-worker.sh
-```
-
-Or explicitly:
-
-```bash
-railway volume add --mount-path /home/nextjs/.claude --service <worker-service-name>
+railway volume add --mount-path /app/data --service <web-service-name>
 ```
 
 See [`railway volume`](https://docs.railway.com/cli/volume).
@@ -141,8 +136,8 @@ Run **one replica** for the **web** service unless architecture explicitly suppo
 ## Two-service deploy (checklist)
 
 1. Create or use a **Railway project** with **PostgreSQL** (database plugin).
-2. **Web service:** connect this GitHub repo; root **`railway.json`** applies; set **`DATABASE_URL`** (reference to Postgres), **`NEXTAUTH_*`**, etc.; add volume **`/app/data`** if needed; optional **`/home/nextjs/.claude`** for chat.
-3. **Worker service:** **duplicate** the service or add a second service with the **same repo** (same root `railway.json`). Name it with **`worker`** in the name (e.g. **`omnidev-worker`**) or set **`OMNIDEV_RUN_WORKER=1`**. Set **`DATABASE_URL`** the same way as web. Add volume **`/home/nextjs/.claude`** for agent auth.
+2. **Web service:** connect this GitHub repo; root **`railway.json`** applies; set **`DATABASE_URL`** (reference to Postgres), **`NEXTAUTH_*`**, **`CURSOR_API_KEY`**, etc.; add volume **`/app/data`** if needed.
+3. **Worker service:** **duplicate** the service or add a second service with the **same repo** (same root `railway.json`). Name it with **`worker`** in the name (e.g. **`omnidev-worker`**) or set **`OMNIDEV_RUN_WORKER=1`**. Set **`DATABASE_URL`** and **`CURSOR_API_KEY`** the same way as web.
 4. Deploy **web** first (runs migrations), then deploy **worker**.
 
 ### Deploying both services on every push
@@ -189,45 +184,37 @@ With GitHub integration enabled, pushing to the connected branch also triggers b
 3. Open the URL, complete signup (with `INITIAL_SIGNUP_TOKEN` if required), enable **2FA**.
 4. Confirm the **worker** service logs show the poll loop and that **jobs** transition from pending to running (tasks moved to coding / Ralph stages).
 
-## Authenticating Claude Code (worker)
+## Authenticating the agent (CURSOR_API_KEY)
 
-The worker runs as the `nextjs` user (uid 1001) with `HOME=/home/nextjs`. The persistent volume at `/home/nextjs/.claude` stores Claude Code credentials across redeploys.
+The Cursor SDK uses an API key, not a credential file. Set **`CURSOR_API_KEY`** on both the web and worker services in Railway → **Service** → **Variables**.
 
-**Important:** When shelling into the container (`railway shell`), the session runs as **root** with `HOME=/root`. Running `claude` directly writes credentials to `/root/.claude`, which is **not** on the persistent volume and will be lost on the next deploy.
-
-Use the `claude-login` helper instead:
-
-```bash
-railway shell -s <worker-service-name>
-claude-login
+```
+CURSOR_API_KEY=cursor_sk_…
 ```
 
-This runs `claude` as the `nextjs` user with `HOME=/home/nextjs`, ensuring credentials land on the volume.
+Generate the key at <https://cursor.com/dashboard> → Integrations. For shared deployments, prefer a **Service Account API Key** from Team Settings over a personal key — rotation and audit are cleaner.
 
-Alternatively, set HOME manually:
+Rotation:
 
-```bash
-HOME=/home/nextjs claude
-```
+1. Generate a new key in the Cursor dashboard.
+2. Update **`CURSOR_API_KEY`** on the web and worker services in Railway.
+3. Trigger a redeploy (variables apply on next deploy).
+4. Revoke the old key in the Cursor dashboard.
 
-After authenticating, verify the credentials are on the volume:
-
-```bash
-ls -la /home/nextjs/.claude/
-```
+No volume mount required.
 
 ## Troubleshooting
 
-| Issue                                      | What to check                                                                                                                                                                                |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Build timeout                              | Retry; first Docker build is large. Increase patience or Railway plan limits.                                                                                                                |
-| Health check fails                         | Logs → confirm `node server.js` listens on `PORT`. `railway.json` timeout is 300s.                                                                                                           |
-| Worker idle / jobs stuck                   | Worker service not running or wrong start command; `DATABASE_URL` missing on worker; migrations never ran (check web deploy).                                                                |
-| Jobs run twice                             | Unlikely with Postgres; if using legacy single SQLite file on one box, do not run two writers.                                                                                               |
-| 403 from IP rules                          | `ALLOWED_IPS` too strict or wrong; unset temporarily.                                                                                                                                        |
-| Permission errors on `/app/data`           | Volume ownership vs `nextjs` user; see Railway volume docs.                                                                                                                                  |
-| Sign-in shows “first account” after deploy | Ephemeral disk or multiple web replicas without shared `/app/data`. Add a volume for `/app/data`, scale web to one instance, recreate the first user if the file was lost.                   |
-| Claude Code auth lost after redeploy       | Credentials were written to `/root/.claude` instead of `/home/nextjs/.claude`. Use `claude-login` to re-authenticate (see [Authenticating Claude Code](#authenticating-claude-code-worker)). |
+| Issue                                            | What to check                                                                                                                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build timeout                                    | Retry; first Docker build is large. Increase patience or Railway plan limits.                                                                                              |
+| Health check fails                               | Logs → confirm `node server.js` listens on `PORT`. `railway.json` timeout is 300s.                                                                                         |
+| Worker idle / jobs stuck                         | Worker service not running or wrong start command; `DATABASE_URL` missing on worker; migrations never ran (check web deploy).                                              |
+| Jobs run twice                                   | Unlikely with Postgres; if using legacy single SQLite file on one box, do not run two writers.                                                                             |
+| 403 from IP rules                                | `ALLOWED_IPS` too strict or wrong; unset temporarily.                                                                                                                      |
+| Permission errors on `/app/data`                 | Volume ownership vs `nextjs` user; see Railway volume docs.                                                                                                                |
+| Sign-in shows “first account” after deploy       | Ephemeral disk or multiple web replicas without shared `/app/data`. Add a volume for `/app/data`, scale web to one instance, recreate the first user if the file was lost. |
+| Agent runs fail with "CURSOR_API_KEY is not set" | The variable is missing on the worker (or web). Set it on each service (Variables tab) and redeploy. See [docs/CURSOR.md](./CURSOR.md).                                    |
 
 ## PostgreSQL
 

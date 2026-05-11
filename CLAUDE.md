@@ -11,7 +11,7 @@
 | Type            | Task → agent → PR pipeline (default workflow)                   |
 | Architecture    | 3 layers: API (Next.js) / State (Database) / Execution (Worker) |
 | Execution Model | Single-user, self-hostable, deploy-anywhere                     |
-| AI Integration  | Agent-agnostic (Claude Code is the default, swappable)          |
+| AI Integration  | Agent-agnostic (Cursor SDK is the default, swappable)           |
 | Workflow Model  | Modular — users define triggers, steps, and outputs             |
 
 ### What Omnidev Is NOT
@@ -20,7 +20,7 @@
 - Not an agent framework — agents are plugged in, not built here
 - Not an AI model provider — users bring their own CLI authentication
 - Not a multi-tenant system — single user, single bot identity
-- Not a Claude Code replacement or reimplementation
+- Not a Cursor SDK replacement or reimplementation
 
 ### Core Philosophy
 
@@ -108,36 +108,38 @@ The system MUST NOT couple to any specific AI tool. The agent is one step in a c
 ### Interface
 
 ```typescript
-// src/shared/src/lib/agent/claude-code-agent.ts
+// src/shared/src/lib/agent/types.ts
 interface AgentRunnerOptions {
   question: string;
   workingDirectory: string;
   editRequest: boolean;
   extraEnv?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
-interface AgentRunnerResult {
-  output: string;
-}
+// Discriminated union: assistant_message | thinking | tool_call |
+// tool_result | usage_update | done | error. Each event carries a per-run
+// monotonic seq + ISO timestamp.
+type AgentEvent = /* ... */;
 
 interface AgentRunner {
-  run(options: AgentRunnerOptions): Promise<AgentRunnerResult>;
+  run(options: AgentRunnerOptions): AsyncIterable<AgentEvent>;
 }
 ```
 
 ### Current Implementation
 
-`ClaudeCodeAgent` — wraps the Claude Code CLI. Users pre-authenticate Claude Code manually. No API keys are managed by Omnidev.
+`CursorSdkAgent` — wraps `@cursor/sdk` and runs the agent loop in-process. Inference round-trips to Cursor's cloud; tool execution (file edits, git ops, shell) stays local. Users supply `CURSOR_API_KEY`; see `docs/CURSOR.md`.
 
 ### Swappability Rule
 
-Any future agent (OpenClaw, custom loops, other CLIs) must be usable by implementing `AgentRunner`. No changes to the pipeline, database, or API should be required to swap agents.
+Any future agent (other SDKs, custom loops) must be usable by implementing `AgentRunner`. No changes to the pipeline, database, or API should be required to swap agents.
 
 ### AI Agent Rules
 
 AI agents interacting with this project must:
 
-- Never describe Omnidev as "Claude Code itself"
+- Never describe Omnidev as "the Cursor SDK itself"
 - Never assume Omnidev owns or provides AI intelligence
 - Clearly separate orchestration logic from AI execution
 
@@ -304,7 +306,7 @@ workflow/
 │   │       ├── api/                 # API utilities and Zod validation
 │   │       ├── auth/                # Authentication middleware
 │   │       ├── chat/                # Chat module
-│   │       ├── claudeCode/          # Claude Code CLI integration
+│   │       ├── claudemd/            # Workspace CLAUDE.md file I/O
 │   │       ├── config/              # Configuration management
 │   │       ├── db/                  # Prisma client + DB helpers
 │   │       ├── git/                 # Git operations (simple-git)
@@ -440,7 +442,7 @@ The application runs in Docker with the agent CLI sandboxed for security.
 | `docker/docker-compose.prod.yml`                                   | Production overrides (healthcheck)                                         |
 | `src/web/docker-entrypoint.sh` + `src/worker/docker-entrypoint.sh` | Production entry (sources `src/shared/docker/docker-entrypoint-common.sh`) |
 | `src/web/docker-entrypoint-dev.sh`                                 | Dev container entry (compose)                                              |
-| `claude-code-wrapper.sh`                                           | Sandboxed agent CLI execution (repo root)                                  |
+| `install.sh`                                                       | One-line VPS installer (see `docs/INSTALL.md`)                             |
 | `railway.json`                                                     | Railway web service config (Dockerfile + start command)                    |
 | `railway.worker.json`                                              | Railway worker service config                                              |
 | `src/web/scripts/railway-web.sh`                                   | Railway web start (wait for Postgres, migrate, serve)                      |

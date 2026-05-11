@@ -1,3 +1,7 @@
+# Sandbox Architecture
+
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 ## Overview
 
 This document describes the sandboxing architecture implemented to isolate Claude Code from sensitive system executables while allowing the main application to retain full access to these tools.

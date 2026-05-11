@@ -14,7 +14,7 @@
 
 ### Faster builds (Railway / CI)
 
-`src/web/Dockerfile` uses **BuildKit cache mounts** (`# syntax=docker/dockerfile:1.4`): shared **pnpm store** between the `deps` and `prod-deps` stages, **Next.js** cache under `src/web/.next`, **apt** package caches, and **npm** global cache for `pnpm` / `@anthropic-ai/claude-code`. The **first** build on a cold builder still does full compile and install; **repeated** builds benefit most when the platform reuses cache layers and cache mounts. Ensure the builder uses **BuildKit** (default on current Docker and most hosted builders).
+`src/web/Dockerfile` uses **BuildKit cache mounts** (`# syntax=docker/dockerfile:1.4`): shared **pnpm store** between the `deps` and `prod-deps` stages, **Next.js** cache under `src/web/.next`, **apt** package caches, and **npm** global cache for `pnpm`. The **first** build on a cold builder still does full compile and install; **repeated** builds benefit most when the platform reuses cache layers and cache mounts. Ensure the builder uses **BuildKit** (default on current Docker and most hosted builders).
 
 ## Quick Start
 
@@ -167,89 +167,47 @@ GITLAB_URL=https://gitlab.com
 GITLAB_TOKEN=your_gitlab_token_here
 ```
 
-**Claude Code Configuration:**
+**Cursor SDK Configuration:**
 
 ```bash
-# Optional override for the sandbox wrapper path used to run Claude Code non-interactively
-CLAUDE_CODE_WRAPPER=/usr/local/bin/claude-code-wrapper
+# Required — the agent fails to start without this. Generate at
+# https://cursor.com/dashboard → Integrations.
+CURSOR_API_KEY=cursor_sk_…
 ```
 
-## Claude Code Authentication
+## Cursor SDK Authentication
 
-Omnidev exclusively uses Claude Code CLI subscription authentication. No API key is needed. Users must log in to the Claude CLI once inside the container.
+The Cursor SDK uses an **API key** — no interactive login, no credential
+volume. Set `CURSOR_API_KEY` on the container's environment and the agent
+authenticates on every run.
 
-### One-time manual login inside Docker
+### Generating a key
 
-1. Exec into the running container:
+1. Go to <https://cursor.com/dashboard> → **Integrations** (or **Team
+   Settings → Service Accounts** for shared deployments — recommended).
+2. Copy the `cursor_sk_…` value.
+3. Set it on the container, either by adding it to your `.env` file
+   (Docker Compose picks it up automatically) or by passing
+   `-e CURSOR_API_KEY=...` to `docker run`.
 
-   ```bash
-   docker compose -f docker/docker-compose.yml exec app bash
-   ```
-
-2. Run an **interactive** Claude CLI session and follow the prompts (it will typically print a URL + code):
-
-   ```bash
-   claude --help
-   # Start interactive mode (this is the most version-stable way to complete auth + trust):
-   claude
-   ```
-
-3. Exit and restart the app container:
-
-   ```bash
-   exit
-   docker compose -f docker/docker-compose.yml restart app
-   ```
-
-### Persisting the login across rebuilds/restarts
-
-Claude Code stores its auth + settings under `~/.claude` inside the container.
-`docker/docker-compose.yml` mounts a named volume so your login persists:
-
-- `/home/nextjs/.claude` (the app runs as the `nextjs` user)
-- `/root/.claude` (if you exec into the container as root and run `claude`, it may write here)
-
-**Important:** Claude also writes a `~/.claude.json` file in the user's home directory.
-The container startup scripts migrate this file into `~/.claude/.claude.json` and symlink it back,
-so it persists in the same named volume across restarts.
-
-#### MCP server authentication (OAuth not supported)
-
-This project currently supports **only token/API-key based MCP auth** (for example, setting an `Authorization: Bearer <token>` header on the MCP server entry).
-
-**OAuth-based MCP servers are not supported yet** (i.e. flows that require a browser login + redirect/callback to exchange codes for tokens). If you need an MCP integration, prefer providers that support **static tokens** (or manually issued API keys).
-
-If you want a single consistent location, log in as `nextjs` (recommended):
+### Verifying the key reaches the worker
 
 ```bash
-docker compose -f docker/docker-compose.yml exec --user nextjs app bash
-cd /app/workspaces
-claude
+docker compose -f docker/docker-compose.yml exec worker env | grep CURSOR_API_KEY
 ```
 
-#### Trusted directory (important)
+If the value is missing or wrong, every agent run terminates immediately
+with an unrecoverable `error` event containing `"CURSOR_API_KEY is not set"`.
 
-When Claude prompts you to "trust" a directory, do it from the directory you want Claude to operate in.
-For this app, that's typically **`/app/workspaces`** (or a specific repo under it).
+### Rotation
 
-**Important nuance:** this app typically runs Claude Code in **non-interactive** mode using `-p/--print` (and `--output-format stream-json`).
-Per the Claude CLI help, **the workspace trust dialog is skipped in `-p` mode**, which is why "headless" commands can appear to work even if you haven't completed the interactive trust/setup flow yet.
+1. Generate a fresh key in the Cursor dashboard.
+2. Update `CURSOR_API_KEY` in your `.env` (or platform's secret store).
+3. `docker compose -f docker/docker-compose.yml up -d` to apply (variables
+   take effect on container restart).
+4. Revoke the old key in the dashboard.
 
-If you want to "do it the right way" once and have it persist, run an **interactive** Claude session (no `-p`) from `/app/workspaces` and complete the trust prompt once:
-
-```bash
-docker compose -f docker/docker-compose.yml exec --user nextjs app bash
-cd /app/workspaces
-# run any claude command once to trigger the trust prompt if needed
-claude
-```
-
-To "log out" / reset Claude CLI credentials, remove the volume (this deletes the stored login):
-
-```bash
-docker compose -f docker/docker-compose.yml down
-docker volume rm workflow_workflow_claude_config
-```
+See [docs/CURSOR.md](./CURSOR.md) for the full operational reference.
 
 ### Advanced Configuration
 

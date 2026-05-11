@@ -1,10 +1,10 @@
 # Merge Request / Pull Request Automation
 
-This document explains how the merge request (GitLab) and pull request (GitHub) creation functionality works after Claude Code makes edits to your repository.
+This document explains how the merge request (GitLab) and pull request (GitHub) creation functionality works after the agent makes edits to your repository.
 
 ## Overview
 
-The system can create merge requests (GitLab) or pull requests (GitHub) after Claude Code makes changes to your workspace. The provider is automatically detected from the repository URL.
+The system can create merge requests (GitLab) or pull requests (GitHub) after the agent makes changes to your workspace. The provider is automatically detected from the repository URL.
 
 For edit requests submitted via `POST /api/edit` with `createMR: true`, git workflow + MR/PR creation runs **inside the queue job**.
 
@@ -56,7 +56,7 @@ The system automatically detects your git provider from the repository URL:
 
 ### Automated MR/PR Creation
 
-After Claude Code completes any changes to your workspace:
+After the agent completes any changes to your workspace:
 
 1. **Change Detection**: The system checks if any files were modified
 2. **Auto Commit**: Changes are automatically committed
@@ -91,7 +91,7 @@ const result = await createMergeRequest({
   description: 'Your detailed description of changes',
   sourceBranch: 'feature-branch',
   targetBranch: 'main',
-  labels: ['enhancement', 'claude-code'],
+  labels: ['enhancement', 'omnidev'],
 });
 ```
 
@@ -159,7 +159,7 @@ The system gracefully handles errors:
 }
 ```
 
-**If MR/PR creation fails but Claude Code succeeds:**
+**If MR/PR creation fails but the agent run succeeds:**
 
 ```json
 {
@@ -213,7 +213,7 @@ The system gracefully handles errors:
 
 6. **"No current branch found"**
    - Ensure you're on a feature branch (not detached HEAD)
-   - Claude Code will create a new branch if needed
+   - The worker will create a new branch if needed
 
 ## Deprecated Features
 

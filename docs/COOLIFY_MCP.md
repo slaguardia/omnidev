@@ -1,5 +1,7 @@
 # Coolify: Use remote MCP servers from the same container
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 Goal: use MCP servers from this Coolify deployment (where Claude Code runs inside the container).
 
 This setup uses **remote MCP servers** (hosted by the provider), and Claude Code makes **outbound** HTTPS calls to them.

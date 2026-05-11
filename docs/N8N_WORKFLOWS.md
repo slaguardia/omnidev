@@ -1,5 +1,7 @@
 # n8n Workflow Integration
 
+> **Legacy note:** This document was written before the Cursor SDK migration. It may reference the removed Claude Code CLI integration, the `claudeCode/` directory, or sandbox-wrapper patterns that no longer apply. The Cursor SDK is the only agent backend today — see [docs/CURSOR.md](./CURSOR.md) for current setup. Sections below are preserved as historical context.
+
 This guide covers how to integrate Omnidev with n8n for automated task processing.
 
 For long-running requests and recommended designs (Option A vs Option B), see `docs/N8N_ASYNC_PATTERNS.md`.
