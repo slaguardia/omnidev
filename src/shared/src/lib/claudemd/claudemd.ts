@@ -1,7 +1,20 @@
 'use server';
 
-import { promises as fs } from 'fs';
-import path from 'path';
+/**
+ * Read / write / delete the workspace's CLAUDE.md file.
+ *
+ * CLAUDE.md is the per-workspace agent context document — read by the agent
+ * at run time, edited by users through the dashboard's Claude MD tab.
+ * Despite the historical name, this file works with any AgentRunner: the
+ * Cursor SDK respects per-workspace AGENT.md / CLAUDE.md conventions the
+ * same way the deleted Claude Code CLI did.
+ *
+ * Lives in its own `lib/claudemd/` module (was previously co-located with
+ * the deleted CLI integration under `lib/claudeCode/`).
+ */
+
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 interface FetchClaudeMDContentResponse {
   content: string | null;
@@ -20,10 +33,8 @@ export async function getClaudeMDContent(): Promise<FetchClaudeMDContentResponse
     return { content, fileExists: true };
   } catch (error) {
     if (error instanceof Error && error.message.includes('ENOENT')) {
-      // File does not exist
       return { content: null, fileExists: false };
     }
-    // Other errors
     throw error;
   }
 }

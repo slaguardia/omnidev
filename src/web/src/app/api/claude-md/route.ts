@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth/get-server-session';
 import { authOptions } from '@/lib/auth/nextauth-options';
-import { deleteClaudeMdContent, saveClaudeMdContent } from '@/lib/claudeCode/claudemd';
+import { deleteClaudeMdContent, saveClaudeMdContent } from '@/lib/claudemd';
 
 // Save the CLAUDE.md file content
 export async function POST(request: NextRequest) {

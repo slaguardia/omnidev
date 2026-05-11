@@ -6,8 +6,7 @@
  */
 
 import type { AgentRunRequest, AgentRunner } from '@/lib/agent';
-import { CursorSdkAgent } from '@/lib/agent';
-import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/claudeCode';
+import { CursorSdkAgent, handlePostExecution, initializeGitWorkflow } from '@/lib/agent';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import * as WorkspaceManagerFunctions from '@/lib/managers/workspace-manager';
 import type { FilePath, GitUrl, CommitHash, WorkspaceId } from '@/lib/types/index';
@@ -308,7 +307,7 @@ export async function executeClaudeCodeJob(
     console.log(`[JOB] Processing post-execution git operations...`);
 
     try {
-      const postResult = await handlePostClaudeCodeExecution(
+      const postResult = await handlePostExecution(
         workspaceRoot,
         gitInitResult,
         payload.repoUrl as GitUrl,
@@ -454,7 +453,7 @@ export async function executeGitMRJob(
   console.log(`[JOB] Starting MR creation job`);
 
   // Use post-execution handler which already handles MR creation
-  const result = await handlePostClaudeCodeExecution(
+  const result = await handlePostExecution(
     payload.workspacePath as FilePath,
     payload.gitInitResult as GitInitResult,
     payload.repoUrl as GitUrl

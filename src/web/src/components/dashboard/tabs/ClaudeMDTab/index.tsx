@@ -12,7 +12,7 @@ import { addToast } from '@heroui/toast';
 import ReactMarkdown from 'react-markdown';
 import { Link } from '@heroui/link';
 import RenderExampleModal, { EXAMPLE_CLAUDE_CONTENT } from './RenderExampleModal';
-import { getClaudeMDContent } from '@/lib/claudeCode/claudemd';
+import { getClaudeMDContent } from '@/lib/claudemd';
 import { LabelWithTooltip } from '@/components/LabelWithTooltip';
 
 export default function ClaudeMDTab() {

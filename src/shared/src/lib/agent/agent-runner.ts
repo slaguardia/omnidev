@@ -13,7 +13,11 @@
 
 import { nanoid } from 'nanoid';
 
-import { handlePostClaudeCodeExecution, initializeGitWorkflow } from '@/lib/claudeCode';
+// Import directly from sibling modules (not the barrel) so test files can
+// mock these helpers without pulling in CursorSdkAgent and its @cursor/sdk
+// transitive deps via the @/lib/agent re-export.
+import { initializeGitWorkflow } from './git-workflow';
+import { handlePostExecution } from './post-execution';
 import { dbAppendAgentEvent, dbUpdateAgentRunSummary } from '@/lib/managers/ralph-task-db';
 import type { GitInitResult } from '@/lib/managers/repository-manager';
 import type { GitUrl, Result } from '@/lib/types/index';
@@ -151,7 +155,7 @@ export async function executeAgentRun(
     if (gitInitResult && request.git?.repoUrl) {
       console.log(`${LOG_PREFIX} Post-execution git ops for ${tag}`);
       try {
-        const postResult = await handlePostClaudeCodeExecution(
+        const postResult = await handlePostExecution(
           request.workspacePath,
           gitInitResult,
           request.git.repoUrl as GitUrl,

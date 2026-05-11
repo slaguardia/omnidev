@@ -1,5 +1,14 @@
 /**
- * Git workflow initialization utilities
+ * Pre-edit git workflow initialization.
+ *
+ * Used by executeAgentRun (agent-runner.ts) and the legacy queue handler
+ * (queue/job-handlers.ts) to prepare a workspace for an agent edit run —
+ * ensures the workspace manager is initialized, resolves the source branch,
+ * and decides whether the run should create an MR/PR on completion.
+ *
+ * Lives in lib/agent/ because its only consumers are the agent execution
+ * orchestrators. Was previously under lib/claudeCode/ before the Claude
+ * Code CLI decommission.
  */
 
 import {
@@ -8,15 +17,26 @@ import {
   GitInitResult,
 } from '@/lib/managers/repository-manager';
 import { initializeWorkspaceManager } from '@/lib/managers/workspace-manager';
-import type { AsyncResult } from '@/lib/types/index';
-import type { GitWorkflowOptions } from '@/lib/claudeCode/types';
+import type { AsyncResult, WorkspaceId } from '@/lib/types/index';
 
-// Re-export for convenience (GitBranchWorkflowResult is the same type)
 export type { GitInitResult };
 export type GitBranchWorkflowResult = GitInitResult;
 
+export interface GitWorkflowOptions {
+  workspaceId: WorkspaceId;
+  /** Optional. If omitted, the workflow uses the workspace targetBranch as the base. */
+  sourceBranch?: string;
+  /**
+   * Whether to create a merge/pull request when the agent finishes.
+   * If false and sourceBranch === targetBranch, commits directly to that branch.
+   */
+  createMR?: boolean;
+}
+
 /**
- * Initialize git workflow for a workspace
+ * Initialize git workflow for a workspace. Boots the workspace manager,
+ * loads persisted workspaces, then delegates to the repository manager's
+ * branch-setup routine.
  */
 export async function initializeGitWorkflow(
   options: GitWorkflowOptions
@@ -24,7 +44,6 @@ export async function initializeGitWorkflow(
   const { workspaceId, sourceBranch, createMR } = options;
 
   try {
-    // Initialize workspace manager
     const initResult = await initializeWorkspaceManager();
     if (!initResult.success) {
       return {
@@ -33,7 +52,6 @@ export async function initializeGitWorkflow(
       };
     }
 
-    // Load workspaces from storage
     const loadResult = await loadAllWorkspacesFromStorage();
     if (!loadResult.success) {
       return {
@@ -42,7 +60,6 @@ export async function initializeGitWorkflow(
       };
     }
 
-    // Initialize git workflow
     console.log('[GIT WORKFLOW] Initializing git workflow for workspace:', workspaceId);
     return await initializeGitWorkflowFunction(workspaceId, sourceBranch, createMR);
   } catch (error) {

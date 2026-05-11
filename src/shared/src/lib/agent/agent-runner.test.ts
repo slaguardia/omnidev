@@ -28,11 +28,15 @@ vi.mock('@/lib/managers/ralph-task-db', () => ({
   }),
 }));
 
-// Stub out the claudeCode + git modules — we don't exercise them from these
-// tests (editMode=false and no artifact disable those branches).
-vi.mock('@/lib/claudeCode', () => ({
-  handlePostClaudeCodeExecution: vi.fn(),
+// Stub the git workflow + post-execution helpers — we don't exercise them
+// from these tests (editMode=false and no artifact disable those branches).
+// Mock the direct sibling-module paths so we don't bring in CursorSdkAgent
+// (and its @cursor/sdk transitive deps) via the @/lib/agent barrel.
+vi.mock('./git-workflow', () => ({
   initializeGitWorkflow: vi.fn(),
+}));
+vi.mock('./post-execution', () => ({
+  handlePostExecution: vi.fn(),
 }));
 
 beforeEach(() => {
