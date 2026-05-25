@@ -10,17 +10,27 @@ Create detailed local task files that are clear, actionable, and suitable for im
 **End goal:** Local JSON task files with a feature definition (feature.json) and sub-task files (stories/US-XXX.json).
 
 - **Feature file:** Feature design only - Summary, Out of Scope, Technical Considerations. NO acceptance criteria, NO open questions.
-- **Story files:** User stories with acceptance criteria. Each is independently implementable.
+- **Story files:** User stories with dependencies and acceptance criteria. Each is independently implementable.
+
+## Detect Task Type
+
+Not every request is a multi-story feature. Determine whether this is:
+
+- **Single task:** A focused piece of work with no sub-parts. Create a feature with one story (US-001).
+- **Feature with sub-issues:** A larger body of work that decomposes into multiple stories.
+
+Both produce the same file structure — a single task is just a feature with one story.
 
 ## The Job
 
 1. Receive a feature description from the user (or existing feature ID to edit)
 2. **If existing feature ID provided:** Read existing task files first, review what's already planned
 3. Ask 3-5 essential clarifying questions (with lettered options)
-4. Generate a structured task set with multiple user stories
+4. Generate a structured task set with user stories (one or many)
 5. Show draft to user - **they can say what's missing**
 6. Save feature.json and story files to `.tasks/` directory
 7. Return the feature ID and path
+8. **Remind the user** to run `/acceptance-criteria FEAT-xxx` before `/ship`
 
 ## Step 1: Clarifying Questions
 
@@ -88,6 +98,8 @@ Each user story becomes its own JSON file:
     "Another criterion",
     "[UI changes] Verify visual behavior in simulator"
   ],
+  "acceptanceChecks": [],
+  "acceptanceType": null,
   "dependencies": [],
   "status": "todo",
   "createdAt": "ISO timestamp",
@@ -96,6 +108,17 @@ Each user story becomes its own JSON file:
 }
 ```
 
+#### Field reference
+
+| Field | Set by | Purpose |
+|---|---|---|
+| `acceptanceCriteria` | `/interactive-planning` | Human-readable criteria (planning produces initial set) |
+| `acceptanceChecks` | `/acceptance-criteria` | Machine-executable commands (left empty during planning) |
+| `acceptanceType` | `/acceptance-criteria` | `"automated"` or `"human"` (left null during planning) |
+| `dependencies` | `/interactive-planning` | Array of story IDs this story depends on (e.g., `["US-001"]`) |
+
+**Planning creates the structure. `/acceptance-criteria` fills in the verification details. `/ship` executes.**
+
 ### User Story Guidelines
 
 - Each story should be independently implementable
@@ -103,12 +126,21 @@ Each user story becomes its own JSON file:
 - Number stories sequentially (US-001, US-002, etc.)
 - Stories should be small enough to complete in one focused session
 
+### Dependency Guidelines
+
+- Use `dependencies` to express ordering constraints between stories
+- A story with `dependencies: ["US-001"]` cannot start until US-001 is complete
+- Stories with no dependencies (or whose dependencies are all met) can run in parallel
+- Keep the dependency graph shallow — deep chains limit parallelization
+- If two stories touch the same files but don't logically depend on each other, note that in the story description rather than adding a hard dependency
+
 ### Acceptance Criteria Standards
 
 - Must be verifiable (not "works correctly")
 - Include edge cases and error states
 - For UI changes: "Verify [specific visual/behavior] in simulator"
 - For data changes: "Confirm [state before/after]"
+- Planning produces initial criteria; `/acceptance-criteria` refines them into testable checks
 
 ## Step 3: Review with User
 
@@ -151,6 +183,7 @@ Create the directory structure and write JSON files:
 
 Before saving the task files:
 
+- [ ] Determined task type (single task vs. feature with sub-issues)
 - [ ] Asked clarifying questions with lettered options
 - [ ] Incorporated user's answers
 - [ ] Created feature.json with Summary, Out of Scope, Technical Considerations
@@ -158,5 +191,15 @@ Before saving the task files:
 - [ ] Each story is small enough to implement in one focused session
 - [ ] Each story follows "As a [user], I want [X] so that [Y]" format
 - [ ] Each story has specific, verifiable acceptance criteria
+- [ ] Dependencies between stories are declared (or explicitly empty)
+- [ ] `acceptanceChecks` and `acceptanceType` are present (empty/null — filled by `/acceptance-criteria`)
 - [ ] Showed draft to user for feedback
 - [ ] User confirmed or provided additions
+
+## Next Steps (remind the user)
+
+After planning is complete, remind the user:
+
+> "Tasks saved to `.tasks/FEAT-xxx/`. Next steps:
+> 1. Run `/acceptance-criteria FEAT-xxx` to generate testable verification checks
+> 2. Run `/ship FEAT-xxx` to execute"
